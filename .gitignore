@@ -1,0 +1,29 @@
+# Solo se versiona el software: backend, frontend y el README.
+# Todo lo demás de esta carpeta (documentos de la tesis, análisis en .md, respaldos de la base) queda fuera.
+/*
+!/backend/
+!/frontend/
+!/README.md
+!/.gitignore
+
+# Dependencias y archivos generados
+node_modules/
+dist/
+dev-dist/
+coverage/
+*.log
+
+# Configuración local y secretos (usar backend/.env.example como plantilla)
+.env
+.env.*
+!.env.example
+
+# Respaldos de la base de datos
+*.dump
+*.sql.gz
+
+# Sistema operativo y editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

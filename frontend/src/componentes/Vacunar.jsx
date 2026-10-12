@@ -1,0 +1,267 @@
+// "Vacunar ahora": registro guiado en pasos para personal con poca experiencia en el celular.
+//   1. ¿Qué vacunas le puso hoy?  (las que le tocan, marcadas; se toca para quitar)
+//   2. ¿Por qué no se puso…?      (solo si quitó alguna: botones grandes = oportunidad perdida, OPS)
+//   3. ¡Listo!                    (qué anotar en el carné y en el cuaderno)
+import { useEffect, useMemo, useState } from 'react';
+import {
+  BookOpen, CalendarCheck, Check, CheckCircle2, ChevronLeft, ClipboardList, HeartPulse, PackageX, Thermometer, UserX, Clock, HelpCircle, Syringe,
+} from 'lucide-react';
+import { api } from '../api.js';
+import { useCatalogo } from './useCatalogo.js';
+import { Modal, Mensaje } from './ui.jsx';
+import { catalogoGuardado, encolar } from './fueraDeLinea.js';
+import { fecha, hoy } from '../util.js';
+
+// Fecha corta para el lote (31/03/27): el texto completo no cabía en el celular
+const fechaCorta = (f) => fecha(f).replace(/\/(\d{2})(\d{2})$/, '/$2');
+const MANUAL = 'manual';
+
+/** Producto que se aplica para una dosis del esquema (la hexavalente cubre Penta y Polio del mismo número). */
+function productoPara(d) {
+  switch (d.serieCodigo) {
+    case 'HB_RN': return 'HB_PED';
+    case 'BCG': return 'BCG';
+    case 'ROTA': return 'ROTA';
+    case 'NEUMO': return 'NEUMO';
+    case 'SPR': case 'SPR_CERO': return 'SPR';
+    case 'INFLUENZA': return 'INFL_PED';
+    case 'VARICELA': return 'VARICELA';
+    case 'DPT_HIB_HB': return d.numero >= 5 ? 'DPT' : 'HEXA';
+    case 'POLIO': return d.numero >= 5 ? 'OPV' : 'HEXA';
+    default: return null;
+  }
+}
+
+/** Agrupa las dosis que le tocan en "tarjetas de vacuna": una hexavalente = Penta n + Polio n. */
+function agrupar(dosis, productos) {
+  const tarjetas = [];
+  for (const d of dosis) {
+    const codigo = productoPara(d);
+    const producto = productos.find((p) => p.codigo === codigo);
+    if (!producto) continue;
+    const t = codigo === 'HEXA' && tarjetas.find((x) => x.codigo === 'HEXA' && x.numero === d.numero);
+    if (t) { t.dosis.push(d); continue; }
+    tarjetas.push({ clave: `${codigo}-${d.esquemaDosisId}`, codigo, numero: d.numero, producto, dosis: [d] });
+  }
+  return tarjetas;
+}
+
+const MOTIVOS = [
+  { id: 'falsa_contraindicacion', texto: 'Tiene gripe, tos o calentura leve', ayuda: 'Ojo: esto no impide vacunar', icono: Thermometer },
+  { id: 'contraindicacion', texto: 'Está enfermo de verdad', ayuda: 'Contraindicación médica', icono: HeartPulse },
+  { id: 'desabastecimiento', texto: 'No hay vacuna hoy', ayuda: 'Se terminó en el servicio', icono: PackageX },
+  { id: 'rechazo', texto: 'La mamá no quiso', ayuda: 'El responsable no aceptó', icono: UserX },
+  { id: 'posterga_personal', texto: 'Se pondrá otro día', ayuda: 'Por muchas inyecciones u otra razón', icono: Clock },
+  { id: 'otro', texto: 'Otro motivo', ayuda: '', icono: HelpCircle },
+];
+
+export default function Vacunar({ ninoId, nombre, esquema, jornadaId, fechaDefecto, sinVacunar = false, onCerrar, onTerminado }) {
+  const productos = useCatalogo('productos');
+  const establecimientos = useCatalogo('establecimientos');
+  const tarjetas = useMemo(() => agrupar(esquema.leTocaHoy, productos), [esquema.leTocaHoy, productos]);
+  const [paso, setPaso] = useState(1);
+  // Vacunas que la persona tocó. Normalmente tocar = quitar; si vino sin vacunarse, tocar = sí se la puso.
+  const [tocadas, setTocadas] = useState(() => new Set());
+  // Lote elegido por vacuna: 'id:<n>' (lote registrado) o texto escrito a mano si no hay lotes registrados
+  const [lotes, setLotes] = useState({});
+  const [lotesRegistrados, setLotesRegistrados] = useState([]);
+  useEffect(() => { api('/lotes').then(setLotesRegistrados).catch(() => setLotesRegistrados(catalogoGuardado('lotes'))); }, []);
+  const [motivos, setMotivos] = useState({});
+  const [guardando, setGuardando] = useState(false);
+  const [resultado, setResultado] = useState(null);
+
+  const fechaAplicacion = fechaDefecto && fechaDefecto < hoy() ? fechaDefecto : hoy();
+  const establecimientoId = establecimientos.find((e) => e.es_local)?.id || establecimientos[0]?.id || null;
+  const estaQuitada = (t) => (sinVacunar ? !tocadas.has(t.clave) : tocadas.has(t.clave));
+  const alternar = (t) => setTocadas((s) => {
+    const n = new Set(s);
+    if (n.has(t.clave)) n.delete(t.clave); else n.add(t.clave);
+    return n;
+  });
+  const aplicar = tarjetas.filter((t) => !estaQuitada(t));
+  const noAplicar = tarjetas.filter(estaQuitada);
+  const faltaMotivo = noAplicar.some((t) => !motivos[t.clave]);
+  // Lotes vigentes de la vacuna el día de la aplicación; el primero es el que vence antes
+  const lotesDe = (t) => lotesRegistrados.filter((l) => l.producto_id === t.producto.id && l.fecha_vencimiento >= fechaAplicacion);
+  const loteElegido = (t) => lotes[t.clave] ?? (lotesDe(t)[0] ? `id:${lotesDe(t)[0].id}` : '');
+  const [escritos, setEscritos] = useState({});
+  const datosLote = (t) => {
+    const v = loteElegido(t);
+    if (v.startsWith('id:')) return { lote_id: Number(v.slice(3)) };
+    return { lote: v === MANUAL || !lotesDe(t).length ? (escritos[t.clave] || '').trim() : '' };
+  };
+
+  async function guardar() {
+    setGuardando(true);
+    const hechas = [], errores = [];
+    let ultima = null, sinConexion = 0;
+    // En jornada, sin señal: el registro queda en el teléfono y se envía solo al volver la conexión
+    const enCola = (ruta, body, descripcion) => {
+      encolar({ ruta, method: 'POST', body, descripcion, tipo: ruta.endsWith('/visitas') ? 'visita' : 'aplicacion', jornada_id: jornadaId, nino_id: Number(ninoId) });
+      sinConexion++;
+    };
+    for (const t of aplicar) {
+      const body = {
+        producto_id: t.producto.id, fecha_aplicacion: fechaAplicacion, ...datosLote(t), establecimiento_id: establecimientoId,
+        modo: 'atencion', jornada_id: jornadaId || null,
+      };
+      try {
+        const r = await api(`/ninos/${ninoId}/aplicaciones`, { method: 'POST', body });
+        hechas.push({ nombre: t.producto.nombre, dosis: r.dosis, donde: r.dondeAnotar.texto });
+        ultima = r;
+      } catch (e) {
+        if (e.sinRed && jornadaId) {
+          enCola(`/ninos/${ninoId}/aplicaciones`, body, `${nombre} · ${t.producto.nombre}`);
+          hechas.push({ nombre: t.producto.nombre, dosis: t.dosis.map((d) => d.etiqueta), donde: 'su fila del cuaderno, como siempre (la columna exacta se verá en la ficha al enviar)' });
+        } else errores.push(`${t.producto.nombre}: ${e.message}`);
+      }
+    }
+    if (noAplicar.length) {
+      const body = {
+        fecha: fechaAplicacion, establecimiento_id: establecimientoId, jornada_id: jornadaId || null,
+        no_aplicadas: noAplicar.flatMap((t) => t.dosis.map((d) => ({ esquema_dosis_id: d.esquemaDosisId, motivo: motivos[t.clave] }))),
+      };
+      try {
+        await api(`/ninos/${ninoId}/visitas`, { method: 'POST', body });
+      } catch (e) {
+        if (e.sinRed && jornadaId) enCola(`/ninos/${ninoId}/visitas`, body, `${nombre} · motivo de no vacunar`);
+        else errores.push(`No se pudo guardar el motivo: ${e.message}`);
+      }
+    }
+    // Próxima cita actualizada aunque no se haya aplicado nada
+    let cita = ultima ? { proximaCita: ultima.proximaCita, vacunas: ultima.proximaCitaVacunas } : null;
+    if (!cita) {
+      const e = await api(`/ninos/${ninoId}/esquema`).catch(() => null);
+      if (e) cita = { proximaCita: e.proximaCita, vacunas: e.proximaCitaVacunas };
+    }
+    setResultado({ hechas, errores, cita, sinConexion, advertencias: ultima?.advertencias || [] });
+    setPaso(3);
+    setGuardando(false);
+  }
+
+  const siguiente = () => (noAplicar.length ? setPaso(2) : guardar());
+  const pasos = noAplicar.length ? 3 : 2;
+  const pasoVisible = paso === 3 ? pasos : paso;
+
+  const barra = (
+    <div className="pasos-barra" aria-hidden="true">
+      {Array.from({ length: pasos }, (_, i) => <span key={i} className={i + 1 < pasoVisible ? 'hecho' : i + 1 === pasoVisible ? 'actual' : ''} />)}
+    </div>
+  );
+
+  if (paso === 3 && resultado) {
+    const r = resultado;
+    return (
+      <Modal titulo={nombre} className="modal-completo" onCerrar={() => onTerminado(r)}
+        pie={<button className="btn btn-primario btn-grande" style={{ flex: 1 }} onClick={() => onTerminado(r)}><Check size={20} />Terminar</button>}>
+        <div className="confirmacion">
+          <div className="sello"><CheckCircle2 size={46} /></div>
+          <h2>{r.hechas.length ? `¡Listo! Se ${r.hechas.length === 1 ? 'guardó 1 vacuna' : `guardaron ${r.hechas.length} vacunas`}` : 'Se guardó la visita'}</h2>
+          {noAplicar.length > 0 && <p className="suave" style={{ marginTop: '.35rem' }}>También quedó anotado por qué no se puso {noAplicar.length === 1 ? 'una vacuna' : `${noAplicar.length} vacunas`}.</p>}
+          <div className="nota-papel">
+            {r.cita?.proximaCita && (
+              <div><CalendarCheck size={22} /><span>Anote en el carné la <strong>próxima cita</strong>:
+                <span className="cita-grande">{fecha(r.cita.proximaCita)}</span>{r.cita.vacunas.join(', ')}</span></div>
+            )}
+            {r.hechas.map((h) => (
+              <div key={h.nombre}><BookOpen size={20} /><span><strong>{h.nombre}</strong> ({h.dosis.join(' y ')}). Anote en: {h.donde}.</span></div>
+            ))}
+          </div>
+          {r.sinConexion > 0 && (
+            <Mensaje tipo="aviso" className="mt">Sin señal: quedó guardado en este teléfono y se enviará solo cuando vuelva la conexión. No borre los datos del navegador.</Mensaje>
+          )}
+          {r.advertencias.length > 0 && <Mensaje tipo="aviso" className="mt">{r.advertencias.join(' ')}</Mensaje>}
+          {r.errores.length > 0 && <Mensaje tipo="error" className="mt"><strong>No se guardó:</strong><ul>{r.errores.map((e) => <li key={e}>{e}</li>)}</ul></Mensaje>}
+        </div>
+      </Modal>
+    );
+  }
+
+  if (paso === 2) {
+    return (
+      <Modal titulo={nombre} className="modal-completo" onCerrar={onCerrar}
+        pie={(
+          <>
+            <button className="btn btn-grande" onClick={() => setPaso(1)}><ChevronLeft size={20} />Atrás</button>
+            <button className="btn btn-primario btn-grande" style={{ flex: 1 }} disabled={faltaMotivo || guardando} onClick={guardar}>
+              {guardando ? 'Guardando…' : <><Check size={20} />Guardar</>}
+            </button>
+          </>
+        )}>
+        {barra}
+        <div className="paso-titulo">Paso 2 de {pasos}</div>
+        {noAplicar.map((t) => (
+          <div key={t.clave} style={{ marginBottom: '1.25rem' }}>
+            <p className="paso-pregunta">¿Por qué no se puso {t.producto.nombre}?</p>
+            <div className="opciones dos">
+              {MOTIVOS.map((m) => (
+                <button key={m.id} type="button" className={`opcion ${motivos[t.clave] === m.id ? 'marcada' : ''}`}
+                  onClick={() => setMotivos({ ...motivos, [t.clave]: m.id })} aria-pressed={motivos[t.clave] === m.id}>
+                  <span className="ic"><m.icono size={20} /></span>
+                  <span>{m.texto}{m.ayuda && <small>{m.ayuda}</small>}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal titulo={nombre} className="modal-completo" onCerrar={onCerrar}
+      pie={(
+        <>
+          <button className="btn btn-grande" onClick={onCerrar}>Cancelar</button>
+          <button className={`btn btn-grande ${aplicar.length ? 'btn-verde' : 'btn-primario'}`} style={{ flex: 1 }} disabled={!tarjetas.length || guardando} onClick={siguiente}>
+            {guardando ? 'Guardando…' : noAplicar.length ? 'Siguiente' : <><Check size={20} />Guardar {aplicar.length === 1 ? '1 vacuna' : `${aplicar.length} vacunas`}</>}
+          </button>
+        </>
+      )}>
+      {barra}
+      <div className="paso-titulo">Paso 1 de {pasos}</div>
+      <p className="paso-pregunta">{sinVacunar ? '¿Se le puso alguna vacuna?' : '¿Qué vacunas le puso hoy?'}</p>
+      <p className="suave" style={{ marginTop: '-.5rem', marginBottom: '1rem', fontSize: '.88rem' }}>
+        {sinVacunar ? 'Toque las que sí se puso. Las demás quedan como no aplicadas.' : 'Están marcadas las que le tocan. Toque una para quitarla si no se la puso.'}
+      </p>
+      {!tarjetas.length ? (
+        <Mensaje tipo="info">Hoy no le toca ninguna vacuna. Use el menú ⋯ de la ficha («Otra vacuna o dato del carné») para registrar algo distinto.</Mensaje>
+      ) : (
+        <div className="vacunas-marcar">
+          {tarjetas.map((t) => {
+            const marcada = !estaQuitada(t);
+            const atrasada = t.dosis.some((d) => d.estado === 'atrasada');
+            return (
+              <div key={t.clave} className={`vacuna-marcar ${marcada ? 'marcada' : ''}`} onClick={() => alternar(t)} role="checkbox" aria-checked={marcada}
+                tabIndex={0} onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); alternar(t); } }}>
+                <span className="caja">{marcada && <Check size={20} strokeWidth={3} />}</span>
+                <strong><Syringe size={16} style={{ verticalAlign: '-2px', color: 'var(--celeste-2)' }} /> {t.producto.nombre}</strong>
+                <span className={`det ${atrasada ? 'rojo' : ''}`}>
+                  {t.dosis.map((d) => d.etiqueta).join(' + ')}{atrasada && ` · atrasada ${Math.max(...t.dosis.map((d) => d.diasAtraso || 0))} días`}
+                </span>
+                {marcada && lotesDe(t).length > 0 && (
+                  <select value={loteElegido(t)} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}
+                    onChange={(e) => setLotes({ ...lotes, [t.clave]: e.target.value })} aria-label={`Lote de ${t.producto.nombre}`}>
+                    {lotesDe(t).map((l) => (
+                      <option key={l.id} value={`id:${l.id}`}>{l.codigo} · vence {fechaCorta(l.fecha_vencimiento)}{l.estado === 'por_vencer' ? ' ⚠' : ''}</option>
+                    ))}
+                    <option value={MANUAL}>Escribir otro lote…</option>
+                    <option value="">Sin lote</option>
+                  </select>
+                )}
+                {marcada && (!lotesDe(t).length || loteElegido(t) === MANUAL) && (
+                  <input placeholder="Número de lote (opcional)" value={escritos[t.clave] || ''} onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()} autoFocus={loteElegido(t) === MANUAL}
+                    onChange={(e) => setEscritos({ ...escritos, [t.clave]: e.target.value })} aria-label={`Número de lote de ${t.producto.nombre}`} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <p className="tenue" style={{ marginTop: '1rem' }}>
+        <ClipboardList size={13} style={{ verticalAlign: '-2px' }} /> Fecha: {fecha(fechaAplicacion)}{jornadaId ? ' · en jornada' : ''}
+      </p>
+    </Modal>
+  );
+}
