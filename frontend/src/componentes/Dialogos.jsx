@@ -1,6 +1,6 @@
 // Diálogos propios (en lugar de prompt/confirm del navegador) y avisos flotantes.
 import { createContext, useCallback, useContext, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, HelpCircle, X, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, HelpCircle, Info, X, XCircle } from 'lucide-react';
 import { Modal } from './ui.jsx';
 
 const Ctx = createContext(null);
@@ -53,13 +53,13 @@ function Dialogo({ d, onFin }) {
     e.preventDefault();
     if (esTexto) { if (texto.trim() || d.opcional) onFin(texto.trim()); } else onFin(true);
   };
-  const Ic = d.peligro ? AlertTriangle : HelpCircle;
+  const Ic = d.peligro ? AlertTriangle : d.sinCancelar ? Info : HelpCircle;
 
   return (
     <Modal chico titulo={d.titulo} onCerrar={cancelar} onSubmit={aceptar}
       pie={(
         <>
-          <button type="button" className="btn" onClick={cancelar}>Cancelar</button>
+          {!d.sinCancelar && <button type="button" className="btn" onClick={cancelar}>Cancelar</button>}
           <button className={`btn ${d.peligro ? 'btn-peligro-lleno' : 'btn-primario'}`} disabled={esTexto && !d.opcional && !texto.trim()} autoFocus={!esTexto}>
             {d.aceptar || 'Aceptar'}
           </button>

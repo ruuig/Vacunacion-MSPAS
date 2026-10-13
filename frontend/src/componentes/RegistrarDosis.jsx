@@ -5,11 +5,6 @@ import { useCatalogo } from './useCatalogo.js';
 import { Campo, Mensaje, Modal } from './ui.jsx';
 import { hoy } from '../util.js';
 
-const MODOS = {
-  atencion: { nombre: 'Atención de hoy', ayuda: 'Las reglas de edad e intervalo bloquean el registro si no se cumplen.' },
-  cuaderno: { nombre: 'Desde cuaderno', ayuda: 'Carga histórica del cuaderno: las reglas solo advierten.' },
-  antecedente: { nombre: 'Antecedente', ayuda: 'Dosis aplicada en otro servicio (carné): las reglas solo advierten.' },
-};
 
 const PRODUCTO_SERIE = {
   HB_RN: 'HB_PED', BCG: 'BCG', ROTA: 'ROTA', NEUMO: 'NEUMO', SPR: 'SPR', SPR_CERO: 'SPR', INFLUENZA: 'INFL_PED',
@@ -39,16 +34,18 @@ export default function RegistrarDosis({ ninoId, esquema, columna, serieSugerida
   const parametros = useCatalogo('parametros');
   const dosisSugerida = serieSugerida && esquema.leTocaHoy.find((d) => d.serieCodigo === serieSugerida);
 
-  const [modo, setModo] = useState(columna && !['le_toca', 'atrasada'].includes(
-    esquema.dosis.find((d) => d.esquemaDosisId === columna.esquema_dosis_id)?.estado) ? 'cuaderno' : 'atencion');
   const [form, setForm] = useState({ producto: '', fecha_aplicacion: fechaDefecto && fechaDefecto < hoy() ? fechaDefecto : hoy(), lote: '', establecimiento_id: '', formulacion: '', observacion: '' });
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
+  const establecimientoId = form.establecimiento_id || (establecimientos[0] ? String(establecimientos[0].id) : '');
+  // Las reglas se aplican según lo que pasó, sin pedirle a la persona que elija un «modo»:
+  // hoy aquí = atención (bloquea si no corresponde); otro día aquí = digitado del cuaderno; en otro lugar = antecedente del carné
+  const externo = establecimientos.find((x) => String(x.id) === establecimientoId)?.es_local === false;
+  const modo = externo ? 'antecedente' : form.fecha_aplicacion < hoy() ? 'cuaderno' : 'atencion';
   const codigoSugerido = productoSugerido({ columna, serie: serieSugerida, numero: dosisSugerida?.numero, modo });
   const producto = productos.find((p) => (form.producto ? String(p.id) === form.producto : p.codigo === codigoSugerido));
-  const establecimientoId = form.establecimiento_id || (establecimientos[0] ? String(establecimientos[0].id) : '');
   const formulacion = form.formulacion || columna?.formulacion || parametros.influenza_formulacion || '';
   const usarColumna = columna && modo !== 'atencion';
 
@@ -75,20 +72,13 @@ export default function RegistrarDosis({ ninoId, esquema, columna, serieSugerida
   }
 
   return (
-    <Modal titulo="Registrar dosis" onCerrar={onCerrar} onSubmit={guardar}
-      sub={titulo || (columna ? `Columna del cuaderno: ${columna.grupo} ${columna.etiqueta}` : 'Seleccione la vacuna aplicada')}
+    <Modal titulo={titulo || 'Registrar vacuna'} onCerrar={onCerrar} onSubmit={guardar}
       pie={(
         <>
           <button type="button" className="btn" onClick={onCerrar}>Cancelar</button>
-          <button className="btn btn-primario" disabled={guardando || !producto}><Save size={17} />{guardando ? 'Guardando…' : 'Guardar dosis'}</button>
+          <button className="btn btn-primario" disabled={guardando || !producto}><Save size={17} />{guardando ? 'Guardando…' : 'Guardar'}</button>
         </>
       )}>
-      <div className="segmentado" role="tablist">
-        {Object.entries(MODOS).map(([k, m]) => (
-          <button type="button" key={k} className={modo === k ? 'activa' : ''} onClick={() => setModo(k)}>{m.nombre}</button>
-        ))}
-      </div>
-      <p className="tenue" style={{ margin: '.6rem 0 1.1rem' }}>{MODOS[modo].ayuda}</p>
 
       <div className="rejilla">
         <Campo etiqueta="Vacuna" requerido className="ancho">
@@ -99,7 +89,7 @@ export default function RegistrarDosis({ ninoId, esquema, columna, serieSugerida
             ))}
           </select>
         </Campo>
-        <Campo etiqueta="Fecha de aplicación" requerido>
+        <Campo etiqueta="¿Cuándo se la pusieron?" requerido>
           <input type="date" required max={hoy()} value={form.fecha_aplicacion} onChange={set('fecha_aplicacion')} />
         </Campo>
         <Campo etiqueta="Lote"><input value={form.lote} onChange={set('lote')} placeholder="Ej. A12B34" /></Campo>
@@ -110,9 +100,9 @@ export default function RegistrarDosis({ ninoId, esquema, columna, serieSugerida
             </select>
           </Campo>
         )}
-        <Campo etiqueta="Establecimiento">
+        <Campo etiqueta="¿Dónde?">
           <select value={establecimientoId} onChange={set('establecimiento_id')}>
-            {establecimientos.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
+            {establecimientos.map((x) => <option key={x.id} value={x.id}>{x.es_local ? x.nombre : 'En otro lugar (anotado en el carné)'}</option>)}
           </select>
         </Campo>
         <Campo etiqueta="Observación" className="ancho">

@@ -1,7 +1,7 @@
 // Suplementación del niño (vitamina A, micronutrientes espolvoreados y desparasitante), por grupo de edad
 // como en la página del cuaderno; con botón para registrar lo que se entrega hoy.
 import { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, Check, Clock, Pill } from 'lucide-react';
+import { Check, CheckCircle2, ChevronDown, Clock, Pill } from 'lucide-react';
 import { api } from '../api.js';
 import { useDialogos } from './Dialogos.jsx';
 import { Mensaje, Modal, Tarjeta } from './ui.jsx';
@@ -9,42 +9,58 @@ import { fecha, hoy } from '../util.js';
 
 const GRUPOS = [['6_11', '6 a 11 meses', 'lila'], ['12_23', '1 año a menor de 2', 'durazno'], ['24_35', '2 años a menor de 3', 'verde']];
 const ESTADO = {
-  aplicada: ['Entregado', Check], le_toca: ['Le toca', Pill], proxima: ['Próximo', Clock], pendiente: ['Programado'],
-  en_espera: ['Espera la anterior'], no_dada: ['No se entregó', AlertCircle], no_aplica: ['Ya no alcanza'],
+  aplicada: ['Entregado el', Check], le_toca: ['Le toca desde el', Pill], proxima: ['Le toca desde el', Clock], pendiente: ['Le toca desde el'],
+  en_espera: ['Después de la anterior'], no_dada: ['No se dio a esa edad'], no_aplica: ['Ya no alcanza a esa edad'],
 };
 
-export default function SuplementosNino({ ninoId, operativo }) {
+export default function SuplementosNino({ ninoId, operativo, siempre = false }) {
   const { avisar } = useDialogos();
   const [datos, setDatos] = useState(null);
   const [entregar, setEntregar] = useState(false);
+  const [verPasadas, setVerPasadas] = useState(false);
   const cargar = useCallback(() => { api(`/suplementos/nino/${ninoId}`).then(setDatos).catch(() => setDatos({ dosis: [], historial: [] })); }, [ninoId]);
   useEffect(cargar, [cargar]);
   if (!datos) return null;
   const tocan = datos.dosis.filter((d) => d.estado === 'le_toca');
-  // Solo los grupos de edad que ya empezaron o empiezan pronto, y los que tienen algo registrado
-  const visibles = GRUPOS.filter(([g]) => datos.dosis.some((d) => d.grupo === g && d.estado !== 'pendiente'));
-  if (!visibles.length) return null;
+  // Edades que ya pasaron (nada pendiente) se resumen en una línea; se muestran las que están en curso o vienen pronto
+  const deGrupo = (g) => datos.dosis.filter((d) => d.grupo === g);
+  const pasada = (g) => deGrupo(g).every((d) => ['aplicada', 'no_dada', 'no_aplica'].includes(d.estado));
+  const empezada = (g) => deGrupo(g).some((d) => d.estado !== 'pendiente');
+  const pasadas = GRUPOS.filter(([g]) => pasada(g) && empezada(g));
+  const visibles = GRUPOS.filter(([g]) => empezada(g) && (!pasada(g) || verPasadas));
+  if (!pasadas.length && !visibles.length) return siempre ? <Tarjeta titulo="Suplementación" icono={Pill}><p className="tenue">Empieza a los 6 meses.</p></Tarjeta> : null;
 
   return (
     <Tarjeta titulo="Suplementación" icono={Pill} cuerpo={false}
-      sub="Vitamina A, micronutrientes espolvoreados y desparasitante"
       acciones={operativo && tocan.length > 0 && (
         <button className="btn btn-verde btn-sm no-imprimir" onClick={() => setEntregar(true)}><Pill size={15} />Entregar ({tocan.length})</button>
       )}>
       <div className="carne-edad">
+        {pasadas.length > 0 && (
+          <button type="button" className="carne-completas" onClick={() => setVerPasadas(!verPasadas)} aria-expanded={verPasadas}>
+            <CheckCircle2 size={20} />
+            <span><strong>{pasadas.map(([, n]) => n).join(', ')}</strong> · {datos.dosis.filter((d) => pasada(d.grupo) && d.estado === 'aplicada').length} entregados</span>
+            <ChevronDown size={18} className={verPasadas ? 'girada' : ''} />
+          </button>
+        )}
         {visibles.map(([g, nombre, color]) => (
           <div key={g} className={`franja-edad franja-${color}`}>
             <div className="franja-nombre">{nombre}</div>
             <div className="franja-dosis">
               {datos.dosis.filter((d) => d.grupo === g).map((d) => {
                 const [texto, Ic] = ESTADO[d.estado] || [d.estado];
-                const estadoCss = { no_dada: 'atrasada', no_aplica: 'no_aplicable' }[d.estado] || d.estado;
+                // Lo que ya no se puede dar va en gris, no en rojo: no hay nada que hacer con eso
+                const estadoCss = { no_dada: 'no_aplicable', no_aplica: 'no_aplicable' }[d.estado] || d.estado;
+                const conFecha = ['aplicada', 'le_toca', 'proxima', 'pendiente'].includes(d.estado);
+                const tocable = operativo && d.estado === 'le_toca';
+                const Cont = tocable ? 'button' : 'div';
                 return (
-                  <div key={d.id} className={`dosis-carne estado-${estadoCss}`}>
+                  <Cont key={d.id} type={tocable ? 'button' : undefined} className={`dosis-carne estado-${estadoCss} ${tocable ? 'tocable' : ''}`}
+                    onClick={tocable ? () => setEntregar(true) : undefined}>
                     <span className="dc-cab"><span className="dc-etq">{d.etiqueta}</span>{Ic && <Ic size={15} strokeWidth={2.6} className="dc-ic" />}</span>
-                    <strong className="dc-fecha">{d.fecha ? fecha(d.fecha) : d.programada ? fecha(d.programada) : '—'}</strong>
                     <span className="dc-est">{texto}</span>
-                  </div>
+                    {conFecha && <strong className="dc-fecha">{fecha(d.fecha || d.programada)}</strong>}
+                  </Cont>
                 );
               })}
             </div>

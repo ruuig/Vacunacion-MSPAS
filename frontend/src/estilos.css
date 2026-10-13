@@ -1675,3 +1675,66 @@ label.btn.deshabilitado { opacity: .55; pointer-events: none; }
 .responsable-lugar { display: flex; align-items: center; gap: .4rem; margin: -.5rem 0 1rem; font-size: .88rem; color: var(--suave); }
 .responsable-lugar strong { color: var(--marino); }
 .control-barra > select { flex: 1 1 260px; }
+
+/* ==========================================================================
+   Ficha del niño (rediseño): encabezado limpio, «hoy» con fichas de vacunas,
+   carné que resume lo completo, casillas tocables e historial por visita
+   ========================================================================== */
+.ficha .ficha-cab { align-items: flex-start; }
+.ficha-nombre { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+.ficha-nombre h1 { font-size: 1.45rem; }
+.ficha-resumen { display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; margin: .3rem 0 .55rem; color: var(--suave); font-size: .95rem; }
+.ficha-resumen b { color: var(--marino); font-size: 1.05rem; }
+.ficha-mama { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; font-size: .9rem; color: var(--suave); }
+.ficha-mama strong { color: var(--texto); }
+.ficha-mama-botones { display: inline-flex; gap: .35rem; }
+.ficha-ver-datos { display: inline-flex; align-items: center; gap: .25rem; margin-top: .5rem; font-size: .8rem; }
+.ficha-datos { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .4rem 1rem; margin: .6rem 0 0; padding: .7rem .9rem;
+  background: var(--superficie-2); border-radius: 12px; }
+.ficha-datos dt { font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--tenue); }
+.ficha-datos dd { margin: 0; font-weight: 700; font-size: .86rem; color: var(--texto); }
+.girada { transform: rotate(180deg); transition: transform .15s; }
+.fichas-hoy { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .35rem; }
+.ficha-vacuna { font-size: .78rem; font-weight: 800; padding: .25rem .6rem; border-radius: 999px; background: #fff; border: 2px solid var(--borde); color: var(--marino); }
+.ficha-vacuna.atrasada { border-color: var(--rojo-borde); color: var(--rojo); }
+.ficha-vacuna.le_toca { border-color: #9fcdec; color: var(--celeste-2); }
+
+.carne-completas { display: flex; align-items: center; gap: .6rem; width: 100%; padding: .8rem 1rem; border-radius: 14px; cursor: pointer; text-align: left;
+  font: inherit; font-size: .9rem; color: var(--verde); background: var(--verde-bg); border: 2px solid #b5e2c8; border-bottom-width: 4px; }
+.carne-completas span { flex: 1; color: var(--texto); }
+.carne-completas strong { color: var(--verde); }
+.dosis-carne.tocable { cursor: pointer; }
+.dosis-carne.tocable:hover { border-color: var(--celeste); box-shadow: 0 0 0 3px rgba(74, 155, 214, .15); }
+.dosis-carne.tocable:active { transform: translateY(1px); }
+.dc-est { order: 1; }
+.dc-fecha { order: 2; }
+.dc-extra { order: 3; font-size: .68rem; font-weight: 700; color: var(--celeste-2); }
+.dosis-carne.estado-atrasada .dc-extra { color: var(--rojo); }
+.dosis-carne .dc-cab { order: 0; }
+
+.linea-visitas { list-style: none; margin: 0; padding: .4rem 1.4rem 1rem; }
+.linea-visitas > li { position: relative; padding: .8rem 0 .8rem 1.4rem; border-left: 2px solid var(--borde); }
+.linea-visitas > li::before { content: ''; position: absolute; left: -7px; top: 1.05rem; width: 12px; height: 12px; border-radius: 50%; background: var(--verde); box-shadow: 0 0 0 3px #fff; }
+.lv-cab { display: flex; gap: .6rem; align-items: baseline; flex-wrap: wrap; }
+.lv-cab strong { color: var(--marino); }
+.lv-cab .tenue { font-size: .8rem; }
+.lv-vacunas { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .5rem; }
+.lv-vacuna { display: inline-flex; align-items: center; gap: .3rem; padding: .35rem .3rem .35rem .7rem; border-radius: 12px; background: var(--superficie-2);
+  border: 1px solid var(--borde); font-size: .84rem; font-weight: 700; color: var(--texto); }
+.lv-vacuna small { display: block; font-size: .7rem; font-weight: 600; color: var(--tenue); }
+.lv-vacuna small.rojo { color: var(--rojo); }
+.lv-vacuna.anulada > span { text-decoration: line-through; opacity: .6; }
+.lv-vacuna .menu-mas .btn { min-height: 30px; width: 30px; padding: 0; border-bottom-width: 2px; }
+@media (max-width: 900px) {
+  .ficha-nombre h1 { font-size: 1.2rem; }
+  .ficha .ficha-cab .acciones { position: absolute; top: .8rem; right: .8rem; }
+  .ficha .ficha-cab { position: relative; padding-right: 7rem; }
+  .linea-visitas { padding: .4rem 1rem 1rem; }
+}
+@media print {
+  .linea-visitas > li::before { display: none; }
+  .lv-vacuna { border: 1px solid #999; }
+}
+@media screen { .ficha-datos.solo-imprimir { display: none; } }
+.carne-completas.lejanas { color: var(--suave); background: var(--superficie-2); border-color: var(--borde); }
+.carne-completas.lejanas strong { color: var(--marino); }

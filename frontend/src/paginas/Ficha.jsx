@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-  Bell, BookOpen, CalendarDays, CalendarX, Plus, CheckCircle2, ClipboardList, Clock, Hash, MapPin, Pencil, Phone, Printer, Syringe, Trash2, X,
+  BookOpen, CalendarX, ChevronDown, CheckCircle2, ClipboardList, Clock, MapPin, MessageCircle, Pencil, Phone, Plus, Printer, Syringe, Trash2, X,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { useSesion } from '../App.jsx';
@@ -11,14 +11,15 @@ import Vacunar from '../componentes/Vacunar.jsx';
 import VistaCuaderno from '../componentes/VistaCuaderno.jsx';
 import SuplementosNino from '../componentes/SuplementosNino.jsx';
 import { useCatalogo } from '../componentes/useCatalogo.js';
-import { Cargando, EncabezadoImpresion, MenuMas, Mensaje, Tabla, Tarjeta, Vacio, iniciales } from '../componentes/ui.jsx';
+import { Cargando, EncabezadoImpresion, MenuMas, Mensaje, Pestanas, Tarjeta, Vacio, iniciales, useEsCelular } from '../componentes/ui.jsx';
 import { Estado, plural, tonoDe } from '../componentes/Estado.jsx';
 import {
   ESTADO_REGISTRO, LINGUISTICAS, MEDIOS, PUEBLOS, RESULTADOS, TIPO_CUADERNO,
-  cuadernoFila, diasDesde, edad, fecha, puede, recordarNino,
+  cuadernoFila, diasDesde, edad, fecha, hoy, puede, recordarNino,
 } from '../util.js';
 
-const PARENTESCO = { madre: 'Madre', padre: 'Padre', otro: 'Responsable' };
+const PARENTESCO = { madre: 'Mamá', padre: 'Papá', otro: 'Responsable' };
+const VISITAS_VISIBLES = 3;
 
 /** "hoy", "mañana", "en 12 días" o "hace 3 días": la fecha absoluta sola obliga a hacer la cuenta. */
 function relativo(f) {
@@ -28,17 +29,33 @@ function relativo(f) {
   return d > 0 ? `en ${d} días` : `hace ${-d} días`;
 }
 
+/** Aplicaciones agrupadas por visita (mismo día y lugar): una visita = una línea del historial. */
+function porVisita(aplicaciones) {
+  const visitas = [];
+  for (const a of aplicaciones) {
+    const clave = `${a.fecha_aplicacion}|${a.establecimiento || ''}`;
+    let v = visitas.find((x) => x.clave === clave);
+    if (!v) visitas.push(v = { clave, fecha: a.fecha_aplicacion, lugar: a.establecimiento, registro: a.responsable_informacion, aplicaciones: [] });
+    v.aplicaciones.push(a);
+  }
+  return visitas;
+}
+
 export default function Ficha() {
   const { id } = useParams();
   const { usuario, refrescarAlertas } = useSesion();
-  const { pedirTexto, avisar } = useDialogos();
+  const { pedirTexto, avisar, confirmar } = useDialogos();
+  const esCelular = useEsCelular();
   const columnas = useCatalogo('columnas');
   const [nino, setNino] = useState(null);
   const [esquema, setEsquema] = useState(null);
   const [contactos, setContactos] = useState([]);
-  const [modal, setModal] = useState(null); // null | { columna?, serie? }
-  const [vacunar, setVacunar] = useState(null); // null | 'normal' | 'sin' (vino pero no se vacunó)
+  const [modal, setModal] = useState(null); // null | { serie?, fecha? }
+  const [vacunar, setVacunar] = useState(null); // null | 'normal' | 'sin' (no se pudo vacunar hoy)
   const [resultado, setResultado] = useState(null);
+  const [pestana, setPestana] = useState('carne');
+  const [verDatos, setVerDatos] = useState(false);
+  const [verHistorial, setVerHistorial] = useState(false);
   const [error, setError] = useState('');
 
   const cargar = useCallback(() => {
@@ -67,7 +84,7 @@ export default function Ficha() {
   function alRegistrar(r) {
     setModal(null);
     setResultado(r);
-    avisar('Dosis registrada correctamente.');
+    avisar('Vacuna guardada.');
     cargar();
     refrescarAlertas();
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -88,76 +105,143 @@ export default function Ficha() {
   const tocaHoy = esquema.leTocaHoy;
   const tonoFranja = !activo ? 'neutro' : atrasadas.length ? tonoDe(esquema.estadoNino) : tocaHoy.length ? 'info' : 'ok';
   const casos = nino.alertas.filter((a) => a.tipo !== 'proxima');
+  const visitas = porVisita(nino.aplicaciones);
+
+  // Tocar una casilla del carné: registrar esa dosis o saber desde cuándo se puede
+  async function tocarDosis(d) {
+    if (!operativo) return;
+    if (d.fechaMinima && d.fechaMinima > hoy()) {
+      await confirmar({ titulo: d.etiqueta, aceptar: 'Entendido', sinCancelar: true,
+        mensaje: `Tiene ${edad(nino.fecha_nacimiento)}. Esta vacuna se puede poner desde el ${fecha(d.fechaMinima)}.` });
+      return;
+    }
+    if (['le_toca', 'atrasada'].includes(d.estado) && tocaHoy.length > 1) { setVacunar('normal'); return; }
+    setModal({ serie: d.serieCodigo });
+  }
+
+  const encabezado = (
+    <section className="tarjeta ficha">
+      <div className="ficha-cab">
+        <div className={`ficha-avatar ${nino.sexo === 'M' ? 'mujer' : ''}`}>{iniciales(nino.nombre_completo)}</div>
+        <div className="datos">
+          <div className="ficha-nombre">
+            <h1>{nino.nombre_completo}</h1>
+            <Estado de={estadoVisible} grande />
+          </div>
+          <p className="ficha-resumen"><b>{edad(nino.fecha_nacimiento)}</b> · {nino.sexo === 'M' ? 'niña' : 'niño'} · <MapPin size={14} /> {nino.comunidad}</p>
+          {resp && (
+            <div className="ficha-mama">
+              <span>{PARENTESCO[resp.parentesco]}: <strong>{resp.nombre_completo}</strong></span>
+              {resp.telefono && (
+                <span className="ficha-mama-botones no-imprimir">
+                  <a className="btn btn-sm btn-verde" href={`tel:${resp.telefono}`}><Phone size={14} />{resp.telefono}</a>
+                  <a className="btn btn-sm boton-whatsapp" href={`https://wa.me/502${resp.telefono}`} target="_blank" rel="noreferrer" aria-label="WhatsApp"><MessageCircle size={14} /></a>
+                </span>
+              )}
+              {resp.idioma_preferente === 'poqomam' && <span className="etiqueta celeste">Habla poqomam</span>}
+            </div>
+          )}
+          <button type="button" className="enlace-tenue ficha-ver-datos no-imprimir" onClick={() => setVerDatos(!verDatos)} aria-expanded={verDatos}>
+            <ChevronDown size={15} className={verDatos ? 'girada' : ''} />Datos del registro
+          </button>
+          <dl className={`ficha-datos ${verDatos ? '' : 'solo-imprimir'}`}>
+            <div><dt>Nació</dt><dd>{fecha(nino.fecha_nacimiento)}</dd></div>
+            <div><dt>Cuaderno</dt><dd>{cuadernoFila(nino)}{nino.cuaderno_tipo && ` · ${TIPO_CUADERNO[nino.cuaderno_tipo]}`}</dd></div>
+            <div><dt>CUI</dt><dd>{nino.cui || '—'}</dd></div>
+            <div><dt>Pueblo</dt><dd>{PUEBLOS[nino.pueblo]}{nino.pueblo === 2 && `, ${LINGUISTICAS[nino.comunidad_linguistica]}`}</dd></div>
+          </dl>
+        </div>
+        <div className="acciones no-imprimir" style={{ margin: 0 }}>
+          {puede(usuario.rol, 'enfermera', 'vacunador') && <Link className="btn btn-icono" to={`/ninos/${id}/editar`} aria-label="Editar datos" title="Editar datos"><Pencil size={17} /></Link>}
+          <button className="btn btn-icono" onClick={() => window.print()} aria-label="Imprimir" title="Imprimir"><Printer size={17} /></button>
+          {operativo && <MenuMas opciones={[{ texto: 'Registrar una vacuna de otra fecha', icono: Plus, onClick: () => setModal({}) }]} />}
+        </div>
+      </div>
+
+      {activo && (
+        <div className={`franja-estado t-${tonoFranja}`}>
+          <span className="ic">{atrasadas.length ? <Clock size={22} /> : tocaHoy.length ? <Syringe size={22} /> : <CheckCircle2 size={22} />}</span>
+          <div className="texto">
+            {tocaHoy.length ? (
+              <>
+                <strong>Hoy le {tocaHoy.length === 1 ? 'toca 1 vacuna' : `tocan ${tocaHoy.length} vacunas`}
+                  {atrasoDesde && <em> · atrasado {plural(diasAtraso, 'día', 'días')}</em>}</strong>
+                <span className="fichas-hoy">{tocaHoy.map((d) => <span key={d.esquemaDosisId} className={`ficha-vacuna ${d.estado}`}>{d.etiqueta}</span>)}</span>
+              </>
+            ) : esquema.proximaCita ? (
+              <>
+                <strong>Próxima cita: {fecha(esquema.proximaCita)} <em className="suave">({relativo(esquema.proximaCita)})</em></strong>
+                <span className="fichas-hoy">{esquema.proximaCitaVacunas.map((v) => <span key={v} className="ficha-vacuna">{v}</span>)}</span>
+              </>
+            ) : (
+              <strong>Esquema completo para su edad</strong>
+            )}
+          </div>
+          {operativo && tocaHoy.length > 0 && (
+            <div className="botones no-imprimir">
+              <button className="btn btn-grande" onClick={() => setVacunar('sin')}>No se pudo vacunar hoy</button>
+              <button className="btn btn-verde btn-grande" onClick={() => setVacunar('normal')}><Syringe size={20} />Vacunar</button>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+
+  const carne = (
+    <Tarjeta titulo="Carné de vacunación" icono={Syringe} cuerpo={false}>
+      <VistaCuaderno columnas={columnas} celdas={nino.celdas} dosis={esquema.dosis} onTocar={operativo ? tocarDosis : null} />
+    </Tarjeta>
+  );
+
+  const historial = (
+    <Tarjeta titulo="Historial" icono={ClipboardList} cuerpo={false}>
+      {visitas.length === 0 ? (
+        <Vacio icono={Syringe} titulo="Todavía no tiene vacunas registradas" />
+      ) : (
+        <ol className="linea-visitas">
+          {visitas.map((v, i) => (
+            <li key={v.clave} className={i >= VISITAS_VISIBLES && !verHistorial ? 'solo-imprimir' : ''}>
+              <div className="lv-cab">
+                <strong>{fecha(v.fecha)}</strong>
+                <span className="tenue">{v.lugar || 'Lugar sin registrar'} · {v.registro}</span>
+              </div>
+              <div className="lv-vacunas">
+                {v.aplicaciones.map((a) => (
+                  <span key={a.id} className={`lv-vacuna ${a.anulada ? 'anulada' : ''}`} title={a.dosis.join(', ')}>
+                    <span>
+                      {a.producto}
+                      <small>{a.dosis.join(', ')}{a.lote && ` · lote ${a.lote}`}{a.es_recuperacion && ' · recuperación'}{!a.fuente_primaria && ' · del carné'}</small>
+                      {a.anulada && <small className="rojo">Anulada: {a.motivo_anulacion}</small>}
+                    </span>
+                    {usuario.rol === 'enfermera' && !a.anulada && (
+                      <MenuMas etiqueta={`Acciones de ${a.producto}`} opciones={[{ texto: 'Anular esta dosis', icono: Trash2, peligro: true, onClick: () => anular(a) }]} />
+                    )}
+                  </span>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+      {visitas.length > VISITAS_VISIBLES && (
+        <div className="tarjeta-pie no-imprimir">
+          <button className="enlace-tenue" onClick={() => setVerHistorial(!verHistorial)}>
+            {verHistorial ? 'Ver menos' : `Ver las ${visitas.length} visitas`}
+          </button>
+        </div>
+      )}
+    </Tarjeta>
+  );
+
+  const seguimiento = casos.length > 0 && (
+    <Seguimiento ninoId={id} casos={casos} atrasadas={atrasadas} estado={esquema.estadoNino} contactos={contactos} operativo={operativo} />
+  );
 
   return (
     <>
-      <EncabezadoImpresion titulo="Historial vacunal" detalle={`Impreso el ${fecha(new Date().toISOString())}`} />
-      <div className="pagina-cab no-imprimir" style={{ marginBottom: '1rem' }}>
-        <div className="miga"><Link to="/ninos">Niñas y niños</Link> › Ficha</div>
-      </div>
-
-      <section className="tarjeta">
-        <div className="ficha-cab">
-          <div className={`ficha-avatar ${nino.sexo === 'M' ? 'mujer' : ''}`}>{iniciales(nino.nombre_completo)}</div>
-          <div className="datos">
-            <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
-              <h1>{nino.nombre_completo}</h1>
-              <Estado de={estadoVisible} grande />
-            </div>
-            <div className="meta-lista">
-              <span><CalendarDays size={15} />{nino.sexo === 'M' ? 'Niña' : 'Niño'} · {edad(nino.fecha_nacimiento)} · nació el {fecha(nino.fecha_nacimiento)}</span>
-              <span><MapPin size={15} />{nino.comunidad}{nino.sector && ` · sector ${nino.sector}`}</span>
-              <span><BookOpen size={15} />{cuadernoFila(nino)}{nino.cuaderno_tipo && ` (${TIPO_CUADERNO[nino.cuaderno_tipo]})`}</span>
-              {nino.cui && <span><Hash size={15} />CUI {nino.cui}</span>}
-              <span>Pueblo {PUEBLOS[nino.pueblo]}{nino.pueblo === 2 && `, ${LINGUISTICAS[nino.comunidad_linguistica]}`}</span>
-            </div>
-            <div className="contacto-ficha">
-              <span className="rotulo">{resp ? PARENTESCO[resp.parentesco] : 'Responsable'}</span>
-              <strong>{resp?.nombre_completo || 'Sin registrar'}</strong>
-              {resp?.telefono ? <a href={`tel:${resp.telefono}`}><Phone size={14} /> {resp.telefono}</a> : resp && <span className="tenue">Sin teléfono</span>}
-              {resp?.idioma_preferente === 'poqomam' && <span className="etiqueta celeste">Habla poqomam</span>}
-            </div>
-          </div>
-          <div className="acciones no-imprimir" style={{ margin: 0 }}>
-            {puede(usuario.rol, 'enfermera', 'vacunador') && <Link className="btn" to={`/ninos/${id}/editar`}><Pencil size={16} />Editar</Link>}
-            <button className="btn" onClick={() => window.print()}><Printer size={16} />Imprimir</button>
-            {operativo && <MenuMas opciones={[{ texto: 'Otra vacuna o dato del carné', icono: Plus, onClick: () => setModal({}) }]} />}
-          </div>
-        </div>
-
-        {activo && (
-          <div className={`franja-estado t-${tonoFranja}`}>
-            <span className="ic">{atrasadas.length ? <Clock size={22} /> : tocaHoy.length ? <Syringe size={22} /> : <CheckCircle2 size={22} />}</span>
-            <div className="texto">
-              {tocaHoy.length ? (
-                <>
-                  <strong>
-                    Hoy le {tocaHoy.length === 1 ? 'toca 1 vacuna' : `tocan ${tocaHoy.length} vacunas`}
-                    {atrasoDesde && <em> · atrasado desde el {fecha(atrasoDesde)} ({plural(diasAtraso, 'día', 'días')})</em>}
-                  </strong>
-                  <span>{tocaHoy.map((d) => d.etiqueta).join(' · ')}</span>
-                </>
-              ) : esquema.proximaCita ? (
-                <>
-                  <strong>Hoy no le toca ninguna vacuna</strong>
-                  <span>Próxima cita: <b>{fecha(esquema.proximaCita)}</b> ({relativo(esquema.proximaCita)}) · {esquema.proximaCitaVacunas.join(', ')}</span>
-                </>
-              ) : (
-                <><strong>Esquema completo para su edad</strong><span>No tiene vacunas pendientes.</span></>
-              )}
-            </div>
-            {operativo && tocaHoy.length > 0 && (
-              <div className="botones no-imprimir">
-                <button className="btn btn-grande" onClick={() => setVacunar('sin')}>Vino pero no se vacunó</button>
-                <button className="btn btn-verde btn-grande" onClick={() => setVacunar('normal')}><Syringe size={20} />Vacunar ahora</button>
-              </div>
-            )}
-            {!operativo && tocaHoy.length > 0 && (
-              <span className="tenue no-imprimir" style={{ maxWidth: 260 }}>Las vacunas las registra la enfermera o el personal de vacunación; el administrador solo consulta.</span>
-            )}
-          </div>
-        )}
-      </section>
+      <EncabezadoImpresion titulo="Historial vacunal" detalle={`Impreso el ${fecha(hoy())}`} />
+      {encabezado}
 
       {!activo && <Mensaje tipo="aviso">Registro {ESTADO_REGISTRO[nino.estado].toLowerCase()}: no genera alertas ni aparece en jornadas.</Mensaje>}
       <Mensaje tipo="error" onCerrar={() => setError('')}>{error}</Mensaje>
@@ -173,103 +257,64 @@ export default function Ficha() {
             <div className="linea"><ClipboardList size={17} /><span><strong>Carné:</strong> {resultado.dosis.join(', ')} aplicada el {fecha(resultado.aplicacion.fecha_aplicacion)}.
               {resultado.proximaCita && <> Próxima cita: <strong>{fecha(resultado.proximaCita)}</strong> ({resultado.proximaCitaVacunas.join(', ')}).</>}</span></div>
             {resultado.advertencias.length > 0 && (
-              <Mensaje tipo="aviso" className="mt">Se guardó con advertencias (registro histórico):<ul>{resultado.advertencias.map((a) => <li key={a}>{a}</li>)}</ul></Mensaje>
+              <Mensaje tipo="aviso" className="mt">Se guardó con advertencias:<ul>{resultado.advertencias.map((a) => <li key={a}>{a}</li>)}</ul></Mensaje>
             )}
           </div>
         </section>
       )}
 
-      <div className={casos.length > 0 ? 'col-principal' : ''}>
-        <div>
-          <Tarjeta titulo="Carné de vacunación" icono={Syringe} cuerpo={false}>
-            <VistaCuaderno columnas={columnas} celdas={nino.celdas} dosis={esquema.dosis} />
-          </Tarjeta>
-        </div>
-
-        {casos.length > 0 && (
-          <div className="no-imprimir lado-primero">
-            <Seguimiento ninoId={id} casos={casos} atrasadas={atrasadas} atrasoDesde={atrasoDesde} diasAtraso={diasAtraso}
-              estado={esquema.estadoNino} contactos={contactos} />
+      {esCelular ? (
+        <>
+          {seguimiento}
+          <Pestanas valor={pestana} onCambio={setPestana} opciones={[
+            ['carne', 'Carné'], ...(activo ? [['suplementos', 'Suplementos']] : []), ['historial', `Historial (${visitas.length})`],
+          ]} />
+          {pestana === 'carne' && carne}
+          {pestana === 'suplementos' && <SuplementosNino ninoId={id} operativo={operativo} siempre />}
+          {pestana === 'historial' && historial}
+        </>
+      ) : (
+        <>
+          <div className={seguimiento ? 'col-principal' : ''}>
+            <div>{carne}</div>
+            {seguimiento && <div className="no-imprimir lado-primero">{seguimiento}</div>}
           </div>
-        )}
-      </div>
-
-      {activo && <SuplementosNino ninoId={id} operativo={operativo} />}
-
-      <Tarjeta titulo="Historial de aplicaciones" icono={ClipboardList} sub={plural(nino.aplicaciones.length, 'registro', 'registros')} cuerpo={false}>
-        {nino.aplicaciones.length === 0 ? (
-          <Vacio icono={Syringe} titulo="Sin dosis registradas">
-            {operativo ? 'Use "Vacunar ahora" para la atención de hoy, o el menú ⋯ para cargar antecedentes del carné.' : null}
-          </Vacio>
-        ) : (
-          <Tabla>
-            <thead><tr><th>Fecha</th><th>Vacuna</th><th>Lote</th><th>Lugar</th><th>Registró</th><th className="no-imprimir" /></tr></thead>
-            <tbody>
-              {nino.aplicaciones.map((a) => {
-                const cumple = a.dosis.join(', ');
-                return (
-                  <tr key={a.id} className={a.anulada ? 'anulada' : ''}>
-                    <td className="fuerte">{fecha(a.fecha_aplicacion)}</td>
-                    <td>
-                      <span className="tachar">{a.producto}{a.formulacion && ` (${a.formulacion === 'sur' ? 'Sur' : 'Norte'})`}</span>
-                      {a.es_recuperacion && <span className="etiqueta">Recuperación</span>}
-                      {!a.fuente_primaria && <span className="etiqueta">Antecedente</span>}
-                      {a.digitado_desde_cuaderno && <span className="etiqueta">Desde cuaderno</span>}
-                      {cumple && cumple !== a.producto && <span className="sub">Cumple: {cumple}</span>}
-                      {a.anulada && <span className="sub" style={{ color: 'var(--rojo)' }}>Anulada: {a.motivo_anulacion}</span>}
-                    </td>
-                    <td>{a.lote || '—'}</td>
-                    <td>{a.establecimiento || '—'}</td>
-                    <td>{a.responsable_informacion}{a.cargo && <span className="sub">{a.cargo}</span>}</td>
-                    <td className="no-imprimir celda-fin">
-                      {usuario.rol === 'enfermera' && !a.anulada && (
-                        <MenuMas etiqueta="Acciones de esta dosis" opciones={[{ texto: 'Anular dosis', icono: Trash2, peligro: true, onClick: () => anular(a) }]} />
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </Tabla>
-        )}
-      </Tarjeta>
+          {activo && <SuplementosNino ninoId={id} operativo={operativo} />}
+          {historial}
+        </>
+      )}
 
       {vacunar && <Vacunar ninoId={id} nombre={nino.nombre_completo} esquema={esquema} sinVacunar={vacunar === 'sin'}
         onCerrar={() => setVacunar(null)}
         onTerminado={(r) => { setVacunar(null); if (r.hechas.length) avisar(r.hechas.length === 1 ? 'Vacuna guardada.' : 'Vacunas guardadas.'); cargar(); refrescarAlertas(); }} />}
-      {modal && <RegistrarDosis ninoId={id} esquema={esquema} columna={modal.columna} serieSugerida={modal.serie}
+      {modal && <RegistrarDosis ninoId={id} esquema={esquema} serieSugerida={modal.serie}
         onCerrar={() => setModal(null)} onRegistrado={alRegistrar} />}
     </>
   );
 }
 
-/** Por qué el niño está en Pendientes, en una sola tarjeta: motivos, último contacto y una única acción. */
-function Seguimiento({ ninoId, casos, atrasadas, atrasoDesde, diasAtraso, estado, contactos }) {
+/** Por qué hay que buscar al niño: motivos, último contacto y una única acción. */
+function Seguimiento({ ninoId, casos, atrasadas, estado, contactos, operativo }) {
   const tipos = new Set(casos.map((a) => a.tipo));
   const inasistencias = casos.filter((a) => a.tipo === 'inasistencia');
   const ultimo = contactos[0];
   return (
-    <Tarjeta titulo="Por qué está en pendientes" icono={Bell} cuerpo={false}
-      pie={<Link className="btn btn-primario btn-bloque" to={`/alertas?nino=${ninoId}`}><Phone size={16} />Registrar llamada o visita</Link>}>
+    <Tarjeta titulo="Seguimiento" icono={Phone} cuerpo={false}
+      pie={operativo && <Link className="btn btn-primario btn-bloque" to={`/alertas?nino=${ninoId}`}><Phone size={16} />Anotar llamada o visita</Link>}>
       <div className="tarjeta-cuerpo motivos">
         <Estado de={estado === 'proximo' || estado === 'al_dia' ? [...tipos][0] : estado} grande />
         <ul>
-          {tipos.has('dosis_cero') && <li><b>Dosis cero:</b> no ha recibido la primera pentavalente.</li>}
-          {tipos.has('abandono') && <li><b>Abandono:</b> inició el esquema y lleva más de 90 días sin continuar.</li>}
-          {atrasadas.length > 0 && (
-            <li>
-              <b>Atrasado en {plural(atrasadas.length, 'vacuna', 'vacunas')}</b> desde el {fecha(atrasoDesde)} ({plural(diasAtraso, 'día', 'días')}).
-              <span className="sub">{atrasadas.map((d) => d.etiqueta).join(' · ')}</span>
-            </li>
-          )}
+          {tipos.has('dosis_cero') && <li>No tiene la primera pentavalente.</li>}
+          {tipos.has('abandono') && <li>Empezó sus vacunas y dejó de venir.</li>}
+          {atrasadas.length > 0 && <li>Le {atrasadas.length === 1 ? 'falta 1 vacuna atrasada' : `faltan ${atrasadas.length} vacunas atrasadas`}.</li>}
           {inasistencias.map((a) => (
-            <li key={a.id}><CalendarX size={14} style={{ verticalAlign: '-2px', color: 'var(--morado)' }} /> No llegó a la jornada o cita (anotado el {fecha(a.fecha_generada)}).</li>
+            <li key={a.id}><CalendarX size={14} style={{ verticalAlign: '-2px', color: 'var(--morado)' }} /> No llegó a la jornada del {fecha(a.fecha_generada)}.</li>
           ))}
         </ul>
         <div className="ultimo-contacto">
           {ultimo
             ? <>Último contacto: <b>{fecha(ultimo.fecha)}</b> · {MEDIOS[ultimo.medio]} · {RESULTADOS[ultimo.resultado]}{ultimo.fecha_compromiso && <> · vendrá el <b>{fecha(ultimo.fecha_compromiso)}</b></>}</>
-            : 'Todavía nadie ha llamado ni visitado a la familia.'}
+            : 'Nadie ha llamado ni visitado a la familia.'}
         </div>
       </div>
     </Tarjeta>
