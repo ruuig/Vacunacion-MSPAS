@@ -562,18 +562,28 @@ function FormAccion({ inicial, onCerrar, onGuardada }) {
 function HojaSala({ anio, volver }) {
   const mes = anio === new Date().getFullYear() ? new Date().getMonth() + 1 : 12;
   const [r, error] = useDatos('/informes/sala-situacional' + qs({ anio, mes }));
-  const { avisar } = useDialogos();
+  const { avisar, confirmar } = useDialogos();
+  // Constancia de que el informe de este mes ya se entregó (no envía nada por internet)
+  const [enviado, setEnviado] = useState(undefined);
+  const cargarEnviado = useCallback(() => {
+    api('/informes/enviados' + qs({ anio })).then((l) => setEnviado(l.find((x) => x.tipo === 'sala_situacional' && x.mes === mes) || null)).catch(() => setEnviado(null));
+  }, [anio, mes]);
+  useEffect(cargarEnviado, [cargarEnviado]);
   if (error) return <Mensaje tipo="error">{error}</Mensaje>;
   if (!r) return <Cargando filas={8} />;
   const t = r.total, e = r.encabezado;
-  const marcarEnviado = () => api('/informes/enviado', { method: 'POST', body: { tipo: 'sala_situacional', anio, mes, datos: { C1: t.C1, C2: t.C2, D1: t.D1 } } })
-    .then(() => avisar('Quedó registrado como enviado.')).catch((x) => avisar(x.message, 'error'));
+  const marcarEnviado = async () => {
+    if (!(await confirmar({ titulo: 'Marcar como enviado', mensaje: `Se registrará que el informe de ${MESES[mes - 1]} ${anio} ya se entregó al distrito o al área de salud.`, aceptar: 'Marcar como enviado' }))) return;
+    api('/informes/enviado', { method: 'POST', body: { tipo: 'sala_situacional', anio, mes, datos: { C1: t.C1, C2: t.C2, D1: t.D1 } } })
+      .then(() => { avisar('Quedó registrado como enviado.'); cargarEnviado(); }).catch((x) => avisar(x.message, 'error'));
+  };
   return (
     <>
       <div className="pagina-cab no-imprimir">
         <div><div className="miga"><button className="btn btn-sm btn-fantasma" onClick={volver}>‹ Volver al tablero</button></div><h1>Informe de sala situacional</h1></div>
         <div className="acciones">
-          <button className="btn" onClick={marcarEnviado}><CheckCircle2 size={17} />Marcar como enviado</button>
+          {enviado ? <span className="lectura-item t-ok"><CheckCircle2 size={17} /><span>Enviado el {fecha(String(enviado.fecha).slice(0, 10))} por {enviado.usuario}</span></span>
+            : enviado === null && <button className="btn" onClick={marcarEnviado}><CheckCircle2 size={17} />Marcar como enviado</button>}
           <button className="btn btn-primario" onClick={() => window.print()}><Printer size={17} />Imprimir o guardar PDF</button>
         </div>
       </div>

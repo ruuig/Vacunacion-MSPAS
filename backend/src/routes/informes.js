@@ -131,7 +131,7 @@ router.get('/cobertura', async (req, res) => {
 });
 
 // Constancia de cierre: el informe del mes quedó revisado y enviado (análisis, F6)
-router.post('/enviado', permitir('enfermera'), async (req, res) => {
+router.post('/enviado', permitir('enfermera', 'administrador'), async (req, res) => {
   const { tipo = 'mensual_5a', anio, mes, datos } = req.body || {};
   if (!anio || !mes) return res.status(400).json({ error: 'Indique año y mes.' });
   const { rows: [r] } = await pool.query(
