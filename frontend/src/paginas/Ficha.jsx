@@ -152,6 +152,9 @@ export default function Ficha() {
                 <button className="btn btn-verde btn-grande" onClick={() => setVacunar('normal')}><Syringe size={20} />Vacunar ahora</button>
               </div>
             )}
+            {!operativo && tocaHoy.length > 0 && (
+              <span className="tenue no-imprimir" style={{ maxWidth: 260 }}>Las vacunas las registra la enfermera o el personal de vacunación; el administrador solo consulta.</span>
+            )}
           </div>
         )}
       </section>
