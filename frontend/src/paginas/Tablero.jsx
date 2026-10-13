@@ -17,13 +17,11 @@ import {
 } from '../componentes/Graficas.jsx';
 import { MESES, fecha, hoy } from '../util.js';
 
+// Tres preguntas y lo que se acordó hacer; los indicadores técnicos (homogeneidad, cuadrantes) van en la sala situacional impresa
 const VISTAS = [
-  ['resumen', <><Gauge size={15} />Resumen</>],
-  ['territorio', <><MapPinned size={15} />Comunidades</>],
-  ['seguimiento', <><Phone size={15} />Seguimiento</>],
-  ['servicio', <><Stethoscope size={15} />Servicio</>],
-  ['jornadas', <><Truck size={15} />Jornadas</>],
-  ['calidad', <><ShieldCheck size={15} />Calidad</>],
+  ['resumen', <><Gauge size={15} />¿Cómo vamos?</>],
+  ['territorio', <><MapPinned size={15} />¿Dónde?</>],
+  ['porque', <><Stethoscope size={15} />¿Por qué?</>],
   ['acciones', <><ListChecks size={15} />Plan de acción</>],
 ];
 const sumar = (f, d) => { const x = new Date(f + 'T12:00:00'); x.setDate(x.getDate() + d); return x.toISOString().slice(0, 10); };
@@ -65,6 +63,17 @@ function Lectura({ items }) {
   );
 }
 
+/** Barra de avance con la marca de dónde deberíamos ir. */
+function Barra({ rotulo, valor, meta }) {
+  const v = Math.min(100, valor ?? 0);
+  return (
+    <div className="barra-simple">
+      <div className="bs-cab"><span>{rotulo}</span><strong className={valor >= meta ? 'verde' : 'rojo'}>{valor != null ? `${valor} %` : '—'}</strong></div>
+      <div className="bs-pista"><span className={`bs-lleno ${valor >= meta ? 'ok' : ''}`} style={{ width: `${v}%` }} />{meta != null && <i style={{ left: `${Math.min(100, meta)}%` }} title={`Deberíamos ir en ${meta} %`} />}</div>
+    </div>
+  );
+}
+
 const CeldaCobertura = ({ valor, num, den }) => {
   const [t, tono] = RANGO[rangoDe(valor)];
   return <span className={`celda-rango ${tono}`} title={t}>{valor != null ? `${valor} %` : t}{den != null && <small>{num}/{Math.round(den)}</small>}</span>;
@@ -73,7 +82,8 @@ const CeldaCobertura = ({ valor, num, den }) => {
 export default function Tablero() {
   const { usuario } = useSesion();
   const [params, setParams] = useSearchParams();
-  const vista = params.get('vista') || 'resumen';
+  const anterior = { seguimiento: 'porque', servicio: 'porque', jornadas: 'territorio', calidad: 'resumen' };
+  const vista = anterior[params.get('vista')] || params.get('vista') || 'resumen';
   const anioActual = new Date().getFullYear();
   const [anio, setAnio] = useState(Number(params.get('anio')) || anioActual);
   const [periodo, setPeriodo] = useState('anio');
@@ -96,7 +106,7 @@ export default function Tablero() {
   return (
     <>
       <Encabezado titulo="Tablero de vacunación">
-        <button className="btn" onClick={() => cambiarVista('sala')}><Printer size={17} />Informe de sala situacional</button>
+        <button className="btn" onClick={() => cambiarVista('sala')}><Printer size={17} />Sala situacional</button>
       </Encabezado>
       <div className="tablero-filtros no-imprimir">
         <Campo etiqueta="Año">
@@ -128,11 +138,8 @@ export default function Tablero() {
       <Pestanas valor={vista} onCambio={cambiarVista} opciones={VISTAS} />
 
       {vista === 'resumen' && <Resumen consulta={consulta} anio={anio} comunidad={comunidad} elegirComunidad={setComunidad} />}
-      {vista === 'territorio' && <Territorio consulta={consulta} rol={usuario.rol} elegirComunidad={setComunidad} />}
-      {vista === 'seguimiento' && <Seguimiento consulta={consulta} />}
-      {vista === 'servicio' && <Servicio consulta={consulta} />}
-      {vista === 'jornadas' && <Jornadas anio={anio} />}
-      {vista === 'calidad' && <Calidad consulta={consulta} />}
+      {vista === 'territorio' && <><Territorio consulta={consulta} rol={usuario.rol} elegirComunidad={setComunidad} /><Jornadas anio={anio} /></>}
+      {vista === 'porque' && <><Servicio consulta={consulta} /><Seguimiento consulta={consulta} /></>}
       {vista === 'acciones' && <Acciones rol={usuario.rol} />}
     </>
   );
@@ -160,45 +167,30 @@ function Resumen({ consulta, anio, comunidad, elegirComunidad }) {
   return (
     <>
       <div className="kpis tres">
-        <Kpi valor={k.C1.valor != null ? `${k.C1.valor} %` : '—'} rotulo="Primera dosis Penta/Hexa (llegan)" icono={Users} color={k.C1.valor >= ideal ? 'verde' : 'ambar'}
-          pie={`Meta a la fecha: ${ideal ?? '—'} %`} />
-        <Kpi valor={k.C2.valor != null ? `${k.C2.valor} %` : '—'} rotulo="Tercera dosis Penta/Hexa (terminan)" icono={Target} color={k.C2.valor >= ideal ? 'verde' : 'rojo'}
-          pie={`${k.C2.numerador} niños · meta ${ideal ?? '—'} %`} />
-        <Kpi valor={k.C3.valor != null ? `${k.C3.valor} %` : '—'} rotulo="SPR 1 (sarampión)" icono={ShieldCheck} color={k.C3.valor >= ideal ? 'verde' : 'ambar'}
-          pie={`${k.C3.numerador} niños de 1 año`} />
-        <Kpi valor={k.D1.valor != null ? `${k.D1.valor} %` : '—'} rotulo="Empiezan y no terminan (deserción)" icono={UserX}
-          color={k.D1.valor > r.umbrales.umbral_desercion ? 'rojo' : 'verde'} pie={`Aceptado hasta ${r.umbrales.umbral_desercion} %`} />
-        <Kpi valor={k.N1.valor} rotulo="Dosis cero (sin primera pentavalente)" icono={AlertOctagon} color="rojo" resaltar to="/alertas?tipo=dosis_cero"
+        <Kpi valor={k.C2.valor != null ? `${k.C2.valor} %` : '—'} rotulo="Niños con sus 3 dosis" icono={Target} color={k.C2.valor >= ideal ? 'verde' : 'rojo'} resaltar
+          pie={r.faltan_p3_para_meta ? `Faltan ${r.faltan_p3_para_meta} niños para el 95 %` : `Deberíamos ir en ${ideal ?? '—'} %`} />
+        <Kpi valor={k.N1.valor} rotulo="Dosis cero" icono={AlertOctagon} color="rojo" to="/alertas?tipo=dosis_cero"
           pie={k.N1.anterior != null ? `${delta(k.N1.valor, k.N1.anterior) > 0 ? '▲' : delta(k.N1.valor, k.N1.anterior) < 0 ? '▼' : '='} ${Math.abs(delta(k.N1.valor, k.N1.anterior))} contra el mes pasado` : 'Ver quiénes'} />
-        <Kpi valor={k.N2.valor != null ? `${k.N2.valor} %` : '—'} rotulo="Niños con vacunas al día" icono={CheckCircle2} color="verde"
-          pie={`${k.N2.numerador} de ${k.N2.denominador}`} />
+        <Kpi valor={k.D1.valor != null ? `${k.D1.valor} %` : '—'} rotulo="Empiezan y no terminan" icono={UserX} to="/alertas?tipo=abandono"
+          color={k.D1.valor > r.umbrales.umbral_desercion ? 'rojo' : 'verde'} pie={`Lo aceptado es hasta ${r.umbrales.umbral_desercion} %`} />
       </div>
 
-      <div className="col-principal">
-        <Tarjeta titulo="¿Vamos al ritmo para llegar al 95 %?" icono={TrendingUp}>
-          {mon ? <GraficaMonitoreo datos={mon} /> : <Cargando />}
-        </Tarjeta>
-        <Tarjeta titulo="Lectura" icono={ClipboardCheck}>
-          <Lectura items={r.lecturas} />
-          {r.faltan_p3_para_meta != null && (
-            <div className="lectura-item t-info" style={{ marginTop: '.6rem' }}><Target size={17} />
-              <span>Faltan <strong>{r.faltan_p3_para_meta}</strong> niños con tercera dosis para llegar al 95 % este año.</span></div>
-          )}
-          <div className="lectura-item t-info" style={{ marginTop: '.6rem' }}><MapPinned size={17} />
-            <span><strong>{k.C8.numerador}</strong> de {k.C8.denominador} comunidades están en la meta (homogeneidad {k.C8.valor ?? 0} %).</span></div>
-        </Tarjeta>
-      </div>
+      <Tarjeta titulo="¿Llegaremos al 95 % este año?" icono={TrendingUp}>
+        {mon ? <GraficaMonitoreo datos={mon} /> : <Cargando />}
+      </Tarjeta>
 
       <div className="dos-col">
-        <Tarjeta titulo="¿Dónde faltan más niños?" icono={Users}>
-          {r.sin_vacunar.length ? (
-            <GraficaBarras datos={r.sin_vacunar.slice(0, 10)} campo="sin_vacunar" etiqueta="Niños sin 3.ª dosis" onClic={(d) => elegirComunidad(String(d.id))} />
-          ) : <Vacio icono={CheckCircle2} titulo="Ninguna comunidad debajo de la meta" />}
+        <Tarjeta titulo="Primera dosis y sarampión" icono={Users}>
+          <div className="barras-simples">
+            <Barra rotulo="Primera dosis Penta/Hexa (llegan)" valor={k.C1.valor} meta={ideal} />
+            <Barra rotulo="SPR 1 (sarampión)" valor={k.C3.valor} meta={ideal} />
+            <Barra rotulo="Al día con sus vacunas" valor={k.N2.valor} meta={95} />
+          </div>
         </Tarjeta>
         <Tarjeta titulo="¿Hay menos niños atrasados que antes?" icono={TrendingUp}>
           {filasTend.length ? (
             <GraficaTendencia filas={filasTend} series={[['N1', 'Dosis cero'], ['N3_abandono', 'Abandono'], ['N3_atrasado', 'Atrasados']]} />
-          ) : <Vacio icono={TrendingUp} titulo="Aún no hay meses guardados">La foto de cada mes se guarda el día 1. El administrador puede generarla en Administración.</Vacio>}
+          ) : <Vacio icono={TrendingUp} titulo="Se verá a partir del próximo mes" />}
         </Tarjeta>
       </div>
     </>
@@ -208,24 +200,21 @@ function Resumen({ consulta, anio, comunidad, elegirComunidad }) {
 /* ---------------- Territorio ---------------- */
 function Territorio({ consulta, rol, elegirComunidad }) {
   const [r, error] = useDatos('/tablero/territorio' + consulta);
+  const [faltan] = useDatos('/tablero/resumen' + consulta);
   const [nueva, setNueva] = useState(null);
-  const ir = useNavigate();
   if (error) return <Mensaje tipo="error">{error}</Mensaje>;
   if (!r) return <Cargando filas={6} />;
-  const u = r.umbrales;
-
   return (
     <>
       <Tarjeta titulo="¿A dónde ir primero?" icono={Target} cuerpo={false}>
         {r.prioritarias.length === 0 ? <Vacio icono={CheckCircle2} titulo="Todas las comunidades con meta están en el rango aceptado" /> : (
           <Tabla>
-            <thead><tr><th>Comunidad</th><th>Prioridad</th><th>Qué pasa</th><th className="celda-num">Sin 3.ª dosis</th><th>Qué hacer</th><th /></tr></thead>
+            <thead><tr><th>Comunidad</th><th>Qué pasa</th><th className="celda-num">Sin 3.ª dosis</th><th>Qué hacer</th><th /></tr></thead>
             <tbody>
               {r.prioritarias.map((c) => (
                 <tr key={c.id} className={`riel ${PRIORIDAD[c.prioridad][1]}`}>
                   <td><span className="nombre-link">{c.nombre}</span><span className="sub">{plural(c.activos, 'niño activo', 'niños activos')}</span></td>
-                  <td><span className={`celda-rango ${PRIORIDAD[c.prioridad][1]}`}>{PRIORIDAD[c.prioridad][0]}</span></td>
-                  <td>{c.estrategia?.titulo}<span className="sub">Acceso {c.C1 ?? '—'} % · deserción {c.D1 ?? '—'} %</span></td>
+                  <td><strong>{c.estrategia?.titulo}</strong><span className="sub">Llegan {c.C1 ?? '—'} % · no terminan {c.D1 ?? '—'} %</span></td>
                   <td className="celda-num fuerte">{c.sin_vacunar ?? '—'}</td>
                   <td style={{ maxWidth: 260 }}>{c.estrategia?.accion}</td>
                   <td className="celda-fin">
@@ -243,38 +232,10 @@ function Territorio({ consulta, rol, elegirComunidad }) {
         )}
       </Tarjeta>
 
-      <div className="col-principal">
-        <Tarjeta titulo="¿No llegan o no regresan?" icono={MapPinned}>
-          <GraficaCuadrantes comunidades={r.comunidades} umbralAcceso={u.umbral_acceso} umbralDesercion={u.umbral_desercion} onClic={(c) => elegirComunidad(String(c.id))} />
-        </Tarjeta>
-        <Tarjeta titulo="Cómo leer los cuadrantes" icono={ClipboardList}>
-          <div className="cuadrantes-leyenda" style={{ marginTop: 0, gridTemplateColumns: '1fr' }}>
-            <div><strong>Arriba a la izquierda: no llegan y no regresan</strong>Jornada y seguimiento intensivo.</div>
-            <div><strong>Abajo a la izquierda: no llegan</strong>Jornada extramural y buscar niños sin registrar.</div>
-            <div><strong>Arriba a la derecha: llegan pero no regresan</strong>Llamar, dar cita y revisar oportunidades perdidas.</div>
-            <div><strong>Abajo a la derecha: sin problema</strong>Mantener.</div>
-          </div>
-        </Tarjeta>
-      </div>
-
-      <Tarjeta titulo="Semáforo por comunidad" icono={LayoutDashboard} sub={`En meta: ${r.total.comunidades_en_meta} comunidades · homogeneidad ${r.total.C8 ?? 0} %`} cuerpo={false}>
-        <Tabla>
-          <thead><tr><th>Comunidad</th><th>Penta/Hexa 1</th><th>Penta/Hexa 3</th><th>SPR 1</th><th className="celda-num">Deserción</th><th className="celda-num">Al día</th><th className="celda-num">Registrados / meta</th><th /></tr></thead>
-          <tbody>
-            {[...r.comunidades, r.total].map((c) => (
-              <tr key={c.id} className={c.id === 0 ? 'fila-total' : ''}>
-                <td className="fuerte">{c.nombre}</td>
-                <td><CeldaCobertura valor={c.C1} num={c.p1} den={c.meta_periodo_menor_1} /></td>
-                <td><CeldaCobertura valor={c.C2} num={c.p3} den={c.meta_periodo_menor_1} /></td>
-                <td><CeldaCobertura valor={c.C3} num={c.spr1} den={c.meta_periodo_1_anio} /></td>
-                <td className={`celda-num ${c.D1 > u.umbral_desercion ? 'num-alerta' : ''}`}>{c.D1 != null ? `${c.D1} %` : '—'}</td>
-                <td className="celda-num">{c.N2 != null ? `${c.N2} %` : '—'}</td>
-                <td className="celda-num">{c.meta_menor_1 != null ? `${c.nacidos_anio} / ${c.meta_menor_1}` : 'sin meta'}</td>
-                <td className="celda-fin">{c.id !== 0 && <button className="btn btn-sm btn-fantasma" onClick={() => ir(`/ninos?comunidad=${c.id}`)}>Niños</button>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </Tabla>
+      <Tarjeta titulo="¿Dónde faltan más niños con sus 3 dosis?" icono={Users}>
+        {faltan?.sin_vacunar?.length ? (
+          <GraficaBarras datos={faltan.sin_vacunar.slice(0, 10)} campo="sin_vacunar" etiqueta="Niños sin 3.ª dosis" onClic={(d) => elegirComunidad(String(d.id))} />
+        ) : <Vacio icono={CheckCircle2} titulo="Ninguna comunidad debajo de la meta" />}
       </Tarjeta>
       {nueva && <FormAccion inicial={nueva} onCerrar={() => setNueva(null)} onGuardada={() => setNueva(null)} />}
     </>
@@ -290,6 +251,7 @@ function Seguimiento({ consulta }) {
   const mejor = r.S5[0];
   return (
     <>
+      <div className="seccion-titulo">En el seguimiento de los atrasados</div>
       <div className="kpis">
         <Kpi valor={r.S2.valor != null ? `${r.S2.valor} %` : '—'} rotulo="Contactados en la primera semana" icono={Phone} color={r.S2.valor >= 80 ? 'verde' : 'ambar'} pie={`${r.S2.numerador} de ${r.S2.denominador} casos · meta 80 %`} />
         <Kpi valor={r.S3.valor != null ? `${r.S3.valor} %` : '—'} rotulo="Vacunados en menos de 30 días" icono={CheckCircle2} color={r.S3.valor >= 60 ? 'verde' : 'ambar'} pie={`${r.S3.numerador} de ${r.S3.denominador} · meta 60 %`} />
@@ -327,7 +289,7 @@ function Seguimiento({ consulta }) {
             <thead><tr><th>Persona</th><th className="celda-num">Casos asignados</th><th className="celda-num">Contactados esta semana</th></tr></thead>
             <tbody>{r.carga.map((c) => <tr key={c.id}><td className="fuerte">{c.nombre}</td><td className="celda-num">{c.asignados}</td><td className="celda-num">{c.contactados_semana}</td></tr>)}</tbody>
           </Tabla>
-        ) : <Vacio icono={Users} titulo="Todavía no hay casos asignados">En Pendientes, la enfermera puede seleccionar casos y asignarlos a una persona.</Vacio>}
+        ) : <Vacio icono={Users} titulo="Todavía no hay casos asignados" accion={<Link className="btn btn-sm" to="/alertas">Asignar casos</Link>} />}
       </Tarjeta>
     </>
   );
@@ -341,12 +303,12 @@ function Servicio({ consulta }) {
   const colorCausa = { personal: SERIE[0], servicio: SERIE[1], familia: SERIE[2], valida: '#c4cad6', otro: '#8a93a8' };
   return (
     <>
+      <div className="seccion-titulo">En el servicio</div>
       <div className="kpis">
-        <Kpi valor={r.N6.valor != null ? `${r.N6.valor} %` : '—'} rotulo="Visitas con una vacuna que tocaba y no se puso" icono={XCircle} color={r.N6.valor > 10 ? 'rojo' : 'verde'}
-          pie={`${r.N6.numerador} de ${r.N6.denominador} visitas · meta menos de 10 %`} />
+        <Kpi valor={r.N6.valor != null ? `${r.N6.valor} %` : '—'} rotulo="Se fueron sin una vacuna que les tocaba" icono={XCircle} color={r.N6.valor > 10 ? 'rojo' : 'verde'}
+          pie={`${r.N6.numerador} de ${r.N6.denominador} visitas · aceptado hasta 10 %`} />
         <Kpi valor={r.N5.valor != null ? `${r.N5.valor} %` : '—'} rotulo="Vacunas puestas a tiempo" icono={Clock} color={r.N5.valor >= 80 ? 'verde' : 'ambar'}
           pie={`${r.N5.numerador} de ${r.N5.denominador} · meta 80 %`} />
-        <Kpi valor={r.visitas_sin_vacuna} rotulo="Vinieron y no se vacunaron" icono={UserX} color="ambar" />
       </div>
       <div className="dos-col">
         <Tarjeta titulo="¿Por qué no se vacunó cuando le tocaba?" icono={Stethoscope}>
@@ -358,7 +320,7 @@ function Servicio({ consulta }) {
               {r.accion && <div className="lectura-item t-atencion" style={{ marginTop: '.6rem' }}><AlertTriangle size={17} />
                 <span>La causa más frecuente es <strong>{CAUSA[r.accion.causa].toLowerCase()}</strong>: {r.accion.texto.toLowerCase()}.</span></div>}
             </>
-          ) : <Vacio icono={CheckCircle2} titulo="No se registraron oportunidades perdidas">Se registran al guardar las vacunas cuando alguna que tocaba no se pone.</Vacio>}
+          ) : <Vacio icono={CheckCircle2} titulo="Nadie se fue sin vacunar" />}
         </Tarjeta>
         <Tarjeta titulo="¿Se vacuna a tiempo?" icono={Clock}>
           {r.porVacuna.length ? <GraficaOportunidad filas={r.porVacuna} /> : <Vacio icono={Clock} titulo="Sin vacunas en el período" />}
@@ -373,9 +335,10 @@ function Jornadas({ anio }) {
   const [r, error] = useDatos('/tablero/jornadas' + qs({ anio }));
   if (error) return <Mensaje tipo="error">{error}</Mensaje>;
   if (!r) return <Cargando filas={6} />;
-  if (!r.jornadas.length) return <div className="tarjeta"><Vacio icono={Truck} titulo={`No hay jornadas en ${anio}`} /></div>;
+  if (!r.jornadas.length) return null;
   return (
     <>
+      <div className="seccion-titulo">Jornadas de {anio}</div>
       <Tarjeta titulo="¿Llegan los niños que convocamos?" icono={Truck}>
         <GraficaJornadas jornadas={r.jornadas} />
       </Tarjeta>
@@ -406,7 +369,7 @@ function Jornadas({ anio }) {
 }
 
 /* ---------------- Calidad ---------------- */
-function Calidad({ consulta }) {
+export function Calidad({ consulta }) {
   const [r, error] = useDatos('/tablero/calidad' + consulta);
   const [abierto, setAbierto] = useState(null);
   if (error) return <Mensaje tipo="error">{error}</Mensaje>;

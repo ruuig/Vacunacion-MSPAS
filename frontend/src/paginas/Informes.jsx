@@ -8,14 +8,14 @@ import { Estado } from '../componentes/Estado.jsx';
 import { MESES, PAGINAS, TIPO_ALERTA, TIPO_CUADERNO, cuadernoFila, descargarCSV, edad, fecha, hoy, pct } from '../util.js';
 import { useSesion } from '../App.jsx';
 import { useDialogos } from '../componentes/Dialogos.jsx';
+import { Calidad } from './Tablero.jsx';
 
+// Niños a buscar y coberturas viven en Control del mes y en el Tablero: aquí solo lo que se entrega
 const VISTAS = [
-  ['mensual', <><FileText size={15} />Mensual 5a</>],
-  ['nominal', <><ClipboardList size={15} />Listado nominal</>],
-  ['seguimiento', <><Search size={15} />Seguimiento</>],
-  ['cobertura', <><TrendingUp size={15} />Cobertura</>],
+  ['mensual', <><FileText size={15} />Informe mensual SIGSA 5a</>],
+  ['nominal', <><ClipboardList size={15} />Listado de vacunados</>],
 ];
-const TITULO = { mensual: 'Informe mensual de vacunación', nominal: 'Listado nominal', seguimiento: 'Niños a buscar', cobertura: 'Cobertura y deserción' };
+const TITULO = { mensual: 'Informe mensual de vacunación', nominal: 'Listado de vacunados' };
 
 export default function Informes() {
   const ahora = new Date();
@@ -36,8 +36,6 @@ export default function Informes() {
     const ruta = {
       mensual: `/informes/mensual${qs({ ...periodoConsulta, tipo: f.tipo, comunidad: f.comunidad })}`,
       nominal: `/informes/nominal${qs({ ...periodoConsulta, tipo: f.tipo, comunidad: f.comunidad })}`,
-      seguimiento: `/informes/seguimiento${qs({ tipo: f.tipoAlerta, comunidad: f.comunidad })}`,
-      cobertura: `/informes/cobertura${qs({ anio: f.anio })}`,
     }[vista];
     api(ruta).then((d) => setCargado({ vista, datos: d })).catch((e) => setError(e.message));
   }, [vista, f.anio, f.mes, f.tipo, f.comunidad, f.tipoAlerta, f.modo, f.desde, f.hasta]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -47,7 +45,7 @@ export default function Informes() {
 
   return (
     <>
-      <EncabezadoImpresion titulo={TITULO[vista]} detalle={vista === 'cobertura' ? `Año ${f.anio}` : vista === 'seguimiento' ? null : periodo} />
+      <EncabezadoImpresion titulo={TITULO[vista]} detalle={periodo} />
       <div className="no-imprimir">
         <Encabezado titulo="Informes">
           <button className="btn" onClick={() => exportar(vista, datos, f)} disabled={!datos}><Download size={16} />Exportar a Excel</button>
@@ -62,7 +60,7 @@ export default function Informes() {
                 <select value={f.modo} onChange={set('modo')}><option value="mes">Un mes</option><option value="rango">Elegir fechas…</option></select>
               </Campo>
             )}
-            {vista !== 'seguimiento' && !(f.modo === 'rango' && ['mensual', 'nominal'].includes(vista)) && <Campo etiqueta="Año"><input type="number" value={f.anio} onChange={set('anio')} /></Campo>}
+            {f.modo !== 'rango' && <Campo etiqueta="Año"><input type="number" value={f.anio} onChange={set('anio')} /></Campo>}
             {['mensual', 'nominal'].includes(vista) && f.modo === 'rango' && (
               <>
                 <Campo etiqueta="Desde"><input type="date" value={f.desde} max={f.hasta} onChange={set('desde')} /></Campo>
@@ -80,22 +78,12 @@ export default function Informes() {
                 </Campo>
               </>
             )}
-            {vista === 'seguimiento' && (
-              <Campo etiqueta="Tipo de alerta">
-                <select value={f.tipoAlerta} onChange={set('tipoAlerta')}>
-                  <option value="">Todos</option>
-                  {Object.entries(TIPO_ALERTA).filter(([k]) => k !== 'proxima').map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                </select>
-              </Campo>
-            )}
-            {vista !== 'cobertura' && (
-              <Campo etiqueta="Comunidad">
-                <select value={f.comunidad} onChange={set('comunidad')}>
-                  <option value="">Todas</option>
-                  {comunidades.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                </select>
-              </Campo>
-            )}
+            <Campo etiqueta="Comunidad">
+              <select value={f.comunidad} onChange={set('comunidad')}>
+                <option value="">Todas</option>
+                {comunidades.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+              </select>
+            </Campo>
           </div>
         </div></div>
       </div>
@@ -106,8 +94,6 @@ export default function Informes() {
           {vista === 'mensual' && f.modo === 'mes' && <CierreMes anio={Number(f.anio)} mes={Number(f.mes)} />}
           {vista === 'mensual' && <Mensual d={datos} periodo={periodo} />}
           {vista === 'nominal' && <Nominal filas={datos} periodo={periodo} />}
-          {vista === 'seguimiento' && <Seguimiento filas={datos} />}
-          {vista === 'cobertura' && <Cobertura d={datos} />}
         </>
       )}
     </>
@@ -118,7 +104,7 @@ function Mensual({ d, periodo }) {
   const e = d.encabezado;
   const hex = d.columnas.reduce((s, c) => s + c.hexavalente, 0);
   // En pantalla se pueden esconder las columnas sin dosis para revisar rápido; al imprimir siempre sale completo
-  const [soloConDosis, setSoloConDosis] = useState(false);
+  const [soloConDosis, setSoloConDosis] = useState(true);
   const ceros = d.columnas.filter((c) => !c.total).length;
   return (
     <>
@@ -131,12 +117,13 @@ function Mensual({ d, periodo }) {
       </p>
       {ceros > 0 && (
         <label className="interruptor no-imprimir">
-          <input type="checkbox" checked={soloConDosis} onChange={(ev) => setSoloConDosis(ev.target.checked)} />
-          Ocultar en pantalla las {ceros} columnas sin dosis (al imprimir sale completo)
+          <input type="checkbox" checked={!soloConDosis} onChange={(ev) => setSoloConDosis(!ev.target.checked)} />
+          Ver también las {ceros} columnas en cero
         </label>
       )}
       {PAGINAS.map((p) => {
         const cols = d.columnas.filter((c) => c.pagina === p.id);
+        if (soloConDosis && !cols.some((c) => c.total)) return <div key={p.id} className="solo-imprimir"><Tarjeta titulo={p.nombre} icono={FileText}><p>Sin dosis.</p></Tarjeta></div>;
         return (
           <Tarjeta key={p.id} titulo={p.nombre} icono={FileText} cuerpo={false}>
             <Tabla>
@@ -153,11 +140,9 @@ function Mensual({ d, periodo }) {
           </Tarjeta>
         );
       })}
-      <Mensaje tipo="info">{hex} de las dosis de Pentavalente y Polio del mes fueron hexavalente (una aplicación llena ambas columnas).</Mensaje>
     </>
   );
 }
-
 function Nominal({ filas, periodo }) {
   return (
     <Tarjeta titulo={`Listado nominal · ${periodo}`} icono={ClipboardList} sub={`${filas.length} aplicaciones · Uso interno: contiene datos personales`} cuerpo={false}>
@@ -173,55 +158,6 @@ function Nominal({ filas, periodo }) {
             </tr>
           ))}
           {filas.length === 0 && <tr><td colSpan={9} className="tenue">Sin aplicaciones en este periodo.</td></tr>}
-        </tbody>
-      </Tabla>
-    </Tarjeta>
-  );
-}
-
-function Seguimiento({ filas }) {
-  return (
-    <Tarjeta titulo="Niños a buscar" icono={Search} sub={`${filas.length} alertas abiertas (sin contar próximas) · Uso interno`} cuerpo={false}>
-      <Tabla>
-        <thead><tr><th>Niña o niño</th><th>Comunidad</th><th>Tipo</th><th>Dosis</th><th>Responsable</th><th>Cuaderno</th><th>Intentos</th></tr></thead>
-        <tbody>
-          {filas.map((r, i) => (
-            <tr key={i}>
-              <td><Link className="nombre-link" to={`/ninos/${r.nino_id}`}>{r.nombre_completo}</Link><span className="sub">{edad(r.fecha_nacimiento)}</span></td>
-              <td>{r.comunidad}</td>
-              <td><Estado de={r.tipo} /></td>
-              <td>{r.etiqueta || '—'}</td>
-              <td>{r.responsable || '—'}<span className="sub">{r.telefono || 'Sin teléfono'}</span></td>
-              <td>{cuadernoFila(r)}</td>
-              <td className="num">{r.intentos}</td>
-            </tr>
-          ))}
-          {filas.length === 0 && <tr><td colSpan={7} className="tenue">No hay niños pendientes de buscar.</td></tr>}
-        </tbody>
-      </Tabla>
-    </Tarjeta>
-  );
-}
-
-function Cobertura({ d }) {
-  const filas = [...d.comunidades, d.total];
-  return (
-    <Tarjeta titulo={`Cobertura y deserción · ${d.anio}`} icono={TrendingUp} cuerpo={false}>
-      <Tabla>
-        <thead>
-          <tr><th>Comunidad</th><th className="celda-num">Meta &lt; 1</th><th className="celda-num">Penta 1a</th><th className="celda-num">Penta 3a</th>
-            <th className="celda-num">Cob. Penta 3a</th><th className="celda-num">Cob. Polio 3a</th><th className="celda-num">Meta 1 año</th>
-            <th className="celda-num">SPR 1</th><th className="celda-num">Cob. SPR 1</th><th className="celda-num">Deserción</th></tr>
-        </thead>
-        <tbody>
-          {filas.map((r) => (
-            <tr key={r.id ?? 'total'} className={r.id ? '' : 'fila-total'}>
-              <td className="fuerte">{r.nombre}</td><td className="celda-num">{r.meta_menor_1 ?? '—'}</td><td className="celda-num">{r.dpt1}</td>
-              <td className="celda-num">{r.dpt3}</td><td className="celda-num">{pct(r.cobertura_dpt3)}</td><td className="celda-num">{pct(r.cobertura_polio3)}</td>
-              <td className="celda-num">{r.meta_1_anio ?? '—'}</td><td className="celda-num">{r.spr1}</td><td className="celda-num">{pct(r.cobertura_spr1)}</td>
-              <td className={`celda-num ${r.desercion_dpt > 10 ? 'num-alerta' : ''}`}>{pct(r.desercion_dpt)}</td>
-            </tr>
-          ))}
         </tbody>
       </Tabla>
     </Tarjeta>
@@ -244,19 +180,6 @@ function exportar(vista, datos, f) {
       { titulo: 'Recuperación', valor: (r) => (r.es_recuperacion ? 'Sí' : '') }, { titulo: 'Cuaderno', valor: (r) => (r.cuaderno_numero ? `${r.cuaderno_numero}/${r.cuaderno_anio}` : '') },
       { titulo: 'Fila', valor: 'fila' }, { titulo: 'Comunidad', valor: 'comunidad' },
     ], datos);
-  } else if (vista === 'seguimiento') {
-    descargarCSV('seguimiento', [
-      { titulo: 'Comunidad', valor: 'comunidad' }, { titulo: 'Tipo', valor: (r) => TIPO_ALERTA[r.tipo] }, { titulo: 'Nombre', valor: 'nombre_completo' },
-      { titulo: 'Dosis', valor: 'etiqueta' }, { titulo: 'Responsable', valor: 'responsable' }, { titulo: 'Teléfono', valor: 'telefono' },
-      { titulo: 'Cuaderno y fila', valor: cuadernoFila }, { titulo: 'Intentos', valor: 'intentos' },
-    ], datos);
-  } else {
-    descargarCSV(`cobertura-${f.anio}`, [
-      { titulo: 'Comunidad', valor: 'nombre' }, { titulo: 'Meta menor de 1', valor: 'meta_menor_1' }, { titulo: 'Penta 1a', valor: 'dpt1' },
-      { titulo: 'Penta 3a', valor: 'dpt3' }, { titulo: 'Cobertura Penta 3a %', valor: 'cobertura_dpt3' }, { titulo: 'Cobertura Polio 3a %', valor: 'cobertura_polio3' },
-      { titulo: 'Meta 1 año', valor: 'meta_1_anio' }, { titulo: 'SPR 1', valor: 'spr1' }, { titulo: 'Cobertura SPR 1 %', valor: 'cobertura_spr1' },
-      { titulo: 'Deserción %', valor: 'desercion_dpt' },
-    ], [...datos.comunidades, datos.total]);
   }
 }
 
@@ -265,6 +188,7 @@ function CierreMes({ anio, mes }) {
   const { usuario } = useSesion();
   const { avisar } = useDialogos();
   const [calidad, setCalidad] = useState(null);
+  const [verDetalle, setVerDetalle] = useState(false);
   const [enviados, setEnviados] = useState([]);
   const desde = `${anio}-${String(mes).padStart(2, '0')}-01`;
   const hasta = [new Date(Date.UTC(anio, mes, 0)).toISOString().slice(0, 10), hoy()].sort()[0];
@@ -281,8 +205,7 @@ function CierreMes({ anio, mes }) {
   const marcar = () => api('/informes/enviado', { method: 'POST', body: { tipo: 'mensual_5a', anio, mes } })
     .then(() => { avisar('Quedó registrado como enviado.'); cargar(); }).catch((e) => avisar(e.message, 'error'));
   return (
-    <Tarjeta titulo="Antes de enviar el informe" icono={ShieldCheck} className="no-imprimir"
-      sub={pendientes.length ? 'Revise estos puntos para que los números sean confiables' : 'Los datos del mes están listos'}>
+    <Tarjeta titulo={pendientes.length ? 'Revise antes de enviar' : 'Listo para enviar'} icono={ShieldCheck} className="no-imprimir">
       {/* Lo que está bien se resume en una línea; solo se despliega lo que hay que revisar */}
       {bien > 0 && (
         <div className="lectura-item t-ok" style={{ marginBottom: '.6rem' }}><CheckCircle2 size={17} />
@@ -298,13 +221,14 @@ function CierreMes({ anio, mes }) {
         ))}
       </div>
       <div className="acciones" style={{ justifyContent: 'space-between' }}>
-        {pendientes.length > 0 ? <Link className="btn" to="/tablero?vista=calidad">Revisar en el tablero</Link> : <span />}
+        {pendientes.length > 0 ? <button className="btn" onClick={() => setVerDetalle(!verDetalle)}>{verDetalle ? 'Ocultar' : 'Ver a quiénes corregir'}</button> : <span />}
         {enviado ? (
           <span className="lectura-item t-ok"><CheckCircle2 size={17} /><span>Enviado el {fecha(String(enviado.fecha).slice(0, 10))} por {enviado.usuario}</span></span>
-        ) : usuario.rol === 'enfermera' && (
+        ) : ['enfermera', 'administrador'].includes(usuario.rol) && (
           <button className="btn btn-verde" onClick={marcar}><Send size={16} />Marcar como enviado al SIGSA</button>
         )}
       </div>
+      {verDetalle && <div className="mt"><Calidad consulta={qs({ desde, hasta })} /></div>}
     </Tarjeta>
   );
 }

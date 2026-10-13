@@ -1739,3 +1739,13 @@ label.btn.deshabilitado { opacity: .55; pointer-events: none; }
 .carne-completas.lejanas { color: var(--suave); background: var(--superficie-2); border-color: var(--borde); }
 .carne-completas.lejanas strong { color: var(--marino); }
 .mosaico .contador-mosaico.neutro { background: #fff; color: var(--ambar); border: 2px solid var(--ambar-borde); box-shadow: none; }
+
+/* ---------- Tablero: barras simples con la marca de la meta ---------- */
+.barras-simples { display: grid; gap: 1.1rem; }
+.barra-simple .bs-cab { display: flex; justify-content: space-between; gap: .75rem; font-size: .88rem; font-weight: 700; color: var(--texto); margin-bottom: .35rem; }
+.barra-simple .bs-cab strong.verde { color: var(--verde); }
+.barra-simple .bs-cab strong.rojo { color: var(--rojo); }
+.bs-pista { position: relative; height: 14px; border-radius: 8px; background: #e6ebf2; }
+.bs-lleno { display: block; height: 100%; border-radius: 8px; background: var(--ambar); }
+.bs-lleno.ok { background: #2fb36b; }
+.bs-pista i { position: absolute; top: -4px; bottom: -4px; width: 3px; border-radius: 2px; background: var(--marino); }
