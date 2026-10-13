@@ -9,7 +9,8 @@
     "test": "node --test test/",
     "db:init": "node db/init.js && node db/crearAdmin.js",
     "db:demo": "node db/datosDemo.js",
-    "db:migrar": "node db/migrar.js"
+    "db:migrar": "node db/migrar.js",
+    "db:preparar": "node db/prepararBase.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -18,5 +19,8 @@
     "jsonwebtoken": "^9.0.3",
     "node-cron": "^4.6.0",
     "pg": "^8.23.0"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
