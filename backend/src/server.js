@@ -43,11 +43,22 @@ if (fs.existsSync(dist)) {
 }
 
 // Traduce restricciones de la base a mensajes para el personal
+const CAMPOS = {
+  municipio: 'el municipio', departamento: 'el departamento', comunidad_id: 'la comunidad', primer_nombre: 'el nombre',
+  primer_apellido: 'el apellido', fecha_nacimiento: 'la fecha de nacimiento', sexo: 'si es niña o niño', pueblo: 'el pueblo',
+  nacimiento_municipio: 'el municipio de nacimiento', nacimiento_departamento: 'el departamento de nacimiento',
+};
 app.use((err, _req, res, _next) => {
   if (err.constraint === 'ux_aplicacion_dosis_vigente') return res.status(409).json({ error: 'Esa dosis ya está registrada para este niño.' });
   if (err.constraint === 'nino_cuaderno_id_fila_key') return res.status(409).json({ error: 'Esa fila del cuaderno ya está ocupada.' });
   if (err.code === '23505') return res.status(409).json({ error: 'Ya existe un registro con esos datos (CUI o usuario duplicado).' });
   if (err.code === '23514' || err.code === 'P0001') return res.status(422).json({ error: err.message });
+  // Campo obligatorio vacío: decir cuál falta en lugar de «Error interno»
+  if (err.code === '23502') {
+    const de = { responsable: ' de la mamá o responsable', nino: ' del niño' }[err.table] || '';
+    return res.status(400).json({ error: `Falta llenar ${CAMPOS[err.column] || String(err.column).replace(/_/g, ' ')}${de}.` });
+  }
+  if (['22P02', '22007', '22008', '22003'].includes(err.code)) return res.status(400).json({ error: 'Un dato tiene un formato no válido (revise fechas y números).' });
   console.error(err);
   res.status(500).json({ error: 'Error interno.' });
 });

@@ -33,8 +33,10 @@ function Municipio({ departamento, ...props }) {
   );
 }
 
-function Plegable({ titulo, children, abierto: inicial = false }) {
+function Plegable({ titulo, children, abierto: inicial = false, forzar = 0 }) {
   const [abierto, setAbierto] = useState(inicial);
+  // Si falta un dato obligatorio adentro, se abre sola para mostrarlo
+  useEffect(() => { if (forzar) setAbierto(true); }, [forzar]);
   return (
     <div style={{ marginTop: '1rem' }}>
       <button type="button" className="btn btn-fantasma" onClick={() => setAbierto(!abierto)} aria-expanded={abierto}>
@@ -53,6 +55,7 @@ export default function NinoForm() {
   const ir = useNavigate();
   const comunidades = useCatalogo('comunidades');
   const [paso, setPaso] = useState(1);
+  const [abrirMas, setAbrirMas] = useState(0);
   const [cuadernos, setCuadernos] = useState([]);
   const [nino, setNino] = useState({ ...VACIO_NINO, cuaderno_id: params.get('cuaderno') || '', fila: params.get('fila') || '' });
   const [resp, setResp] = useState(VACIO_RESP);
@@ -116,7 +119,12 @@ export default function NinoForm() {
   const comunidad = comunidades.find((c) => String(c.id) === String(resp.comunidad_id));
   const avanzar = (e) => {
     e.preventDefault();
+    const falta = (texto) => { setError(texto); setAbrirMas((x) => x + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); };
     if (paso === 1 && !nino.sexo) { setError('Toque "Niña" o "Niño".'); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    if (paso === 1 && !nino.nacimiento_departamento) return falta('Falta el departamento de nacimiento (en «Más datos del SIGSA 5a»).');
+    if (paso === 1 && !String(nino.nacimiento_municipio).trim()) return falta('Falta el municipio de nacimiento (en «Más datos del SIGSA 5a»).');
+    if (paso === 2 && !resp.departamento) return falta('Falta el departamento de la mamá o responsable (en «Más datos»).');
+    if (paso === 2 && !String(resp.municipio).trim()) return falta('Falta el municipio de la mamá o responsable (en «Más datos»).');
     setError('');
     setPaso(paso + 1);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -200,7 +208,7 @@ export default function NinoForm() {
               <InputCui value={nino.cui} onCambio={(cui) => setNino({ ...nino, cui })} />
             </Campo>
           </div>
-          <Plegable titulo="Más datos del SIGSA 5a (lugar de nacimiento, carné, padre)" abierto={editando}>
+          <Plegable titulo="Más datos del SIGSA 5a (lugar de nacimiento, carné, padre)" abierto={editando} forzar={abrirMas}>
             <div className="rejilla">
               <Campo etiqueta="Departamento de nacimiento" requerido>
                 <select required {...n('nacimiento_departamento')}>{DEPARTAMENTOS.map((d) => <option key={d}>{d}</option>)}</select>
@@ -263,7 +271,7 @@ export default function NinoForm() {
               </select>
             </Campo>
           </div>
-          <Plegable titulo="Más datos (dirección, idioma, fecha de nacimiento)" abierto={editando}>
+          <Plegable titulo="Más datos (dirección, idioma, fecha de nacimiento)" abierto={editando} forzar={abrirMas}>
             <div className="rejilla">
               <Campo etiqueta="Fecha de nacimiento"><input type="date" max={hoy()} {...r('fecha_nacimiento')} /></Campo>
               <Campo etiqueta="Idioma en que prefiere que le hablen">
