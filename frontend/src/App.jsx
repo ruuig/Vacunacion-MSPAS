@@ -155,7 +155,7 @@ export default function App() {
         <AvisoActualizacion />
         <nav className="barra-inf" aria-label="Navegación rápida">
           <NavLink to="/" end><span className="ic-burbuja"><Home size={21} /></span>Inicio</NavLink>
-          <NavLink to="/ninos"><span className="ic-burbuja"><Search size={21} /></span>Buscar</NavLink>
+          <NavLink to="/ninos"><span className="ic-burbuja"><Baby size={21} /></span>Niños</NavLink>
           <NavLink to="/alertas"><span className="ic-burbuja"><CalendarCheck size={21} />{contador}</span>Control</NavLink>
           <NavLink to="/jornadas"><span className="ic-burbuja"><Truck size={21} /></span>Jornadas</NavLink>
           <button onClick={() => setMenuAbierto(true)}><span className="ic-burbuja"><MoreHorizontal size={21} /></span>Más</button>
