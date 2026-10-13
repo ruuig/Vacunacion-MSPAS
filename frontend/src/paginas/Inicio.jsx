@@ -141,9 +141,9 @@ export default function Inicio() {
         <>
           <div className="seccion-titulo">Este año</div>
           <div className="kpis">
-            <Link to="/tablero" className={`kpi activo ${k.C2.valor >= ritmo ? 'verde' : k.C2.valor >= ritmo * 0.75 ? 'ambar' : 'rojo'}`}>
+            <Link to="/tablero" className={`kpi activo ${resumen.avance?.p3 >= ritmo ? 'verde' : resumen.avance?.p3 >= ritmo * 0.75 ? 'ambar' : 'rojo'}`}>
               <span>Niños con sus 3 dosis</span>
-              <strong>{k.C2.valor ?? '—'}{k.C2.valor != null && ' %'}</strong>
+              <strong>{resumen.avance?.p3 ?? '—'}{resumen.avance?.p3 != null && ' %'}</strong>
               <em className="kpi-pie" style={{ fontStyle: 'normal' }}>Deberíamos ir en {ritmo} %</em>
             </Link>
             <Link to="/alertas?tipo=dosis_cero" className="kpi rojo activo">

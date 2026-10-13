@@ -45,7 +45,7 @@ export function ListaJornadas() {
       <Mensaje tipo="error">{error}</Mensaje>
       {porCerrar > 0 && (
         <Mensaje tipo="aviso">
-          {plural(porCerrar, 'jornada ya pasó y sigue abierta', 'jornadas ya pasaron y siguen abiertas')}. Ciérrela para que quienes no llegaron pasen a Pendientes.
+          {plural(porCerrar, 'jornada ya pasó y sigue abierta', 'jornadas ya pasaron y siguen abiertas')}. Ciérrela para pasar a quienes no llegaron al control del mes.
         </Mensaje>
       )}
       {jornadas === null ? <Cargando /> : jornadas.length === 0 ? (

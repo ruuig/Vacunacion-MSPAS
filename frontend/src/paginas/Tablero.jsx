@@ -160,15 +160,15 @@ function Resumen({ consulta, anio, comunidad, elegirComunidad }) {
   const [tend] = useDatos('/tablero/tendencia' + qs({ anio, comunidad, codigos: 'N1,N3_abandono,N3_atrasado' }));
   if (error) return <Mensaje tipo="error">{error}</Mensaje>;
   if (!r) return <Cargando filas={6} />;
-  const k = r.kpis, ideal = r.ideal_al_mes;
+  const k = r.kpis, ideal = r.ideal_al_mes, av = r.avance;
   const filasTend = tend ? Object.values(tend.reduce((m, t) => { m[t.mes] = m[t.mes] || { mes: t.mes }; m[t.mes][t.codigo] = t.valor; return m; }, {})) : [];
   const delta = (v, ant) => (ant == null || v == null ? null : Math.round((v - ant) * 10) / 10);
 
   return (
     <>
       <div className="kpis tres">
-        <Kpi valor={k.C2.valor != null ? `${k.C2.valor} %` : '—'} rotulo="Niños con sus 3 dosis" icono={Target} color={k.C2.valor >= ideal ? 'verde' : 'rojo'} resaltar
-          pie={r.faltan_p3_para_meta ? `Faltan ${r.faltan_p3_para_meta} niños para el 95 %` : `Deberíamos ir en ${ideal ?? '—'} %`} />
+        <Kpi valor={av?.p3 != null ? `${av.p3} %` : '—'} rotulo="Niños con sus 3 dosis" icono={Target} color={av?.p3 >= ideal ? 'verde' : 'rojo'} resaltar
+          pie={`Deberíamos ir en ${ideal ?? '—'} %${r.faltan_p3_para_meta ? ` · faltan ${r.faltan_p3_para_meta} para el 95 %` : ''}`} />
         <Kpi valor={k.N1.valor} rotulo="Dosis cero" icono={AlertOctagon} color="rojo" to="/alertas?tipo=dosis_cero"
           pie={k.N1.anterior != null ? `${delta(k.N1.valor, k.N1.anterior) > 0 ? '▲' : delta(k.N1.valor, k.N1.anterior) < 0 ? '▼' : '='} ${Math.abs(delta(k.N1.valor, k.N1.anterior))} contra el mes pasado` : 'Ver quiénes'} />
         <Kpi valor={k.D1.valor != null ? `${k.D1.valor} %` : '—'} rotulo="Empiezan y no terminan" icono={UserX} to="/alertas?tipo=abandono"
@@ -182,8 +182,8 @@ function Resumen({ consulta, anio, comunidad, elegirComunidad }) {
       <div className="dos-col">
         <Tarjeta titulo="Primera dosis y sarampión" icono={Users}>
           <div className="barras-simples">
-            <Barra rotulo="Primera dosis Penta/Hexa (llegan)" valor={k.C1.valor} meta={ideal} />
-            <Barra rotulo="SPR 1 (sarampión)" valor={k.C3.valor} meta={ideal} />
+            <Barra rotulo="Primera dosis Penta/Hexa (llegan)" valor={av?.p1} meta={ideal} />
+            <Barra rotulo="SPR 1 (sarampión)" valor={av?.spr1} meta={ideal} />
             <Barra rotulo="Al día con sus vacunas" valor={k.N2.valor} meta={95} />
           </div>
         </Tarjeta>

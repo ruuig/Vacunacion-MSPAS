@@ -49,6 +49,8 @@ router.get('/resumen', VER, async (req, res) => {
     umbrales: R.umbrales(params),
     lecturas: mon.lecturas,
     proyeccion_p3: mon.proyeccion_p3,
+    // Avance del año contra la meta anual: es lo que muestra la gráfica y lo que se compara con el ritmo ideal
+    avance: mon.mes_actual ? { p1: mon.meses[mon.mes_actual - 1].p1, p3: mon.meses[mon.mes_actual - 1].p3, spr1: mon.meses[mon.mes_actual - 1].spr1 } : null,
     faltan_p3_para_meta: mon.faltan_p3_para_meta,
     sin_vacunar: comunidades.filter((c) => c.sin_vacunar).map((c) => ({ id: c.id, nombre: c.nombre, sin_vacunar: c.sin_vacunar, meta: c.meta_periodo_menor_1 }))
       .sort((a, b) => b.sin_vacunar - a.sin_vacunar),

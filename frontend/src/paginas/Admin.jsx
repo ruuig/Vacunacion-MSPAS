@@ -237,8 +237,8 @@ function Territorio() {
                   <tr key={h.id}>
                     <td className="fuerte">{h.nombre}<span className="sub">{TIPOS_COMUNIDAD[h.tipo]}</span></td>
                     <td><Responsable c={h} /></td>
-                    <td className="celda-num"><input type="number" min="0" className="num-input" defaultValue={h.distancia_km ?? ''}
-                      onBlur={(e) => String(e.target.value) !== String(h.distancia_km ?? '') && guardar(h, { distancia_km: e.target.value === '' ? null : Number(e.target.value) })} aria-label={`Distancia de ${h.nombre}`} /></td>
+                    <td className="celda-num"><input type="number" min="0" className="num-input" defaultValue={h.distancia_km != null ? Number(h.distancia_km) : ''}
+                      onBlur={(e) => Number(e.target.value) !== Number(h.distancia_km ?? -1) && guardar(h, { distancia_km: e.target.value === '' ? null : Number(e.target.value) })} aria-label={`Distancia de ${h.nombre}`} /></td>
                     <td className="celda-fin">
                       <select className="selector-chico" value={h.comunidad_padre_id} onChange={(e) => guardar(h, { comunidad_padre_id: Number(e.target.value) })} aria-label="Mover a otro puesto">
                         {centrales.map((x) => <option key={x.id} value={x.id}>{x.tipo === 'casco_urbano' ? 'Casco urbano' : `Puesto ${x.nombre}`}</option>)}
