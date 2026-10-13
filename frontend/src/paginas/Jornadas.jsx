@@ -39,7 +39,7 @@ export function ListaJornadas() {
 
   return (
     <>
-      <Encabezado titulo="Jornadas extramurales" descripcion="Listado nominal y biológicos calculados a la fecha de la jornada, no a la de hoy.">
+      <Encabezado titulo="Jornadas extramurales">
         {esEnfermera && <Link className="btn btn-primario" to="/jornadas/nueva"><Truck size={18} />Planificar jornada</Link>}
       </Encabezado>
       <Mensaje tipo="error">{error}</Mensaje>
@@ -143,8 +143,7 @@ export function NuevaJornada() {
 
   return (
     <form onSubmit={crear}>
-      <Encabezado titulo="Planificar jornada" migas={[['Jornadas', '/jornadas'], ['Nueva']]}
-        descripcion="El sistema calcula qué le tocará a cada niño el día de la jornada, incluida influenza si cae en temporada." />
+      <Encabezado titulo="Planificar jornada" migas={[['Jornadas', '/jornadas'], ['Nueva']]} />
       <Mensaje tipo="error">{error}</Mensaje>
 
       <Tarjeta titulo="Datos de la jornada" icono={CalendarCheck}>
@@ -569,7 +568,7 @@ function CerrarJornada({ biologicos, faltan, onCerrar, onConfirmar }) {
   const [devueltas, setDevueltas] = useState(() => Object.fromEntries(biologicos.map((b) => [b.producto_id,
     b.dosis_devueltas ?? (b.dosis_llevadas != null ? Math.max(0, b.dosis_llevadas - b.aplicadas) : '')])));
   return (
-    <Modal titulo="Cerrar jornada" sub="Anote cuántas dosis regresan al servicio" onCerrar={onCerrar}
+    <Modal titulo="Cerrar jornada" onCerrar={onCerrar}
       pie={<><button className="btn" onClick={onCerrar}>Volver</button>
         <button className="btn btn-primario" onClick={() => onConfirmar(biologicos.map((b) => ({ producto_id: b.producto_id, dosis_devueltas: devueltas[b.producto_id] })))}>
           <Lock size={16} />Cerrar jornada</button></>}>
@@ -608,7 +607,7 @@ function EditarEquipo({ jornada, onCerrar, onGuardado }) {
     } catch (e) { avisar(e.message, 'error'); }
   }
   return (
-    <Modal titulo="Equipo de la jornada" sub="Solo estas personas verán la jornada y podrán registrar en ella" onCerrar={onCerrar} chico
+    <Modal titulo="Equipo de la jornada" onCerrar={onCerrar} chico
       pie={<><button className="btn" onClick={onCerrar}>Cancelar</button><button className="btn btn-primario" onClick={guardar}>Guardar</button></>}>
       <Campo etiqueta="Responsable">
         <select value={responsable} onChange={(e) => setResponsable(e.target.value)}>

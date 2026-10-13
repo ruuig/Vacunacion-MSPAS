@@ -49,7 +49,7 @@ export default function Informes() {
     <>
       <EncabezadoImpresion titulo={TITULO[vista]} detalle={vista === 'cobertura' ? `Año ${f.anio}` : vista === 'seguimiento' ? null : periodo} />
       <div className="no-imprimir">
-        <Encabezado titulo="Informes" descripcion="Consolidados para el SIGSA, listados nominales y coberturas por comunidad.">
+        <Encabezado titulo="Informes">
           <button className="btn" onClick={() => exportar(vista, datos, f)} disabled={!datos}><Download size={16} />Exportar a Excel</button>
           <button className="btn btn-primario" onClick={() => window.print()} disabled={!datos}><Printer size={16} />Imprimir / PDF</button>
         </Encabezado>
@@ -206,8 +206,7 @@ function Seguimiento({ filas }) {
 function Cobertura({ d }) {
   const filas = [...d.comunidades, d.total];
   return (
-    <Tarjeta titulo={`Cobertura y deserción · ${d.anio}`} icono={TrendingUp} cuerpo={false}
-      sub="Cobertura = dosis aplicadas en el año / población meta × 100 · Deserción DPT = (1a − 3a) / 1a × 100">
+    <Tarjeta titulo={`Cobertura y deserción · ${d.anio}`} icono={TrendingUp} cuerpo={false}>
       <Tabla>
         <thead>
           <tr><th>Comunidad</th><th className="celda-num">Meta &lt; 1</th><th className="celda-num">Penta 1a</th><th className="celda-num">Penta 3a</th>

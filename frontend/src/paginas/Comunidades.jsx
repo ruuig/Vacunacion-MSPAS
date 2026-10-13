@@ -18,7 +18,7 @@ export default function Comunidades() {
 
   return (
     <>
-      <Encabezado titulo="Comunidades" descripcion="Situación de cada lugar poblado para decidir a dónde ir primero con la jornada extramural.">
+      <Encabezado titulo="Comunidades">
         {usuario.rol === 'enfermera' && <Link className="btn btn-primario" to="/jornadas/nueva"><Truck size={18} />Planificar jornada</Link>}
       </Encabezado>
       <Pestanas valor={vista} onCambio={setVista} opciones={[['tablero', 'Tablero territorial'], ['meta', 'Población meta']]} />
@@ -76,9 +76,6 @@ function Tablero({ rol, onIrMeta }) {
       </div>
 
       <div className="pagina-cab" style={{ marginBottom: '.75rem', alignItems: 'center' }}>
-        <p className="tenue" style={{ margin: 0 }}>
-          Ordenadas de mayor a menor necesidad. Cada niño cuenta una vez, en su caso más grave (dosis cero y abandono pesan más).
-        </p>
         <button className="btn btn-sm" onClick={exportar}><Download size={15} />Exportar a Excel</button>
       </div>
 
@@ -152,7 +149,6 @@ function PoblacionMeta({ editable }) {
     <>
       <div className="filtros">
         <Campo etiqueta="Año" className="" ><input type="number" value={anio} onChange={(e) => setAnio(Number(e.target.value))} style={{ maxWidth: 140 }} /></Campo>
-        <p className="tenue" style={{ flex: '3 1 300px', paddingBottom: '.7rem' }}>Denominador de las coberturas. Fuente: Área de Salud de Jalapa.</p>
       </div>
       <Mensaje tipo="error">{error}</Mensaje>
       {!filas ? <Cargando /> : (

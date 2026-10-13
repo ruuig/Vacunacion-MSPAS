@@ -26,7 +26,7 @@ export default function Admin() {
   const [vista, setVista] = useState('usuarios');
   return (
     <>
-      <Encabezado titulo="Administración" descripcion="Usuarios, parámetros del motor de cálculo, esquema de vacunación, catálogo territorial, auditoría, respaldos y logo." />
+      <Encabezado titulo="Administración" />
       <Pestanas valor={vista} onCambio={setVista} opciones={VISTAS} />
       {vista === 'usuarios' && <Usuarios />}
       {vista === 'parametros' && <Parametros />}
@@ -135,7 +135,6 @@ function Parametros() {
   }
   return (
     <>
-      <Mensaje tipo="info">Valores iniciales a validar con la enfermera jefa. Los cambios aplican desde el siguiente cálculo del motor.</Mensaje>
       <RecalcularFotos />
       <Mensaje tipo="error" onCerrar={() => setError('')}>{error}</Mensaje>
       <Tabla>
@@ -172,7 +171,7 @@ function RecalcularFotos() {
     setOcupado(false);
   }
   return (
-    <Tarjeta titulo="Tendencias del tablero" icono={SlidersHorizontal} sub="La foto de cada mes se guarda sola el día 1. Recalcule si cambió parámetros o corrigió datos antiguos.">
+    <Tarjeta titulo="Tendencias del tablero" icono={SlidersHorizontal}>
       <div className="filtros" style={{ marginBottom: 0 }}>
         <Campo etiqueta="Año"><input type="number" value={anio} onChange={(e) => setAnio(Number(e.target.value))} style={{ maxWidth: 140 }} /></Campo>
         <div style={{ flex: '0 0 auto' }}><button className="btn btn-primario" disabled={ocupado} onClick={recalcular}>{ocupado ? 'Calculando…' : 'Recalcular meses del año'}</button></div>
@@ -198,7 +197,6 @@ function Esquema() {
   }
   return (
     <>
-      <Mensaje tipo="info">Edades e intervalos en días. El esquema se guarda como datos: cambiarlo no requiere tocar el código.</Mensaje>
       <Mensaje tipo="error" onCerrar={() => setError('')}>{error}</Mensaje>
       <Tabla>
         <thead><tr><th>Dosis</th>{CAMPOS_ESQUEMA.map(([, t]) => <th key={t}>{t}</th>)}<th /></tr></thead>
@@ -230,7 +228,6 @@ function Territorio() {
 
   return (
     <>
-      <Mensaje tipo="info">Jerarquía del carné: servicio de salud → territorio → sector → comunidad. Las jornadas y alertas usan la comunidad.</Mensaje>
       <Mensaje tipo="error" onCerrar={() => setError('')}>{error}</Mensaje>
       <div className="dos-col" style={{ marginBottom: '1.25rem' }}>
         <form onSubmit={(e) => { e.preventDefault(); accion(() => api('/comunidades/territorios', { method: 'POST', body: { ...nuevoT, servicio_id: Number(nuevoT.servicio_id) } }), 'Territorio creado.'); }}>
@@ -312,7 +309,6 @@ function Bitacora() {
           </select></Campo>
         </div>
       </div></div>
-      <p className="tenue" style={{ marginBottom: '.75rem' }}>Solo inserción: ningún registro de la bitácora se puede modificar ni borrar. Últimos 300. Toque una fila para ver el detalle.</p>
       <Tabla adaptable={false}>
         <thead><tr><th>Fecha y hora</th><th>Usuario</th><th>Acción</th><th>Tabla</th><th>Registro</th><th>IP</th></tr></thead>
         <tbody>
@@ -417,8 +413,6 @@ function Respaldos() {
           </label>
         </div>
         <Mensaje tipo="error" className="mt">{error}</Mensaje>
-        <p className="tenue mt">Guarde las descargas en un lugar distinto del servidor (una memoria USB o la nube del centro de salud).
-          Para volver a una copia anterior use <strong>Restaurar</strong> en la lista: reemplaza toda la información y antes guarda el estado actual por si hay que deshacerlo.</p>
       </Tarjeta>
       {restaurando && (
         <div className="modal-fondo"><div className="modal chico"><div className="modal-cuerpo restaurando">
@@ -490,8 +484,7 @@ function CambiarLogo() {
   }
 
   return (
-    <Tarjeta titulo="Logo institucional" icono={ImageUp}
-      sub="Aparece en el menú, en la pantalla de inicio de sesión y en el encabezado de lo que se imprime. Use una imagen horizontal con fondo transparente o blanco.">
+    <Tarjeta titulo="Logo institucional" icono={ImageUp}>
       <div className="logo-comparar">
         <figure><figcaption>Logo actual</figcaption><div className="logo-marco"><Logo /></div></figure>
         {nuevo && <figure><figcaption>Logo nuevo (vista previa)</figcaption><div className="logo-marco nuevo"><img src={nuevo} alt="Logo nuevo" /></div></figure>}
@@ -506,7 +499,6 @@ function CambiarLogo() {
         {nuevo && <button className="btn btn-fantasma" onClick={() => setNuevo(null)}>Cancelar</button>}
         {!nuevo && <button className="btn btn-fantasma" onClick={restaurar}><RotateCcw size={16} />Volver al logo original</button>}
       </div>
-      <p className="tenue mt">PNG, JPG o WEBP de hasta 1 MB. Se guarda en la base de datos, así que también queda en los respaldos.</p>
     </Tarjeta>
   );
 }

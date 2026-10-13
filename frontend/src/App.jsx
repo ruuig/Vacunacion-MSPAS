@@ -1,7 +1,7 @@
 import { createContext, lazy, Suspense, useContext, useEffect, useState, useCallback } from 'react';
 import { Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom';
 import {
-  Baby, Bell, BookOpen, FileText, Home, LayoutDashboard, LogOut, MapPinned, Menu, Package, Search, Settings, Truck, MoreHorizontal,
+  Baby, Bell, CalendarCheck, BookOpen, FileText, Home, LayoutDashboard, LogOut, MapPinned, Menu, Package, Search, Settings, Truck, MoreHorizontal,
 } from 'lucide-react';
 import { api, sesionGuardada, guardarSesion } from './api.js';
 import { cola } from './componentes/fueraDeLinea.js';
@@ -91,7 +91,7 @@ export default function App() {
             <div className="menu-titulo">Principal</div>
             <NavLink to="/" end><Home size={19} />Inicio</NavLink>
             <NavLink to="/ninos"><Baby size={19} />Niñas y niños</NavLink>
-            <NavLink to="/alertas"><Bell size={19} />Control del mes{contador}</NavLink>
+            <NavLink to="/alertas"><CalendarCheck size={19} />Control del mes{contador}</NavLink>
             <div className="menu-titulo">Territorio</div>
             <NavLink to="/comunidades"><MapPinned size={19} />Comunidades</NavLink>
             <NavLink to="/jornadas"><Truck size={19} />Jornadas</NavLink>
@@ -156,7 +156,7 @@ export default function App() {
         <nav className="barra-inf" aria-label="Navegación rápida">
           <NavLink to="/" end><span className="ic-burbuja"><Home size={21} /></span>Inicio</NavLink>
           <NavLink to="/ninos"><span className="ic-burbuja"><Search size={21} /></span>Buscar</NavLink>
-          <NavLink to="/alertas"><span className="ic-burbuja"><Bell size={21} />{contador}</span>Control</NavLink>
+          <NavLink to="/alertas"><span className="ic-burbuja"><CalendarCheck size={21} />{contador}</span>Control</NavLink>
           <NavLink to="/jornadas"><span className="ic-burbuja"><Truck size={21} /></span>Jornadas</NavLink>
           <button onClick={() => setMenuAbierto(true)}><span className="ic-burbuja"><MoreHorizontal size={21} /></span>Más</button>
         </nav>

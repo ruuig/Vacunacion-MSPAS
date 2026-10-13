@@ -26,7 +26,7 @@ export function ListaCuadernos() {
 
   return (
     <>
-      <Encabezado titulo="Cuadernos SIGSA 5a" descripcion="Cada cuaderno físico tiene 25 filas. La fila del papel y la del sistema deben coincidir.">
+      <Encabezado titulo="Cuadernos SIGSA 5a">
         {puedeCrear && <button className="btn btn-primario" onClick={() => setNuevo(true)}><BookPlus size={18} />Registrar cuaderno</button>}
       </Encabezado>
       <Mensaje tipo="error">{error}</Mensaje>
@@ -62,7 +62,6 @@ export function ListaCuadernos() {
               ))}
             </tbody>
           </Tabla>
-          <p className="tenue">Todos son de producción / cobertura salvo los que indican otro tipo.</p>
         </>
       )}
     </>
@@ -89,7 +88,7 @@ function NuevoCuaderno({ onCerrar, onCreado }) {
   }
 
   return (
-    <Modal titulo="Portada del cuaderno" sub="Datos impresos en la portada del SIGSA 5a" onCerrar={onCerrar} onSubmit={guardar}
+    <Modal titulo="Portada del cuaderno" onCerrar={onCerrar} onSubmit={guardar}
       pie={<><button type="button" className="btn" onClick={onCerrar}>Cancelar</button><button className="btn btn-primario"><Save size={17} />Guardar</button></>}>
       <div className="rejilla">
         <Campo etiqueta="Cuaderno No." requerido><input type="number" min="1" required value={f.numero} onChange={set('numero')} autoFocus /></Campo>
@@ -133,9 +132,6 @@ export function CuadernoDetalle() {
         descripcion={`${TIPO_CUADERNO[cu.tipo]} · ${cu.servicio}${cu.comunidad ? ` · ${cu.comunidad}` : ''}${cu.sector ? ` · sector ${cu.sector}` : ''}`}>
         <Progreso valor={ocupadas} max={25} />
       </Encabezado>
-      <Mensaje tipo="info">
-        Para digitar desde el papel: registre al niño en su fila y luego, en su ficha, toque cada casilla del carné con el modo <strong>“Desde cuaderno”</strong>.
-      </Mensaje>
       <Tabla>
         <thead><tr><th>Fila</th><th>Niña o niño</th><th>Nacimiento</th><th>Responsable</th><th>Dosis</th><th>Estado</th></tr></thead>
         <tbody>
@@ -161,7 +157,6 @@ export function CuadernoDetalle() {
           ))}
         </tbody>
       </Tabla>
-      <p className="tenue"><Info size={13} style={{ verticalAlign: '-2px' }} /> Las filas vacías se pueden llenar en cualquier orden.</p>
     </>
   );
 }

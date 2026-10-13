@@ -95,7 +95,7 @@ export default function Tablero() {
 
   return (
     <>
-      <Encabezado titulo="Tablero de vacunación" descripcion="Cómo vamos, dónde están los problemas y qué hacer. Toque una barra o un punto para ver esa comunidad.">
+      <Encabezado titulo="Tablero de vacunación">
         <button className="btn" onClick={() => cambiarVista('sala')}><Printer size={17} />Informe de sala situacional</button>
       </Encabezado>
       <div className="tablero-filtros no-imprimir">
@@ -175,10 +175,10 @@ function Resumen({ consulta, anio, comunidad, elegirComunidad }) {
       </div>
 
       <div className="col-principal">
-        <Tarjeta titulo="¿Vamos al ritmo para llegar al 95 %?" icono={TrendingUp} sub="Cobertura acumulada mes a mes contra el ritmo ideal (8,3 % por mes)">
+        <Tarjeta titulo="¿Vamos al ritmo para llegar al 95 %?" icono={TrendingUp}>
           {mon ? <GraficaMonitoreo datos={mon} /> : <Cargando />}
         </Tarjeta>
-        <Tarjeta titulo="Lectura" icono={ClipboardCheck} sub="Qué dicen los números">
+        <Tarjeta titulo="Lectura" icono={ClipboardCheck}>
           <Lectura items={r.lecturas} />
           {r.faltan_p3_para_meta != null && (
             <div className="lectura-item t-info" style={{ marginTop: '.6rem' }}><Target size={17} />
@@ -190,12 +190,12 @@ function Resumen({ consulta, anio, comunidad, elegirComunidad }) {
       </div>
 
       <div className="dos-col">
-        <Tarjeta titulo="¿Dónde faltan más niños?" icono={Users} sub="Niños sin tercera dosis según la meta, por comunidad. Toque una barra para filtrar.">
+        <Tarjeta titulo="¿Dónde faltan más niños?" icono={Users}>
           {r.sin_vacunar.length ? (
             <GraficaBarras datos={r.sin_vacunar.slice(0, 10)} campo="sin_vacunar" etiqueta="Niños sin 3.ª dosis" onClic={(d) => elegirComunidad(String(d.id))} />
           ) : <Vacio icono={CheckCircle2} titulo="Ninguna comunidad debajo de la meta" />}
         </Tarjeta>
-        <Tarjeta titulo="¿Hay menos niños atrasados que antes?" icono={TrendingUp} sub="Niños en dosis cero, abandono y atraso al cierre de cada mes">
+        <Tarjeta titulo="¿Hay menos niños atrasados que antes?" icono={TrendingUp}>
           {filasTend.length ? (
             <GraficaTendencia filas={filasTend} series={[['N1', 'Dosis cero'], ['N3_abandono', 'Abandono'], ['N3_atrasado', 'Atrasados']]} />
           ) : <Vacio icono={TrendingUp} titulo="Aún no hay meses guardados">La foto de cada mes se guarda el día 1. El administrador puede generarla en Administración.</Vacio>}
@@ -216,7 +216,7 @@ function Territorio({ consulta, rol, elegirComunidad }) {
 
   return (
     <>
-      <Tarjeta titulo="¿A dónde ir primero?" icono={Target} sub="Comunidades por prioridad (matriz OPS-Guatemala). Dentro de cada prioridad, primero la que tiene más niños sin vacunar." cuerpo={false}>
+      <Tarjeta titulo="¿A dónde ir primero?" icono={Target} cuerpo={false}>
         {r.prioritarias.length === 0 ? <Vacio icono={CheckCircle2} titulo="Todas las comunidades con meta están en el rango aceptado" /> : (
           <Tabla>
             <thead><tr><th>Comunidad</th><th>Prioridad</th><th>Qué pasa</th><th className="celda-num">Sin 3.ª dosis</th><th>Qué hacer</th><th /></tr></thead>
@@ -244,7 +244,7 @@ function Territorio({ consulta, rol, elegirComunidad }) {
       </Tarjeta>
 
       <div className="col-principal">
-        <Tarjeta titulo="¿No llegan o no regresan?" icono={MapPinned} sub="Cada punto es una comunidad; el tamaño, cuántos niños faltan. Toque un punto para filtrar.">
+        <Tarjeta titulo="¿No llegan o no regresan?" icono={MapPinned}>
           <GraficaCuadrantes comunidades={r.comunidades} umbralAcceso={u.umbral_acceso} umbralDesercion={u.umbral_desercion} onClic={(c) => elegirComunidad(String(c.id))} />
         </Tarjeta>
         <Tarjeta titulo="Cómo leer los cuadrantes" icono={ClipboardList}>
@@ -254,7 +254,6 @@ function Territorio({ consulta, rol, elegirComunidad }) {
             <div><strong>Arriba a la derecha: llegan pero no regresan</strong>Llamar, dar cita y revisar oportunidades perdidas.</div>
             <div><strong>Abajo a la derecha: sin problema</strong>Mantener.</div>
           </div>
-          <p className="tenue" style={{ marginTop: '.75rem' }}>Umbrales: acceso {u.umbral_acceso} %, deserción {u.umbral_desercion} % (OMS, estrategia RED). Se cambian en Administración › Parámetros.</p>
         </Tarjeta>
       </div>
 
@@ -298,7 +297,7 @@ function Seguimiento({ consulta }) {
         <Kpi valor={r.S6.valor != null ? `${r.S6.valor} %` : '—'} rotulo="Citas acordadas que se cumplieron" icono={CalendarClock} color={r.S6.valor >= 70 ? 'verde' : 'ambar'} pie={`${r.S6.numerador} de ${r.S6.denominador}`} />
       </div>
       <div className="dos-col">
-        <Tarjeta titulo="¿El seguimiento funciona?" icono={TrendingUp} sub="De los casos que se abrieron en el período">
+        <Tarjeta titulo="¿El seguimiento funciona?" icono={TrendingUp}>
           <div className="embudo">
             {r.embudo.map((e) => (
               <div key={e.paso} className="embudo-fila">
@@ -310,7 +309,7 @@ function Seguimiento({ consulta }) {
           </div>
           {r.S7 > 0 && <div className="lectura-item t-atencion" style={{ marginTop: '1rem' }}><UserX size={17} /><span>{plural(r.S7, 'familia rechazó', 'familias rechazaron')} la vacuna: requieren consejería.</span></div>}
         </Tarjeta>
-        <Tarjeta titulo="¿Qué medio de contacto sirve más?" icono={Phone} sub="Porcentaje de casos que terminaron vacunados según cómo se contactó">
+        <Tarjeta titulo="¿Qué medio de contacto sirve más?" icono={Phone}>
           {r.S5.length ? (
             <>
               <GraficaBarras datos={r.S5.map((m) => ({ nombre: MEDIO[m.medio] || m.medio, valor: m.valor ?? 0, extra: `${m.resueltos} de ${m.contactados} casos` }))} campo="valor" etiqueta="Vacunados" unidad=" %"
@@ -350,7 +349,7 @@ function Servicio({ consulta }) {
         <Kpi valor={r.visitas_sin_vacuna} rotulo="Vinieron y no se vacunaron" icono={UserX} color="ambar" />
       </div>
       <div className="dos-col">
-        <Tarjeta titulo="¿Por qué no se vacunó cuando le tocaba?" icono={Stethoscope} sub="Oportunidades perdidas según el motivo anotado (método OPS)">
+        <Tarjeta titulo="¿Por qué no se vacunó cuando le tocaba?" icono={Stethoscope}>
           {r.motivos.length ? (
             <>
               <div className="leyenda-grafica">{['personal', 'servicio', 'familia'].map((c) => <span key={c}><i className="punto" style={{ background: colorCausa[c] }} />{CAUSA[c]}</span>)}</div>
@@ -361,7 +360,7 @@ function Servicio({ consulta }) {
             </>
           ) : <Vacio icono={CheckCircle2} titulo="No se registraron oportunidades perdidas">Se registran al guardar las vacunas cuando alguna que tocaba no se pone.</Vacio>}
         </Tarjeta>
-        <Tarjeta titulo="¿Se vacuna a tiempo?" icono={Clock} sub="Vacunas aplicadas a la edad del esquema (más 28 días de tolerancia)">
+        <Tarjeta titulo="¿Se vacuna a tiempo?" icono={Clock}>
           {r.porVacuna.length ? <GraficaOportunidad filas={r.porVacuna} /> : <Vacio icono={Clock} titulo="Sin vacunas en el período" />}
         </Tarjeta>
       </div>
@@ -377,7 +376,7 @@ function Jornadas({ anio }) {
   if (!r.jornadas.length) return <div className="tarjeta"><Vacio icono={Truck} titulo={`No hay jornadas en ${anio}`} /></div>;
   return (
     <>
-      <Tarjeta titulo="¿Llegan los niños que convocamos?" icono={Truck} sub="Convocados y vacunados por jornada">
+      <Tarjeta titulo="¿Llegan los niños que convocamos?" icono={Truck}>
         <GraficaJornadas jornadas={r.jornadas} />
       </Tarjeta>
       <Tarjeta titulo="Resultados por jornada" icono={ClipboardList} cuerpo={false}>
@@ -486,7 +485,6 @@ function Acciones({ rol }) {
   return (
     <>
       <div className="pagina-cab" style={{ marginBottom: '1rem', alignItems: 'center' }}>
-        <p className="tenue" style={{ margin: 0 }}>Lo acordado en la reunión mensual: qué se va a hacer, quién y para cuándo. En la siguiente reunión se revisa si mejoró el indicador.</p>
         {puedeEditar && <button className="btn btn-primario" onClick={() => setNueva({})}><Plus size={17} />Nueva acción</button>}
       </div>
       <div className="acciones-columnas">
@@ -540,7 +538,7 @@ function FormAccion({ inicial, onCerrar, onGuardada }) {
     } catch (err) { setError(err.message); }
   }
   return (
-    <Modal titulo="Nueva acción del plan" sub="Lo que se acordó hacer para mejorar un indicador" onCerrar={onCerrar} onSubmit={guardar}
+    <Modal titulo="Nueva acción del plan" onCerrar={onCerrar} onSubmit={guardar}
       pie={<><button type="button" className="btn" onClick={onCerrar}>Cancelar</button><button className="btn btn-primario"><Plus size={17} />Agregar</button></>}>
       <div className="rejilla">
         <Campo etiqueta="¿Cuál es el problema?" requerido className="ancho"><input required value={f.problema} onChange={set('problema')} placeholder="Ej. En Chiquirín los niños no regresan a la 3.ª dosis" /></Campo>

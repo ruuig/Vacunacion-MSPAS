@@ -229,7 +229,7 @@ export default function Vacunar({ ninoId, nombre, esquema, jornadaId, fechaDefec
         {sinVacunar ? 'Toque las que sí se puso. Las demás quedan como no aplicadas.' : 'Están marcadas las que le tocan. Toque una para quitarla si no se la puso.'}
       </p>
       {!tarjetas.length ? (
-        <Mensaje tipo="info">Hoy no le toca ninguna vacuna. Use el menú ⋯ de la ficha («Otra vacuna o dato del carné») para registrar algo distinto.</Mensaje>
+        <Mensaje tipo="info">Hoy no le toca ninguna vacuna.</Mensaje>
       ) : (
         <div className="vacunas-marcar">
           {tarjetas.map((t) => {

@@ -18,7 +18,7 @@ export default function Vacunas() {
   return (
     <>
       <div className="no-imprimir">
-        <Encabezado titulo="Vacunas" descripcion="Lotes que se están usando y consumo de cada vacuna en el mes." />
+        <Encabezado titulo="Vacunas" />
         <Pestanas valor={vista} onCambio={setVista} opciones={[['lotes', 'Lotes en uso'], ['consumo', 'Consumo del mes']]} />
       </div>
       {vista === 'lotes' ? <Lotes /> : <Consumo />}
@@ -85,8 +85,7 @@ function Lotes() {
           <span className="tenue">Al vacunar, el sistema propone el lote vigente que vence primero; nadie tiene que escribirlo.</span>
         </div>
       ) : (
-      <Tarjeta titulo="Registrar un lote recibido" icono={PackagePlus}
-        sub="Al vacunar, el sistema propone el lote vigente que vence primero; nadie tiene que escribirlo.">
+      <Tarjeta titulo="Registrar un lote recibido" icono={PackagePlus}>
         <form className="rejilla" onSubmit={registrar}>
           <Campo etiqueta="Vacuna" requerido>
             <select required value={nuevo.producto_id} onChange={(e) => setNuevo({ ...nuevo, producto_id: e.target.value })}>
@@ -186,8 +185,7 @@ function Consumo() {
       <Mensaje tipo="error">{error}</Mensaje>
       {!datos ? <Cargando /> : (
         <>
-          <Tarjeta titulo="Dosis aplicadas por vacuna" cuerpo={false}
-            sub="Cada aplicación cuenta una vez (una hexavalente es una dosis de hexavalente). Base para el pedido al distrito.">
+          <Tarjeta titulo="Dosis aplicadas por vacuna" cuerpo={false}>
             {!datos.vacunas.length ? <Vacio titulo="Sin dosis aplicadas en este mes" /> : (
               <Tabla>
                 <thead><tr>

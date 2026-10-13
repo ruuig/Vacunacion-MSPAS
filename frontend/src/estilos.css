@@ -1738,3 +1738,4 @@ label.btn.deshabilitado { opacity: .55; pointer-events: none; }
 @media screen { .ficha-datos.solo-imprimir { display: none; } }
 .carne-completas.lejanas { color: var(--suave); background: var(--superficie-2); border-color: var(--borde); }
 .carne-completas.lejanas strong { color: var(--marino); }
+.mosaico .contador-mosaico.neutro { background: #fff; color: var(--ambar); border: 2px solid var(--ambar-borde); box-shadow: none; }

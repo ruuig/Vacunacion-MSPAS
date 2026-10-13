@@ -16,11 +16,11 @@ function saludo() {
 
 const finDeSemana = () => sumarDias(hoy(), (7 - new Date(`${hoy()}T12:00:00Z`).getUTCDay()) % 7 || 7);
 
-function Mosaico({ to, icono: Ic, titulo, texto, color = '', contador, className = '' }) {
+function Mosaico({ to, icono: Ic, titulo, texto, color = '', contador, contadorNeutro = false, className = '' }) {
   return (
     <Link to={to} className={`mosaico ${color} ${className}`}>
       <span className="ic"><Ic size={26} /></span>
-      {contador > 0 && <b className="contador-mosaico">{contador > 99 ? '99+' : contador}</b>}
+      {contador > 0 && <b className={`contador-mosaico ${contadorNeutro ? 'neutro' : ''}`}>{contador > 99 ? '99+' : contador}</b>}
       <div><strong>{titulo}</strong><span>{texto}</span></div>
     </Link>
   );
@@ -92,7 +92,7 @@ export default function Inicio() {
           <strong>{porCerrar.length === 1 ? 'Tiene 1 jornada por cerrar' : `Tiene ${porCerrar.length} jornadas por cerrar`}:</strong>{' '}
           {porCerrar.map((j, i) => (
             <span key={j.id}>{i > 0 && ', '}<Link to={`/jornadas/${j.id}`}>{fecha(j.fecha)} · {j.comunidades}</Link></span>
-          ))}. Al cerrarla, quienes no llegaron pasan a Pendientes para darles seguimiento.
+          ))}
         </Mensaje>
       )}
 
@@ -100,31 +100,31 @@ export default function Inicio() {
         <Link to={`/jornadas/${jornadaHoy.id}`} className="aviso-jornada">
           <span className="ic"><Truck size={22} /></span>
           <span className="texto"><strong>Hoy hay jornada en {jornadaHoy.comunidades}</strong>
-            <span>{plural(jornadaHoy.convocados, 'niño convocado', 'niños convocados')} · abra la lista para vacunar</span></span>
+            <span>{plural(jornadaHoy.convocados, 'niño convocado', 'niños convocados')}</span></span>
           <ArrowRight size={20} />
         </Link>
       )}
 
       <div className="mosaicos">
-        {operativo && <Mosaico to="/ninos" icono={Syringe} titulo="Vacunar a un niño" texto="Búsquelo por nombre, CUI o nombre de la mamá" color="destacado" />}
-        {operativo && <Mosaico to="/ninos/nuevo" icono={UserPlus} titulo="Registrar niño nuevo" texto="Si es la primera vez que viene" color="verde" />}
+        {operativo && <Mosaico to="/ninos" icono={Syringe} titulo="Vacunar" texto="Buscar al niño" color="destacado" />}
+        {operativo && <Mosaico to="/ninos/nuevo" icono={UserPlus} titulo="Niño nuevo" texto="Primera vez que viene" color="verde" />}
         {operativo && (
-          <Mosaico to={pendientes.mios ? '/alertas?asignado=yo' : '/alertas'} icono={Phone} titulo="Llamar o visitar"
-            texto={pendientes.mios ? `${plural(pendientes.mios, 'niño asignado', 'niños asignados')} a usted` : 'Niños con una vacuna atrasada'}
+          <Mosaico to={pendientes.mios ? '/alertas?asignado=yo' : '/alertas'} icono={Phone} titulo="Niños a buscar"
+            texto={pendientes.mios ? 'Los que le asignaron' : 'Llamar o visitar'}
             color="rojo" contador={pendientes.mios || pendientes.total} />
         )}
         {operativo && (
-          <Mosaico to="/ninos?vista=citas" icono={CalendarDays} titulo="Citas de la semana" color="ambar" contador={citasSemana}
-            texto={citas === null ? 'Quiénes deben venir estos días' : citasSemana ? `${plural(citasSemana, 'niño debe', 'niños deben')} venir estos días` : 'Nadie tiene cita esta semana'} />
+          <Mosaico to="/alertas?periodo=semana&tipo=por_venir" icono={CalendarDays} titulo="Vienen esta semana" color="ambar" contador={citasSemana} contadorNeutro
+            texto={citas !== null && !citasSemana ? 'Nadie tiene cita' : 'Citas de estos días'} />
         )}
-        {!operativo && gestion && <Mosaico to="/tablero" icono={LayoutDashboard} titulo="Tablero" texto="Cómo vamos y dónde actuar" color="destacado" />}
-        {!operativo && <Mosaico to="/ninos" icono={Search} titulo="Buscar niño" texto="Consultar fichas e historial" />}
-        {!operativo && gestion && <Mosaico to="/informes" icono={FileText} titulo="Informes" texto="SIGSA, listados y coberturas" />}
-        {usuario.rol === 'administrador' && <Mosaico to="/admin" icono={Settings} titulo="Administración" texto="Usuarios, parámetros y bitácora" />}
+        {!operativo && gestion && <Mosaico to="/tablero" icono={LayoutDashboard} titulo="Tablero" texto="Cómo vamos" color="destacado" />}
+        {!operativo && <Mosaico to="/ninos" icono={Search} titulo="Buscar niño" texto="Fichas e historial" />}
+        {!operativo && gestion && <Mosaico to="/informes" icono={FileText} titulo="Informes" texto="Informe mensual SIGSA" />}
+        {usuario.rol === 'administrador' && <Mosaico to="/admin" icono={Settings} titulo="Administración" texto="Usuarios y respaldos" />}
       </div>
 
       {usuario.rol === 'vacunador' && misCasos && misCasos.length > 0 && (
-        <Tarjeta titulo="Sus pendientes de hoy" icono={Bell} sub="Niños que le asignaron para llamar o visitar" cuerpo={false}
+        <Tarjeta titulo="Sus niños a buscar" icono={Phone} cuerpo={false}
           pie={<Link to="/alertas?asignado=yo" className="btn btn-sm btn-fantasma">Ver todos ({misCasos.length}) <ArrowRight size={15} /></Link>}>
           <div className="lista-tarjetas" style={{ padding: '1rem' }}>
             {misCasos.slice(0, 4).map((c) => (
@@ -139,25 +139,25 @@ export default function Inicio() {
 
       {gestion && k && (
         <>
-          <div className="seccion-titulo">Cómo vamos este año</div>
+          <div className="seccion-titulo">Este año</div>
           <div className="kpis">
             <Link to="/tablero" className={`kpi activo ${k.C2.valor >= ritmo ? 'verde' : k.C2.valor >= ritmo * 0.75 ? 'ambar' : 'rojo'}`}>
-              <span>Tercera dosis Penta/Hexa</span>
+              <span>Niños con sus 3 dosis</span>
               <strong>{k.C2.valor ?? '—'}{k.C2.valor != null && ' %'}</strong>
-              <em className="kpi-pie" style={{ fontStyle: 'normal' }}>Meta a la fecha: {ritmo} %</em>
+              <em className="kpi-pie" style={{ fontStyle: 'normal' }}>Deberíamos ir en {ritmo} %</em>
             </Link>
             <Link to="/alertas?tipo=dosis_cero" className="kpi rojo activo">
-              <span>Dosis cero (sin primera pentavalente)</span>
+              <span>Dosis cero</span>
               <strong>{k.N1.valor}</strong>
               <em className="kpi-pie" style={{ fontStyle: 'normal' }}>{tendencia(k.N1.valor, k.N1.anterior) || 'Ver quiénes'} <ChevronRight size={13} /></em>
             </Link>
-            <Link to="/alertas" className="kpi ambar">
-              <span>Niños por contactar</span>
+            <Link to="/alertas" className="kpi ambar activo">
+              <span>Niños a buscar</span>
               <strong>{k.por_contactar.valor}</strong>
-              <em className="kpi-pie" style={{ fontStyle: 'normal' }}>Ir a pendientes <ChevronRight size={13} /></em>
+              <em className="kpi-pie" style={{ fontStyle: 'normal' }}>Ver quiénes <ChevronRight size={13} /></em>
             </Link>
             <div className="kpi verde">
-              <span>Niños con vacunas al día</span>
+              <span>Al día con sus vacunas</span>
               <strong>{k.N2.valor ?? '—'} %</strong>
               <em className="kpi-pie" style={{ fontStyle: 'normal' }}>{k.N2.numerador} de {k.N2.denominador}</em>
             </div>
@@ -166,10 +166,10 @@ export default function Inicio() {
       )}
 
       <div className="dos-col">
-        <Tarjeta titulo="Comunidades que requieren atención" icono={MapPinned} sub="Las de mayor necesidad primero; cada niño cuenta una vez" cuerpo={false}
+        <Tarjeta titulo="Dónde hay más niños a buscar" icono={MapPinned} cuerpo={false}
           pie={<Link to="/comunidades" className="btn btn-sm btn-fantasma">Ver todas <ArrowRight size={15} /></Link>}>
           {comunidades === null ? <div className="tarjeta-cuerpo"><div className="esqueleto" /></div> : prioritarias.length === 0 ? (
-            <Vacio icono={MapPinned} titulo="Todas las comunidades al día">No hay niños atrasados ni en dosis cero.</Vacio>
+            <Vacio icono={MapPinned} titulo="Todas las comunidades al día" />
           ) : (
             <div className="ranking">
               <div className="ranking-cab"><span>#</span><span>Comunidad</span><span>Dosis cero</span><span><b className="solo-pc">Abandono</b><b className="solo-cel">Aban&shy;dono</b></span><span><b className="solo-pc">Atrasados</b><b className="solo-cel">Atra&shy;sados</b></span><span /></div>
@@ -194,7 +194,7 @@ export default function Inicio() {
           )}
         </Tarjeta>
 
-        <Tarjeta titulo="Próximas jornadas" icono={Truck} sub="Vacunación en las comunidades" cuerpo={false}
+        <Tarjeta titulo="Próximas jornadas" icono={Truck} cuerpo={false}
           pie={<Link to="/jornadas" className="btn btn-sm btn-fantasma">Ver todas <ArrowRight size={15} /></Link>}>
           {jornadas === null ? <div className="tarjeta-cuerpo"><div className="esqueleto" /></div> : proximas.length === 0 ? (
             <div className="vacio-linea">

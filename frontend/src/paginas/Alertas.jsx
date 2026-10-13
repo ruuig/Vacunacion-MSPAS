@@ -167,8 +167,7 @@ export default function Alertas() {
       <EncabezadoImpresion titulo={`${IMPRESION[vista]} · ${vista === 'pedido' ? 'próximos meses' : enSemana ? `semana al ${fecha(finSemana)}` : titulo}`}
         detalle={`${lugar.nombre}${lugar.responsable ? ` · Responsable: ${lugar.responsable}` : ''}`} />
       <div className="no-imprimir">
-        <Encabezado titulo="Control del mes"
-          descripcion="Quién se vacunó, quién falta por vacunar y qué vacunas pedir. Las alertas de atraso se generan solas cada día.">
+        <Encabezado titulo="Control del mes">
           {esEnfermera && vista === 'por_vacunar' && !modoAsignar && <button className="btn" onClick={() => { setModoAsignar(true); cambiar({ nino: '' }); }}><Users size={17} />Asignar casos</button>}
           <button className="btn" onClick={() => window.print()} disabled={!datos}><Printer size={17} />Imprimir</button>
         </Encabezado>
@@ -440,9 +439,6 @@ function Pedido({ datos }) {
           ))}
         </tbody>
       </Tabla>
-      <p className="tenue" style={{ padding: '0 1.4rem 1rem' }}>
-        «Atrasadas» son dosis que ya debieron ponerse: se recuperan si los niños vienen. La influenza solo se cuenta mientras dure la temporada.
-      </p>
     </Tarjeta>
   );
 }
@@ -603,7 +599,7 @@ function DetalleCaso({ caso, rol, esCelular, onCerrarPanel, onCambio }) {
 
       <section className="caso-bloque">
         <div className="seccion-titulo">Contactos anteriores {seguimientos.length > 0 && `(${seguimientos.length})`}</div>
-        {seguimientos.length === 0 ? <p className="tenue">Ninguno todavía. Pendiente desde el {fecha(caso.desde)}.</p> : (
+        {seguimientos.length === 0 ? <p className="tenue">Nadie ha llamado todavía.</p> : (
           <>
             <ul className="linea-tiempo">
               {contactos.map((s) => (
