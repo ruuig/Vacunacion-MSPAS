@@ -20,6 +20,7 @@ coverage/
 
 # Respaldos de la base de datos
 *.dump
+backend/respaldos/
 *.sql.gz
 
 # Sistema operativo y editores

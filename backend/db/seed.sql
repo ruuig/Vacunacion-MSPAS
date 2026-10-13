@@ -15,18 +15,27 @@ INSERT INTO parametro (clave, valor, descripcion) VALUES
 
 INSERT INTO establecimiento (nombre, tipo, es_local) VALUES
  ('Centro de Salud San Luis Jilotepeque','centro',true),
- ('Puesto de Salud Chagüitón','puesto',true),
- ('Puesto de Salud Trapichitos','puesto',true),
- ('Puesto de Salud Valencia','puesto',true),
+ ('Puesto de Salud El Camarón','puesto',true),
  ('Puesto de Salud Los Olivos','puesto',true),
+ ('Puesto de Salud Los Trapichitos','puesto',true),
+ ('Puesto de Salud Valencia','puesto',true),
+ ('Puesto de Salud Montaña','puesto',true),
+ ('Puesto de Salud El Chagüitón','puesto',true),
  ('Externo','otro_municipio',false);
 
--- TODO: completar las 23 aldeas y 12 caseríos y asignar territorio y sector (confirmar con el distrito)
-INSERT INTO comunidad (nombre, tipo) VALUES
- ('Casco urbano','casco_urbano'),
- ('Chagüitón','aldea'), ('Trapichitos','aldea'), ('Valencia','aldea'), ('Los Olivos','aldea'),
- ('Tempiscón','caserio'), ('Las Mesonas','caserio'), ('San Marcos','caserio'),
- ('Chiquirín','caserio'), ('Cerro Redondo','caserio'), ('El Flor','caserio');
+-- Territorio del distrito: cada puesto (comunidad central) atiende las comunidades de su sector;
+-- en el casco urbano, cada barrio tiene su responsable. Distancias desde la cabecera municipal.
+INSERT INTO comunidad (nombre, tipo, distancia_km) VALUES
+ ('Casco urbano','casco_urbano',0),
+ ('El Camarón','aldea',35), ('La Encarnación','aldea',32), ('Los Olivos','aldea',24), ('Los Amates','aldea',16),
+ ('Los Magueyes','caserio',35), ('San José las Pilas','aldea',28), ('Los Trapichitos','aldea',24), ('California','aldea',32),
+ ('Los Ángeles','aldea',30), ('El Paterno','aldea',22), ('Palo Blanco','aldea',20), ('San Felipe','aldea',26),
+ ('Valencia','aldea',20), ('Songotongo','aldea',18), ('Cruz de Villeda','aldea',16), ('Culima','aldea',12),
+ ('Cushapa','aldea',8), ('Granada','aldea',10), ('Lagunilla','aldea',30), ('Montaña','aldea',22),
+ ('Potrerío','caserio',30), ('San Antonio','caserio',20), ('El Pelillal','caserio',12), ('El Chagüitón','aldea',35),
+ ('El Zapote','aldea',16), ('Las Mesas','caserio',18), ('Pansiguis','aldea',12), ('Zanja de Agua','caserio',16),
+ ('La Bolsa','barrio',0), ('El Calvario','barrio',0), ('El Centro','barrio',0), ('Izotes','barrio',0),
+ ('El Llano','barrio',0), ('San Sebastián','barrio',0), ('Santa Cruz','barrio',0), ('Tierra Blanca','barrio',0);
 
 INSERT INTO serie (codigo, nombre, estacional, informativa) VALUES
  ('HB_RN','Hepatitis B',false,false),

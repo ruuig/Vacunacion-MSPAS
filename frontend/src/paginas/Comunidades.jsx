@@ -49,7 +49,7 @@ function Tablero({ rol, onIrMeta }) {
   const [filas, setFilas] = useState(null);
   const [error, setError] = useState('');
   useEffect(() => { api('/comunidades/tablero').then(setFilas).catch((e) => setError(e.message)); }, []);
-  const ordenadas = [...(filas || [])].sort((a, b) => puntaje(b) - puntaje(a) || b.activos - a.activos);
+  const ordenadas = [...(filas || [])].filter((c) => c.tipo !== 'casco_urbano').sort((a, b) => puntaje(b) - puntaje(a) || b.activos - a.activos);
   const maximo = ordenadas.length ? puntaje(ordenadas[0]) : 0;
   const total = (k) => (filas || []).reduce((s, c) => s + (c[k] || 0), 0);
 
@@ -100,7 +100,10 @@ function Tablero({ rol, onIrMeta }) {
                 <td>
                   <Link className="nombre-link" to={destino}>{c.nombre}</Link>
                   <span className="sub" title={`${c.menores_1} menores de 1 año`}>
-                    {c.sector ? `Sector ${c.sector} · ` : TIPO_LUGAR[c.tipo] !== c.nombre ? `${TIPO_LUGAR[c.tipo]} · ` : ''}{plural(c.activos, 'niño', 'niños')}
+                    {c.es_central ? `${TIPO_LUGAR[c.tipo]} · puesto de salud${c.responsable ? ` (${c.responsable})` : ''} · `
+                      : c.tipo === 'barrio' ? `Barrio${c.responsable ? ` · ${c.responsable}` : ''} · `
+                        : c.puesto ? `${TIPO_LUGAR[c.tipo]} · puesto ${c.puesto} · ` : ''}
+                    {plural(c.activos, 'niño', 'niños')}{c.distancia_km > 0 && ` · ${Number(c.distancia_km)} km`}
                     {' · '}{c.ultima_jornada ? `última jornada ${fecha(c.ultima_jornada)}` : 'sin jornadas'}
                   </span>
                   <Nivel de={nivel} />

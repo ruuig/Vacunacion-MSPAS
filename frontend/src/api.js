@@ -43,4 +43,34 @@ export async function api(ruta, { method = 'GET', body } = {}) {
   return datos;
 }
 
+/** Descarga un archivo de la API al dispositivo (lleva la sesión, a diferencia de un enlace normal). */
+export async function descargarArchivo(ruta, nombre) {
+  const s = sesionGuardada();
+  let res;
+  try { res = await fetch('/api' + ruta, { headers: s?.token ? { Authorization: `Bearer ${s.token}` } : {} }); }
+  catch { throw new Error(navigator.onLine ? SIN_SERVIDOR : SIN_INTERNET); }
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'No se pudo descargar el archivo.');
+  const url = URL.createObjectURL(await res.blob());
+  const a = Object.assign(document.createElement('a'), { href: url, download: nombre });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Sube un archivo tal cual (sin convertirlo a JSON), por ejemplo un respaldo .dump. */
+export async function subirArchivo(ruta, archivo) {
+  const s = sesionGuardada();
+  let res;
+  try {
+    res = await fetch('/api' + ruta, { method: 'POST', body: archivo, headers: {
+      'Content-Type': 'application/octet-stream', 'X-Nombre-Archivo': encodeURIComponent(archivo.name || ''),
+      ...(s?.token ? { Authorization: `Bearer ${s.token}` } : {}),
+    } });
+  } catch { throw new Error(navigator.onLine ? SIN_SERVIDOR : SIN_INTERNET); }
+  const datos = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(datos.error || 'No se pudo subir el archivo.');
+  return datos;
+}
+
 export const qs = (o) => '?' + new URLSearchParams(Object.entries(o).filter(([, v]) => v !== '' && v != null)).toString();

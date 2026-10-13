@@ -115,4 +115,84 @@ router.post('/fotos', async (req, res) => {
   res.json({ anio, meses, indicadores: total });
 });
 
+// ---- Logo institucional ----
+const TIPOS_LOGO = ['image/png', 'image/jpeg', 'image/webp'];
+const MAX_LOGO = 1024 * 1024; // 1 MB: suficiente para un logo nítido y liviano en el celular
+
+// Recibe la imagen como data URL ("data:image/png;base64,..."); no se aceptan SVG (podrían llevar código)
+router.put('/logo', async (req, res) => {
+  const m = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(req.body?.imagen || '');
+  if (!m || !TIPOS_LOGO.includes(m[1])) return res.status(400).json({ error: 'Suba una imagen PNG, JPG o WEBP.' });
+  const datos = Buffer.from(m[2], 'base64');
+  if (datos.length > MAX_LOGO) return res.status(400).json({ error: 'La imagen pesa más de 1 MB; redúzcala e intente de nuevo.' });
+  await pool.query(`INSERT INTO archivo_config (clave, tipo, datos, actualizado, actualizado_por) VALUES ('logo', $1, $2, now(), $3)
+                    ON CONFLICT (clave) DO UPDATE SET tipo = $1, datos = $2, actualizado = now(), actualizado_por = $3`,
+  [m[1], datos, req.usuario.id]);
+  await registrarBitacora(pool, req, 'editar', 'archivo_config', 'logo', null, { tipo: m[1], bytes: datos.length });
+  res.json({ ok: true });
+});
+
+// Volver al logo original que trae el sistema
+router.delete('/logo', async (req, res) => {
+  await pool.query("DELETE FROM archivo_config WHERE clave = 'logo'");
+  await registrarBitacora(pool, req, 'eliminar', 'archivo_config', 'logo');
+  res.json({ ok: true });
+});
+
+// ---- Respaldos de la base de datos ----
+const respaldos = require('../servicios/respaldos');
+
+router.get('/respaldos', async (_req, res) => {
+  const { rows: [p] } = await pool.query("SELECT valor FROM parametro WHERE clave = 'respaldo_retencion_dias'");
+  res.json({ respaldos: respaldos.listar(), retencion_dias: Number(p?.valor) || 30, hora_automatica: '23:00' });
+});
+
+router.post('/respaldos', async (req, res) => {
+  let r;
+  try { r = await respaldos.crearRespaldo('manual'); } catch (e) { return res.status(500).json({ error: e.message }); }
+  await registrarBitacora(pool, req, 'crear', 'respaldo', r.nombre, null, r);
+  res.status(201).json(r);
+});
+
+// Descargar un respaldo al dispositivo para guardarlo fuera del servidor
+router.get('/respaldos/:nombre', async (req, res) => {
+  const r = respaldos.ruta(req.params.nombre);
+  if (!r) return res.status(404).json({ error: 'Respaldo no encontrado.' });
+  await registrarBitacora(pool, req, 'descargar', 'respaldo', req.params.nombre);
+  res.download(r, req.params.nombre);
+});
+
+// Subir un respaldo guardado en el dispositivo (el archivo .dump viaja tal cual, sin JSON)
+router.post('/respaldos/subir', require('express').raw({ type: 'application/octet-stream', limit: '300mb' }), async (req, res) => {
+  if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'Elija un archivo de respaldo (.dump).' });
+  let r;
+  try { r = await respaldos.guardarSubido(req.body); } catch (e) { return res.status(400).json({ error: e.message }); }
+  await registrarBitacora(pool, req, 'crear', 'respaldo', r.nombre, null, { ...r, original: req.get('x-nombre-archivo') || null });
+  res.status(201).json(r);
+});
+
+// Restaurar: antes se saca un respaldo del estado actual para poder deshacer
+router.post('/respaldos/:nombre/restaurar', async (req, res) => {
+  if (req.body?.confirmacion !== 'RESTAURAR') return res.status(400).json({ error: 'Escriba RESTAURAR para confirmar.' });
+  if (!respaldos.ruta(req.params.nombre)) return res.status(404).json({ error: 'Respaldo no encontrado.' });
+  let previo;
+  try {
+    previo = await respaldos.crearRespaldo('previo');
+    await respaldos.restaurar(req.params.nombre);
+  } catch (e) { return res.status(500).json({ error: e.message }); }
+  // El respaldo puede ser de una versión anterior: se aplican las migraciones que falten y se recalculan las alertas
+  await require('../../db/migrar').migrar(pool, { silencioso: true });
+  await registrarBitacora(pool, req, 'restaurar', 'respaldo', req.params.nombre, null, { previo: previo.nombre });
+  require('../servicios/esquema').recalcularTodos(pool).catch((e) => console.error('[restaurar] recálculo:', e.message));
+  res.json({ ok: true, previo: previo.nombre });
+});
+
+router.delete('/respaldos/:nombre', async (req, res) => {
+  const r = respaldos.ruta(req.params.nombre);
+  if (!r) return res.status(404).json({ error: 'Respaldo no encontrado.' });
+  require('fs').rmSync(r, { force: true });
+  await registrarBitacora(pool, req, 'eliminar', 'respaldo', req.params.nombre);
+  res.json({ ok: true });
+});
+
 module.exports = router;

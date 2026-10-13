@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { BellRing, Eye, EyeOff, Lock, MapPinned, ShieldCheck, User, Syringe } from 'lucide-react';
 import { api } from '../api.js';
 import { Campo, Mensaje } from '../componentes/ui.jsx';
-import logo from '../assets/mspas_png.png';
+import Logo from '../componentes/Logo.jsx';
 import { BotonInstalar } from '../componentes/Pwa.jsx';
 
 export default function Login({ onEntrar }) {
@@ -46,7 +46,7 @@ export default function Login({ onEntrar }) {
 
       <section className="login-form-lado">
         <div className="login-caja">
-          <img className="logo" src={logo} alt="Ministerio de Salud Pública y Asistencia Social" />
+          <Logo className="logo" />
           <div className="login-tarjeta">
             <h2>Iniciar sesión</h2>
             <p>Ingrese con el usuario asignado por el administrador.</p>

@@ -228,12 +228,13 @@ router.post('/:id/aplicaciones', permitir(...OPERATIVOS), async (req, res) => {
     const aplicaciones = await esq.cargarAplicaciones(c, n.id);
     const columnas = await esq.cargarColumnas(c);
     const { rows: series } = await c.query(
-      'SELECT s.codigo FROM producto_serie ps JOIN serie s ON s.id = ps.serie_id WHERE ps.producto_id = $1', [producto_id]);
+      'SELECT s.codigo, ps.numero_hasta FROM producto_serie ps JOIN serie s ON s.id = ps.serie_id WHERE ps.producto_id = $1', [producto_id]);
 
     const destino = esquema_dosis_ids?.length
       ? esquema_dosis_ids.map((id) => ({ esquemaDosisId: id,
         temporada: catalogo.find((d) => d.id === id)?.estacional ? temporadaDe(fecha_aplicacion) : 0 }))
       : dosisQueCumpleProducto({ seriesProducto: series.map((s) => s.codigo), catalogo, aplicaciones,
+        limites: Object.fromEntries(series.filter((s) => s.numero_hasta != null).map((s) => [s.codigo, s.numero_hasta])),
         fechaNacimiento: n.fecha_nacimiento, fecha: fecha_aplicacion });
     if (!destino.length) return { status: 422, body: { error: 'El niño ya tiene registradas las dosis que cumple esta vacuna.' } };
 

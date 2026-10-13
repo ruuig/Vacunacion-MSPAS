@@ -1,22 +1,22 @@
 // Copia del esquema de db/seed.sql para probar el motor sin base de datos.
 const filas = [
-  ['HB_RN', 1, 'Hepatitis B', 0, 0, null, null, null, 1],
+  ['HB_RN', 1, 'Hepatitis B', 0, 0, 29, null, null, 1],
   ['BCG', 1, 'BCG', 0, 0, 364, null, null, 2],
   ['POLIO', 1, 'Polio 1a', 60, 42, null, null, null, 10],
   ['POLIO', 2, 'Polio 2a', 120, 70, null, 28, 60, 11],
   ['POLIO', 3, 'Polio 3a', 180, 98, null, 28, 60, 12],
-  ['POLIO', 4, 'Polio R1', 548, 278, null, 180, 368, 13],
+  ['POLIO', 4, 'R1 (OPV)', 548, 278, null, 180, 368, 13],
   ['POLIO', 5, 'Polio R2', 1461, 458, null, 180, 913, 14],
   ['DPT_HIB_HB', 1, 'Pentavalente 1a', 60, 42, null, null, null, 20],
   ['DPT_HIB_HB', 2, 'Pentavalente 2a', 120, 70, null, 28, 60, 21],
   ['DPT_HIB_HB', 3, 'Pentavalente 3a', 180, 98, null, 28, 60, 22],
-  ['DPT_HIB_HB', 4, 'DPT R1', 548, 278, null, 180, 368, 23],
+  ['DPT_HIB_HB', 4, 'R1 Hexavalente', 548, 278, null, 180, 368, 23],
   ['DPT_HIB_HB', 5, 'DPT R2', 1461, 458, null, 180, 913, 24],
   ['ROTA', 1, 'Rotavirus 1a', 60, 42, 243, null, null, 30],
-  ['ROTA', 2, 'Rotavirus 2a', 120, 70, 243, 28, 60, 31],
+  ['ROTA', 2, 'Rotavirus 2a', 120, 70, 243, 60, 60, 31],
   ['NEUMO', 1, 'Neumococo 1a', 60, 42, null, null, null, 40],
-  ['NEUMO', 2, 'Neumococo 2a', 120, 70, null, 28, 60, 41],
-  ['NEUMO', 3, 'Neumococo R1', 365, 126, null, 56, 245, 42],
+  ['NEUMO', 2, 'Neumococo 2a', 120, 70, 364, 28, 60, 41],
+  ['NEUMO', 3, 'Neumococo R1', 365, 365, null, 56, 245, 42],
   ['SPR', 1, 'SPR 1', 365, 365, null, null, null, 50],
   ['SPR', 2, 'SPR 2', 548, 395, null, 30, 183, 51],
   ['INFLUENZA', 1, 'Influenza 1a', 180, 180, 1094, null, null, 60],
@@ -46,4 +46,7 @@ const SERIES_PRODUCTO = {
   ROTA: ['ROTA'], NEUMO: ['NEUMO'], BCG: ['BCG'], HB_PED: ['HB_RN'], SPR: ['SPR', 'SPR_CERO'], INFL_PED: ['INFLUENZA'],
 };
 
-module.exports = { catalogo, id, SERIES_PRODUCTO };
+// Hasta qué dosis cubre cada producto (producto_serie.numero_hasta)
+const LIMITES = { HEXA: { POLIO: 3, DPT_HIB_HB: 4 }, PENTA: { DPT_HIB_HB: 3 } };
+
+module.exports = { catalogo, id, SERIES_PRODUCTO, LIMITES };

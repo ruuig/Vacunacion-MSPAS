@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const {
   calcularEsquema, validarAplicacion, dosisQueCumpleProducto, esRecuperacion, grupoInfluenza, temporadaDe, aDia, aFecha,
 } = require('../src/motor/motorEsquema');
-const { catalogo, id, SERIES_PRODUCTO } = require('./catalogo.fixture');
+const { catalogo, id, SERIES_PRODUCTO, LIMITES } = require('./catalogo.fixture');
 
 const NAC = '2026-01-01';
 const mas = (dias, base = NAC) => aFecha(aDia(base) + dias);
@@ -97,10 +97,55 @@ test('CP-11 jornada futura: a 20 días aparecen dosis que hoy aún no tocan', ()
   assert.ok(rJor.leTocaHoy.some((d) => d.esquemaDosisId === id('DPT_HIB_HB', 1)));
 });
 
-test('Nunca reiniciar: 3a dosis tardía se programa desde la 2a', () => {
+test('Nunca reiniciar y esquema acelerado: 2a tardía, la 3a va un mes después', () => {
   const r = calcularEsquema({ fechaNacimiento: NAC, catalogo, fechaRef: mas(400),
     aplicaciones: [ap('DPT_HIB_HB', 1, mas(60)), ap('DPT_HIB_HB', 2, mas(300))] });
-  assert.equal(r.dosis.find((d) => d.esquemaDosisId === id('DPT_HIB_HB', 3)).fechaProgramada, mas(360));
+  assert.equal(r.dosis.find((d) => d.esquemaDosisId === id('DPT_HIB_HB', 3)).fechaProgramada, mas(328));
+});
+
+const prog = (r, serie, n) => r.dosis.find((d) => d.esquemaDosisId === id(serie, n))?.fechaProgramada;
+
+test('Acelerado: niño de 11 meses sin vacunas recibe la 1a hoy y luego una cada mes', () => {
+  const r = calcularEsquema({ fechaNacimiento: NAC, catalogo, fechaRef: mas(331), aplicaciones: [ap('DPT_HIB_HB', 1, mas(330))] });
+  assert.equal(prog(r, 'DPT_HIB_HB', 2), mas(358));
+});
+
+test('Acelerado: R1 seis meses después de la última hexa y R2 seis meses después del R1', () => {
+  const tarde = [ap('DPT_HIB_HB', 1, mas(330)), ap('DPT_HIB_HB', 2, mas(358)), ap('DPT_HIB_HB', 3, mas(386))];
+  let r = calcularEsquema({ fechaNacimiento: NAC, catalogo, fechaRef: mas(400), aplicaciones: tarde });
+  assert.equal(prog(r, 'DPT_HIB_HB', 4), mas(566));
+  r = calcularEsquema({ fechaNacimiento: NAC, catalogo, fechaRef: mas(700), aplicaciones: [...tarde, ap('DPT_HIB_HB', 4, mas(566))] });
+  assert.equal(prog(r, 'DPT_HIB_HB', 5), mas(746));
+});
+
+test('A tiempo: el R1 sigue a los 18 meses y el R2 a los 4 años', () => {
+  const r = calcularEsquema({ fechaNacimiento: NAC, catalogo, fechaRef: mas(200),
+    aplicaciones: [ap('DPT_HIB_HB', 1, mas(60)), ap('DPT_HIB_HB', 2, mas(120)), ap('DPT_HIB_HB', 3, mas(180))] });
+  assert.equal(prog(r, 'DPT_HIB_HB', 4), mas(548));
+});
+
+test('Hepatitis B solo antes del mes: después ya no aplica ni genera atraso', () => {
+  const r = calcularEsquema({ fechaNacimiento: NAC, catalogo, fechaRef: mas(90) });
+  assert.equal(estadoDe(r, 'HB_RN', 1), 'no_aplicable');
+});
+
+test('Neumococo: si la 1a fue a los 11 meses, la 2a se pierde y el refuerzo sigue desde la 1a', () => {
+  const r = calcularEsquema({ fechaNacimiento: NAC, catalogo, fechaRef: mas(400), aplicaciones: [ap('NEUMO', 1, mas(340))] });
+  assert.equal(estadoDe(r, 'NEUMO', 2), 'no_aplicable');
+  assert.notEqual(estadoDe(r, 'NEUMO', 3), 'en_espera');
+});
+
+test('Rotavirus: la 2a va dos meses después de la 1a', () => {
+  const r = calcularEsquema({ fechaNacimiento: NAC, catalogo, fechaRef: mas(130), aplicaciones: [ap('ROTA', 1, mas(120))] });
+  assert.equal(prog(r, 'ROTA', 2), mas(180));
+});
+
+test('La hexavalente no cumple el R1 de polio (ese es OPV); sí el R1 hexavalente', () => {
+  const primaria = [1, 2, 3].flatMap((n) => [ap('DPT_HIB_HB', n, mas(60 * n)), ap('POLIO', n, mas(60 * n))]);
+  const r = dosisQueCumpleProducto({ seriesProducto: SERIES_PRODUCTO.HEXA, limites: LIMITES.HEXA, catalogo,
+    aplicaciones: primaria, fechaNacimiento: NAC, fecha: mas(548) });
+  assert.deepEqual(ids(r), [id('DPT_HIB_HB', 4)]);
+  assert.deepEqual(ids(cumple('OPV', mas(548), primaria)), [id('POLIO', 4)]);
 });
 
 test('Anular una dosis la deja de contar', () => {

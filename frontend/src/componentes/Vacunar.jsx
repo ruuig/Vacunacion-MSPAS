@@ -27,7 +27,7 @@ function productoPara(d) {
     case 'INFLUENZA': return 'INFL_PED';
     case 'VARICELA': return 'VARICELA';
     case 'DPT_HIB_HB': return d.numero >= 5 ? 'DPT' : 'HEXA';
-    case 'POLIO': return d.numero >= 5 ? 'OPV' : 'HEXA';
+    case 'POLIO': return d.numero >= 4 ? 'OPV' : 'HEXA'; // el R1 de polio es OPV (gotas), aparte de la hexavalente
     default: return null;
   }
 }
@@ -35,8 +35,12 @@ function productoPara(d) {
 /** Agrupa las dosis que le tocan en "tarjetas de vacuna": una hexavalente = Penta n + Polio n. */
 function agrupar(dosis, productos) {
   const tarjetas = [];
+  // La hexavalente se usa cuando tocan juntas la polio y la pentavalente del mismo número; si solo falta la polio,
+  // se pone IPV (1a) u OPV, porque la hexa también adelantaría la siguiente pentavalente
+  const conPenta = new Set(dosis.filter((d) => d.serieCodigo === 'DPT_HIB_HB').map((d) => d.numero));
   for (const d of dosis) {
-    const codigo = productoPara(d);
+    let codigo = productoPara(d);
+    if (d.serieCodigo === 'POLIO' && codigo === 'HEXA' && !conPenta.has(d.numero)) codigo = d.numero === 1 ? 'IPV' : 'OPV';
     const producto = productos.find((p) => p.codigo === codigo);
     if (!producto) continue;
     const t = codigo === 'HEXA' && tarjetas.find((x) => x.codigo === 'HEXA' && x.numero === d.numero);

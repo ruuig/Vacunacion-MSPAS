@@ -20,7 +20,8 @@ router.get('/tablero', permitir(...TODOS), async (req, res) => {
   const anio = Number(req.query.anio) || new Date().getFullYear();
   const { rows } = await pool.query(`
     WITH ${PEOR_CASO}
-    SELECT c.id, c.nombre, c.tipo, s.nombre AS sector, t.nombre AS territorio,
+    SELECT c.id, c.nombre, c.tipo, s.nombre AS sector, t.nombre AS territorio, c.es_central, c.responsable, c.distancia_km,
+      c.comunidad_padre_id, (SELECT nombre FROM comunidad p WHERE p.id = c.comunidad_padre_id) AS puesto,
       (SELECT count(*) FROM nino n WHERE n.comunidad_id = c.id AND n.estado = 'activo')::int AS activos,
       (SELECT count(*) FROM nino n WHERE n.comunidad_id = c.id AND n.estado = 'activo'
          AND n.fecha_nacimiento > CURRENT_DATE - interval '1 year')::int AS menores_1,

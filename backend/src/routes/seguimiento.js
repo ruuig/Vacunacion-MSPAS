@@ -16,6 +16,18 @@ const siguienteMes = (a, m, k) => { const t = a * 12 + (m - 1) + k; return [Math
 // Dosis que "tocan" a una fecha: ya pasó su fecha programada y no están aplicadas
 const PENDIENTE = ['le_toca', 'atrasada', 'proxima', 'pendiente'];
 
+/**
+ * Comunidades del filtro: una comunidad, o un puesto o el casco urbano con todas las que tiene a cargo.
+ * null = todo el municipio.
+ */
+async function filtroTerritorio(db, { comunidad, puesto } = {}) {
+  if (puesto) {
+    const { rows } = await db.query('SELECT id FROM comunidad WHERE id = $1 OR comunidad_padre_id = $1', [Number(puesto)]);
+    return rows.map((r) => r.id);
+  }
+  return comunidad ? [Number(comunidad)] : null;
+}
+
 /** Niños activos con sus aplicaciones vigentes, responsable principal, asignación y último contacto. */
 async function cargarNinos(db, comunidad) {
   const { rows: ninos } = await db.query(`
@@ -24,7 +36,7 @@ async function cargarNinos(db, comunidad) {
     FROM nino n JOIN comunidad c ON c.id = n.comunidad_id
     LEFT JOIN nino_responsable nr ON nr.nino_id = n.id AND nr.es_principal LEFT JOIN responsable r ON r.id = nr.responsable_id
     LEFT JOIN caso_asignacion ca ON ca.nino_id = n.id LEFT JOIN usuario ua ON ua.id = ca.usuario_id
-    WHERE n.estado = 'activo' AND ($1::int IS NULL OR n.comunidad_id = $1)`, [comunidad || null]);
+    WHERE n.estado = 'activo' AND ($1::int[] IS NULL OR n.comunidad_id = ANY($1))`, [comunidad]);
   const ids = ninos.map((n) => n.id);
   const { rows: apps } = ids.length ? await db.query(`
     SELECT ad.nino_id, ad.esquema_dosis_id AS "esquemaDosisId", a.fecha_aplicacion AS fecha, ad.temporada
@@ -42,7 +54,8 @@ router.get('/mes', permitir(...TODOS), async (req, res) => {
   const desde = inicioDeMes(anio, mes);
   const hasta = finDeMes(anio, mes);
   const corte = hasta < hoy() ? hasta : hoy(); // el estado se mira al cierre del mes, o a hoy si el mes está en curso
-  const { comunidad, asignado } = req.query;
+  const { asignado } = req.query;
+  const comunidad = await filtroTerritorio(pool, req.query);
 
   const { rows: vacunados } = await pool.query(`
     SELECT a.id, a.fecha_aplicacion AS fecha, a.nino_id, n.nombre_completo, n.fecha_nacimiento, n.sexo,
@@ -52,8 +65,8 @@ router.get('/mes', permitir(...TODOS), async (req, res) => {
              WHERE ad.aplicacion_id = a.id AND NOT ad.anulada) AS dosis
     FROM aplicacion a JOIN nino n ON n.id = a.nino_id JOIN comunidad c ON c.id = n.comunidad_id JOIN producto p ON p.id = a.producto_id
     LEFT JOIN establecimiento e ON e.id = a.establecimiento_id LEFT JOIN usuario u ON u.id = a.creado_por
-    WHERE NOT a.anulada AND a.fuente_primaria AND a.fecha_aplicacion BETWEEN $1 AND $2 AND ($3::int IS NULL OR n.comunidad_id = $3)
-    ORDER BY a.fecha_aplicacion, c.nombre, n.nombre_completo, p.nombre`, [desde, hasta, comunidad || null]);
+    WHERE NOT a.anulada AND a.fuente_primaria AND a.fecha_aplicacion BETWEEN $1 AND $2 AND ($3::int[] IS NULL OR n.comunidad_id = ANY($3))
+    ORDER BY a.fecha_aplicacion, c.nombre, n.nombre_completo, p.nombre`, [desde, hasta, comunidad]);
 
   const ctx = { catalogo: await esq.cargarCatalogo(pool), params: await esq.cargarParametros(pool) };
   const { ninos, aplicaciones } = await cargarNinos(pool, comunidad);
@@ -105,7 +118,7 @@ router.get('/proyeccion', permitir(...TODOS), async (req, res) => {
   const meses = Math.min(6, Math.max(1, Number(req.query.meses) || 3));
   const [a0, m0] = [Number(hoy().slice(0, 4)), Number(hoy().slice(5, 7))];
   const ctx = { catalogo: await esq.cargarCatalogo(pool), params: await esq.cargarParametros(pool) };
-  const { ninos, aplicaciones } = await cargarNinos(pool, req.query.comunidad);
+  const { ninos, aplicaciones } = await cargarNinos(pool, await filtroTerritorio(pool, req.query));
   const { rows: productos } = await pool.query('SELECT codigo, nombre FROM producto WHERE activo ORDER BY nombre');
 
   // Columnas: atrasadas a hoy, lo que falta de este mes y los meses siguientes
@@ -146,3 +159,4 @@ router.get('/proyeccion', permitir(...TODOS), async (req, res) => {
 });
 
 module.exports = router;
+module.exports.filtroTerritorio = filtroTerritorio;

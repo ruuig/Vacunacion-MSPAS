@@ -5,8 +5,10 @@ const { permitir, TODOS } = require('../middleware/auth');
 // Listas de solo lectura para los formularios (el CRUD completo va en administración)
 router.get('/comunidades', permitir(...TODOS), async (_req, res) => {
   const { rows } = await pool.query(`
-    SELECT c.id, c.nombre, c.tipo, c.sector_id, s.nombre AS sector, t.nombre AS territorio
+    SELECT c.id, c.nombre, c.tipo, c.sector_id, s.nombre AS sector, t.nombre AS territorio,
+           c.es_central, c.responsable, c.distancia_km, c.comunidad_padre_id, p.nombre AS puesto, p.responsable AS responsable_puesto
     FROM comunidad c LEFT JOIN sector s ON s.id = c.sector_id LEFT JOIN territorio t ON t.id = s.territorio_id
+    LEFT JOIN comunidad p ON p.id = c.comunidad_padre_id
     WHERE c.activo ORDER BY c.nombre`);
   res.json(rows);
 });

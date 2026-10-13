@@ -9,6 +9,7 @@ import { useDialogos } from '../componentes/Dialogos.jsx';
 import RegistrarDosis from '../componentes/RegistrarDosis.jsx';
 import Vacunar from '../componentes/Vacunar.jsx';
 import VistaCuaderno from '../componentes/VistaCuaderno.jsx';
+import SuplementosNino from '../componentes/SuplementosNino.jsx';
 import { useCatalogo } from '../componentes/useCatalogo.js';
 import { Cargando, EncabezadoImpresion, MenuMas, Mensaje, Tabla, Tarjeta, Vacio, iniciales } from '../componentes/ui.jsx';
 import { Estado, plural, tonoDe } from '../componentes/Estado.jsx';
@@ -189,6 +190,8 @@ export default function Ficha() {
           </div>
         )}
       </div>
+
+      {activo && <SuplementosNino ninoId={id} operativo={operativo} />}
 
       <Tarjeta titulo="Historial de aplicaciones" icono={ClipboardList} sub={plural(nino.aplicaciones.length, 'registro', 'registros')} cuerpo={false}>
         {nino.aplicaciones.length === 0 ? (

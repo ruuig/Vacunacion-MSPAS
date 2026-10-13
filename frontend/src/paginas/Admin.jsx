@@ -1,10 +1,13 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
-import { Building2, KeyRound, ListTree, MapPin, Plus, Save, ScrollText, SlidersHorizontal, Syringe, UserPlus, Users } from 'lucide-react';
-import { api, qs } from '../api.js';
+import {
+  ArchiveRestore, Building2, DatabaseBackup, Download, ImageUp, KeyRound, Upload, ListTree, MapPin, Plus, RotateCcw, Save, ScrollText, SlidersHorizontal, Syringe, Trash2, UserPlus, Users,
+} from 'lucide-react';
+import { api, descargarArchivo, qs, subirArchivo } from '../api.js';
+import Logo, { recargarLogo } from '../componentes/Logo.jsx';
 import { useSesion } from '../App.jsx';
 import { useDialogos } from '../componentes/Dialogos.jsx';
 import { invalidarCatalogo, useCatalogo } from '../componentes/useCatalogo.js';
-import { Campo, Encabezado, Mensaje, Pestanas, Tabla, Tarjeta, iniciales } from '../componentes/ui.jsx';
+import { Campo, Cargando, Encabezado, Mensaje, Pestanas, Tabla, Tarjeta, Vacio, iniciales } from '../componentes/ui.jsx';
 import { Estado } from '../componentes/Estado.jsx';
 
 const VISTAS = [
@@ -13,6 +16,8 @@ const VISTAS = [
   ['esquema', <><Syringe size={15} />Esquema</>],
   ['territorio', <><MapPin size={15} />Territorio</>],
   ['bitacora', <><ScrollText size={15} />Bitácora</>],
+  ['respaldos', <><DatabaseBackup size={15} />Respaldos</>],
+  ['logo', <><ImageUp size={15} />Logo</>],
 ];
 const ROLES = { administrador: 'Administrador', enfermera: 'Enfermera', vacunador: 'Personal de vacunación' };
 const TIPOS_COMUNIDAD = { casco_urbano: 'Casco urbano', barrio: 'Barrio', aldea: 'Aldea', caserio: 'Caserío', canton: 'Cantón' };
@@ -21,13 +26,15 @@ export default function Admin() {
   const [vista, setVista] = useState('usuarios');
   return (
     <>
-      <Encabezado titulo="Administración" descripcion="Usuarios, parámetros del motor de cálculo, esquema de vacunación, catálogo territorial y auditoría." />
+      <Encabezado titulo="Administración" descripcion="Usuarios, parámetros del motor de cálculo, esquema de vacunación, catálogo territorial, auditoría, respaldos y logo." />
       <Pestanas valor={vista} onCambio={setVista} opciones={VISTAS} />
       {vista === 'usuarios' && <Usuarios />}
       {vista === 'parametros' && <Parametros />}
       {vista === 'esquema' && <Esquema />}
       {vista === 'territorio' && <Territorio />}
       {vista === 'bitacora' && <Bitacora />}
+      {vista === 'respaldos' && <Respaldos />}
+      {vista === 'logo' && <CambiarLogo />}
     </>
   );
 }
@@ -329,5 +336,177 @@ function Bitacora() {
         </tbody>
       </Tabla>
     </>
+  );
+}
+
+/* ---------------- Respaldos ---------------- */
+const tamano = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+const cuando = (iso) => new Date(iso).toLocaleString('es-GT', { dateStyle: 'medium', timeStyle: 'short' });
+
+const ORIGEN_RESPALDO = {
+  auto: ['Automático', 'azul'], manual: ['Manual', ''], subido: ['Subido', 'morado'], previo: ['Antes de restaurar', 'ambar'],
+};
+
+function Respaldos() {
+  const { avisar, confirmar, pedirTexto } = useDialogos();
+  const [restaurando, setRestaurando] = useState(null);
+  const [datos, setDatos] = useState(null);
+  const [trabajando, setTrabajando] = useState('');
+  const [error, setError] = useState('');
+  const cargar = useCallback(() => { api('/admin/respaldos').then(setDatos).catch((e) => setError(e.message)); }, []);
+  useEffect(cargar, [cargar]);
+
+  async function crear(descargar) {
+    setError('');
+    setTrabajando(descargar ? 'descargar' : 'crear');
+    try {
+      const r = await api('/admin/respaldos', { method: 'POST' });
+      if (descargar) await descargarArchivo(`/admin/respaldos/${r.nombre}`, r.nombre);
+      avisar(descargar ? 'Respaldo creado y descargado en este dispositivo.' : 'Respaldo creado en el servidor.');
+      cargar();
+    } catch (e) { setError(e.message); }
+    setTrabajando('');
+  }
+  const descargar = (r) => descargarArchivo(`/admin/respaldos/${r.nombre}`, r.nombre).catch((e) => avisar(e.message, 'error'));
+  async function subir(e) {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    if (!f.name.endsWith('.dump')) { setError('Elija un archivo .dump descargado de este sistema.'); return; }
+    setError('');
+    setTrabajando('subir');
+    try {
+      const r = await subirArchivo('/admin/respaldos/subir', f);
+      avisar(`Respaldo «${f.name}» subido. Ya puede restaurarlo desde la lista.`);
+      cargar();
+      return r;
+    } catch (err) { setError(err.message); } finally { setTrabajando(''); }
+  }
+  // Restaurar reemplaza toda la información: se confirma escribiendo RESTAURAR y antes se saca un respaldo del estado actual
+  async function restaurar(r) {
+    const texto = await pedirTexto({
+      titulo: 'Restaurar este respaldo', peligro: true, aceptar: 'Restaurar',
+      mensaje: `Toda la información del sistema se reemplazará por la del respaldo del ${cuando(r.creado)}; lo que se registró después se perderá. `
+        + 'Antes de restaurar se guardará un respaldo del estado actual para poder deshacerlo. Escriba RESTAURAR para confirmar.',
+      etiqueta: 'Confirmación', placeholder: 'RESTAURAR',
+    });
+    if (texto == null) return;
+    if (texto.trim() !== 'RESTAURAR') { avisar('No se restauró: debe escribir RESTAURAR exactamente.', 'error'); return; }
+    setRestaurando(r);
+    try {
+      const res = await api(`/admin/respaldos/${r.nombre}/restaurar`, { method: 'POST', body: { confirmacion: 'RESTAURAR' } });
+      avisar(`Información restaurada. El estado anterior quedó guardado como «${res.previo}».`);
+      setTimeout(() => window.location.reload(), 2500); // los datos cambiaron: se vuelve a cargar todo
+    } catch (err) { setRestaurando(null); setError(err.message); }
+  }
+  async function borrar(r) {
+    if (!(await confirmar({ titulo: 'Eliminar respaldo', mensaje: `Se borrará ${r.nombre} del servidor. Esta acción no se puede deshacer.`, aceptar: 'Eliminar', peligro: true }))) return;
+    api(`/admin/respaldos/${r.nombre}`, { method: 'DELETE' }).then(() => { avisar('Respaldo eliminado.'); cargar(); }).catch((e) => avisar(e.message, 'error'));
+  }
+
+  return (
+    <>
+      <Tarjeta titulo="Respaldos de la base de datos" icono={DatabaseBackup}
+        sub={datos ? `El servidor saca uno automático cada noche a las ${datos.hora_automatica} y conserva los de los últimos ${datos.retencion_dias} días (se cambia en Parámetros). Los manuales no se borran solos.` : 'Copias completas de la información del sistema.'}>
+        <div className="acciones izq" style={{ marginTop: 0 }}>
+          <button className="btn btn-primario" onClick={() => crear(false)} disabled={!!trabajando}><DatabaseBackup size={17} />{trabajando === 'crear' ? 'Creando…' : 'Crear respaldo ahora'}</button>
+          <button className="btn" onClick={() => crear(true)} disabled={!!trabajando}><Download size={17} />{trabajando === 'descargar' ? 'Preparando…' : 'Crear y descargar a este dispositivo'}</button>
+          <label className={`btn ${trabajando ? 'deshabilitado' : ''}`}>
+            <Upload size={17} />{trabajando === 'subir' ? 'Subiendo…' : 'Subir un respaldo desde este dispositivo'}
+            <input type="file" accept=".dump" onChange={subir} disabled={!!trabajando} hidden />
+          </label>
+        </div>
+        <Mensaje tipo="error" className="mt">{error}</Mensaje>
+        <p className="tenue mt">Guarde las descargas en un lugar distinto del servidor (una memoria USB o la nube del centro de salud).
+          Para volver a una copia anterior use <strong>Restaurar</strong> en la lista: reemplaza toda la información y antes guarda el estado actual por si hay que deshacerlo.</p>
+      </Tarjeta>
+      {restaurando && (
+        <div className="modal-fondo"><div className="modal chico"><div className="modal-cuerpo restaurando">
+          <span className="sello-espera"><ArchiveRestore size={34} /></span>
+          <h2>Restaurando la información…</h2>
+          <p className="suave">Respaldo del {cuando(restaurando.creado)}. No cierre esta ventana; puede tardar unos minutos.</p>
+        </div></div></div>
+      )}
+      <Tarjeta titulo="Respaldos guardados en el servidor" icono={ScrollText} cuerpo={false}>
+        {!datos ? <Cargando /> : !datos.respaldos.length ? <Vacio icono={DatabaseBackup} titulo="Todavía no hay respaldos">Cree el primero con el botón de arriba.</Vacio> : (
+          <Tabla>
+            <thead><tr><th>Fecha</th><th>Tipo</th><th className="celda-num">Tamaño</th><th /></tr></thead>
+            <tbody>
+              {datos.respaldos.map((r) => (
+                <tr key={r.nombre}>
+                  <td className="fuerte">{cuando(r.creado)}<span className="sub">{r.nombre}</span></td>
+                  <td><span className={`chip ${ORIGEN_RESPALDO[r.origen]?.[1] || ''}`}>{ORIGEN_RESPALDO[r.origen]?.[0] || r.origen}</span></td>
+                  <td className="celda-num">{tamano(r.tamano)}</td>
+                  <td className="celda-fin">
+                    <span className="botones-fila">
+                      <button className="btn btn-sm" onClick={() => descargar(r)}><Download size={14} />Descargar</button>
+                      <button className="btn btn-sm btn-peligro" onClick={() => restaurar(r)} disabled={!!restaurando}><ArchiveRestore size={14} />Restaurar</button>
+                      <button className="btn btn-sm btn-fantasma" onClick={() => borrar(r)} aria-label={`Eliminar ${r.nombre}`}><Trash2 size={14} /></button>
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Tabla>
+        )}
+      </Tarjeta>
+    </>
+  );
+}
+
+/* ---------------- Logo ---------------- */
+const MAX_LOGO = 1024 * 1024;
+
+function CambiarLogo() {
+  const { avisar, confirmar } = useDialogos();
+  const [nuevo, setNuevo] = useState(null); // data URL de la imagen elegida, antes de guardarla
+  const [error, setError] = useState('');
+  const [guardando, setGuardando] = useState(false);
+
+  function elegir(e) {
+    setError('');
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(f.type)) { setError('Elija una imagen PNG, JPG o WEBP.'); return; }
+    if (f.size > MAX_LOGO) { setError('La imagen pesa más de 1 MB; redúzcala e intente de nuevo.'); return; }
+    const lector = new FileReader();
+    lector.onload = () => setNuevo(lector.result);
+    lector.readAsDataURL(f);
+  }
+  async function guardar() {
+    setGuardando(true);
+    try {
+      await api('/admin/logo', { method: 'PUT', body: { imagen: nuevo } });
+      await recargarLogo();
+      setNuevo(null);
+      avisar('Logo actualizado: ya se ve en el menú, el inicio de sesión y los documentos impresos.');
+    } catch (e) { setError(e.message); }
+    setGuardando(false);
+  }
+  async function restaurar() {
+    if (!(await confirmar({ titulo: 'Volver al logo original', mensaje: 'Se quitará el logo que se subió y se usará el que trae el sistema.', aceptar: 'Volver al original' }))) return;
+    try { await api('/admin/logo', { method: 'DELETE' }); await recargarLogo(); avisar('Se restauró el logo original.'); } catch (e) { setError(e.message); }
+  }
+
+  return (
+    <Tarjeta titulo="Logo institucional" icono={ImageUp}
+      sub="Aparece en el menú, en la pantalla de inicio de sesión y en el encabezado de lo que se imprime. Use una imagen horizontal con fondo transparente o blanco.">
+      <div className="logo-comparar">
+        <figure><figcaption>Logo actual</figcaption><div className="logo-marco"><Logo /></div></figure>
+        {nuevo && <figure><figcaption>Logo nuevo (vista previa)</figcaption><div className="logo-marco nuevo"><img src={nuevo} alt="Logo nuevo" /></div></figure>}
+      </div>
+      <Mensaje tipo="error" className="mt">{error}</Mensaje>
+      <div className="acciones izq">
+        <label className="btn">
+          <ImageUp size={17} />Elegir imagen…
+          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={elegir} hidden />
+        </label>
+        {nuevo && <button className="btn btn-primario" onClick={guardar} disabled={guardando}><Save size={17} />{guardando ? 'Guardando…' : 'Guardar logo'}</button>}
+        {nuevo && <button className="btn btn-fantasma" onClick={() => setNuevo(null)}>Cancelar</button>}
+        {!nuevo && <button className="btn btn-fantasma" onClick={restaurar}><RotateCcw size={16} />Volver al logo original</button>}
+      </div>
+      <p className="tenue mt">PNG, JPG o WEBP de hasta 1 MB. Se guarda en la base de datos, así que también queda en los respaldos.</p>
+    </Tarjeta>
   );
 }

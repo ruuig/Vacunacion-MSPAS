@@ -29,12 +29,15 @@ async function guardarEquipo(c, jornadaId, responsableId, equipoIds = []) {
 
 /**
  * Productos que hay que llevar para las dosis que le tocan a un niño.
- * Una hexavalente cubre a la vez Pentavalente y Polio del mismo número (1a a R1); el R2 va con DPT y OPV.
+ * La hexavalente cubre Penta y Polio 1a a 3a; el R1 es hexavalente + OPV (gotas) y el R2, DPT + OPV.
  */
 function productosNecesarios(dosis) {
   const out = new Set();
+  const conPenta = new Set(dosis.filter((d) => d.serieCodigo === 'DPT_HIB_HB').map((d) => d.numero));
   for (const d of dosis) {
-    if (['DPT_HIB_HB', 'POLIO'].includes(d.serieCodigo)) out.add(d.numero <= 4 ? 'HEXA' : d.serieCodigo === 'POLIO' ? 'OPV' : 'DPT');
+    // Polio sola (la pentavalente ya está o no toca): IPV la 1a, OPV las demás; si tocan juntas, una hexavalente
+    if (d.serieCodigo === 'POLIO') out.add(d.numero <= 3 && conPenta.has(d.numero) ? 'HEXA' : d.numero === 1 ? 'IPV' : 'OPV');
+    else if (d.serieCodigo === 'DPT_HIB_HB') out.add(d.numero <= 4 ? 'HEXA' : 'DPT');
     else {
       const p = { HB_RN: 'HB_PED', BCG: 'BCG', ROTA: 'ROTA', NEUMO: 'NEUMO', SPR: 'SPR', INFLUENZA: 'INFL_PED', VARICELA: 'VARICELA' }[d.serieCodigo];
       if (p) out.add(p);

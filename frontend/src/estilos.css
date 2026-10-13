@@ -1655,3 +1655,23 @@ a.kpi:hover, .tarjeta-nino:hover, .tarjeta-caso:hover { transform: none; box-sha
 .sin-internet { order: 3; flex-basis: 100%; display: inline-flex; align-items: center; gap: .35rem; font-size: .76rem; font-weight: 700; color: var(--tenue); }
 .sin-internet.si { color: var(--verde); }
 @media (max-width: 900px) { .etapa-jornada .btn { width: 100%; } }
+
+/* ---------- Administración: logo ---------- */
+.logo-comparar { display: flex; gap: 1.25rem; flex-wrap: wrap; }
+.logo-comparar figure { margin: 0; display: grid; gap: .5rem; }
+.logo-comparar figcaption { font-size: .78rem; font-weight: 800; color: var(--suave); text-transform: uppercase; letter-spacing: .05em; }
+.logo-marco { width: 300px; max-width: 100%; height: 130px; display: grid; place-items: center; padding: 1rem; border-radius: 16px; background: #fff; border: 2px dashed var(--borde-2); }
+.logo-marco.nuevo { border-color: var(--celeste); border-style: solid; background: var(--celeste-bg); }
+.logo-marco img { max-width: 100%; max-height: 94px; width: auto; height: auto; object-fit: contain; }
+label.btn { cursor: pointer; }
+
+/* ---------- Administración: restaurar respaldo ---------- */
+.restaurando { text-align: center; padding: 2rem 1.5rem; display: grid; gap: .6rem; justify-items: center; }
+.sello-espera { width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center; background: var(--ambar-bg); color: var(--ambar); animation: latido 1.2s ease-in-out infinite; }
+@keyframes latido { 50% { transform: scale(1.08); } }
+label.btn.deshabilitado { opacity: .55; pointer-events: none; }
+
+/* ---------- Territorio y suplementación ---------- */
+.responsable-lugar { display: flex; align-items: center; gap: .4rem; margin: -.5rem 0 1rem; font-size: .88rem; color: var(--suave); }
+.responsable-lugar strong { color: var(--marino); }
+.control-barra > select { flex: 1 1 260px; }

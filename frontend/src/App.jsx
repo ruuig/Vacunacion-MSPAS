@@ -7,7 +7,7 @@ import { api, sesionGuardada, guardarSesion } from './api.js';
 import { cola } from './componentes/fueraDeLinea.js';
 import { Cargando, iniciales } from './componentes/ui.jsx';
 import { AvisoActualizacion, AvisoConexion, BotonInstalar, ColaSinEnviar, borrarDatosGuardados } from './componentes/Pwa.jsx';
-import logo from './assets/mspas_png.png';
+import Logo from './componentes/Logo.jsx';
 import Login from './paginas/Login.jsx';
 import Inicio from './paginas/Inicio.jsx';
 import Buscar from './paginas/Buscar.jsx';
@@ -81,7 +81,7 @@ export default function App() {
 
         <aside className="lateral" aria-label="Menú principal">
           <div className="lateral-logo">
-            <img src={logo} alt="Ministerio de Salud Pública y Asistencia Social" />
+            <Logo />
             <div className="sistema">
               <strong>Control de Vacunación</strong>
               <span>C. S. San Luis Jilotepeque, Jalapa</span>
@@ -116,7 +116,7 @@ export default function App() {
 
         <div className="principal">
           <header className="barra-sup">
-            <img src={logo} alt="MSPAS" />
+            <Logo alt="MSPAS" />
             <div className="titulo-app">
               <strong>Control de Vacunación</strong>
               <span>San Luis Jilotepeque</span>

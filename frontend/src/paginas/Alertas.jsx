@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertOctagon, AlertTriangle, BellOff, CalendarCheck, CalendarClock, CalendarDays, CalendarX, Check, CheckCircle2, ChevronLeft, ChevronRight,
-  Clock, Home, Languages, MapPin, MessageCircle, Package, Phone, PhoneMissed, Printer, Search, Syringe, Truck, Users, UserX, X,
+  Clock, Home, Languages, MapPin, MessageCircle, Package, Phone, PhoneMissed, Pill, Printer, Search, Syringe, Truck, User, Users, UserX, X,
 } from 'lucide-react';
 import { api, qs } from '../api.js';
 import { useSesion } from '../App.jsx';
@@ -13,6 +13,7 @@ import {
 } from '../componentes/ui.jsx';
 import { Estado, plural, tonoDe } from '../componentes/Estado.jsx';
 import { MEDIOS, MESES, RESULTADOS, TIPO_ALERTA, cuadernoFila, edad, fecha, hoy, puede, sumarDias } from '../util.js';
+import SelectorTerritorio, { useTerritorio } from '../componentes/SelectorTerritorio.jsx';
 
 const ICONO_TIPO = { dosis_cero: AlertOctagon, abandono: UserX, atrasada: Clock, inasistencia: CalendarX, proxima: CalendarClock };
 const GRAVEDAD = ['dosis_cero', 'abandono', 'atrasada', 'inasistencia', 'proxima'];
@@ -76,6 +77,10 @@ export default function Alertas() {
   const mes = Number(params.get('mes')) || Number(ahora.slice(5, 7));
   const vista = params.get('vista') || 'por_vacunar';
   const comunidad = params.get('comunidad') || '';
+  const puesto = params.get('puesto') || '';
+  const periodo = params.get('periodo') || 'mes';
+  const { describir } = useTerritorio();
+  const lugar = describir({ puesto, comunidad });
   const asignado = params.get('asignado') || '';
   const filtro = params.get('tipo') || '';
   const comunidades = useCatalogo('comunidades');
@@ -90,16 +95,20 @@ export default function Alertas() {
   const [error, setError] = useState('');
   const { avisar } = useDialogos();
 
+  const ultimaConsulta = useRef(0);
   const cargar = useCallback(() => {
     setDatos(null);
-    api('/seguimiento/mes' + qs({ anio, mes, comunidad, asignado })).then(setDatos).catch((e) => setError(e.message));
+    // Si se cambia de mes o de lugar antes de que llegue la respuesta, la respuesta vieja se descarta
+    const n = ++ultimaConsulta.current;
+    api('/seguimiento/mes' + qs({ anio, mes, comunidad, puesto, asignado }))
+      .then((d) => { if (n === ultimaConsulta.current) setDatos(d); }).catch((e) => setError(e.message));
     api('/casos').then(setCasos).catch(() => {});
-  }, [anio, mes, comunidad, asignado]);
+  }, [anio, mes, comunidad, puesto, asignado]);
   useEffect(cargar, [cargar]);
   useEffect(() => {
-    if (vista === 'pedido' && !pedido) api('/seguimiento/proyeccion' + qs({ comunidad })).then(setPedido).catch((e) => setError(e.message));
-  }, [vista, pedido, comunidad]);
-  useEffect(() => setPedido(null), [comunidad]);
+    if (vista === 'pedido' && !pedido) api('/seguimiento/proyeccion' + qs({ comunidad, puesto })).then(setPedido).catch((e) => setError(e.message));
+  }, [vista, pedido, comunidad, puesto]);
+  useEffect(() => setPedido(null), [comunidad, puesto]);
   useEffect(() => { if (esEnfermera) api('/casos/personal').then(setPersonal).catch(() => {}); }, [esEnfermera]);
 
   const cambiar = (cambios) => {
@@ -139,20 +148,24 @@ export default function Alertas() {
     return n;
   });
 
-  const pendientes = (datos?.pendientes || []).filter((p) => coincide(p, filtro)
+  // Esta semana: los atrasados y a quienes les toca antes del domingo (para la hoja del puesto o barrio)
+  const finSemana = sumarDias(ahora, (7 - new Date(`${ahora}T12:00:00Z`).getUTCDay()) % 7);
+  const enPeriodo = (p) => !(esEsteMes && periodo === 'semana') || p.situacion !== 'por_venir' || p.dosis.some((d) => d.programada <= finSemana);
+  const pendientes = (datos?.pendientes || []).filter((p) => enPeriodo(p) && coincide(p, filtro)
     && (!buscar || sinTildes(`${p.nombre_completo} ${p.responsable || ''}`).includes(sinTildes(buscar))));
-  const cuenta = (f) => (datos?.pendientes || []).filter((p) => coincide(p, f)).length;
+  const cuenta = (f) => (datos?.pendientes || []).filter((p) => enPeriodo(p) && coincide(p, f)).length;
   const porComunidad = Object.values(pendientes.reduce((m, p) => {
     (m[p.comunidad_id] ||= { id: p.comunidad_id, nombre: p.comunidad, ninos: [] }).ninos.push(p);
     return m;
   }, {}));
   const titulo = `${MESES[mes - 1]} ${anio}`;
-  const IMPRESION = { por_vacunar: 'Niños por vacunar', vacunados: 'Niños vacunados', pedido: 'Pedido de vacunas' };
+  const IMPRESION = { por_vacunar: 'Niños por vacunar', vacunados: 'Niños vacunados', suplementos: 'Suplementación', pedido: 'Pedido de vacunas' };
+  const enSemana = esEsteMes && periodo === 'semana' && ['por_vacunar', 'suplementos'].includes(vista);
 
   return (
     <>
-      <EncabezadoImpresion titulo={`${IMPRESION[vista]} · ${vista === 'pedido' ? 'próximos meses' : titulo}`}
-        detalle={comunidad ? comunidades.find((c) => String(c.id) === comunidad)?.nombre : 'Todas las comunidades'} />
+      <EncabezadoImpresion titulo={`${IMPRESION[vista]} · ${vista === 'pedido' ? 'próximos meses' : enSemana ? `semana al ${fecha(finSemana)}` : titulo}`}
+        detalle={`${lugar.nombre}${lugar.responsable ? ` · Responsable: ${lugar.responsable}` : ''}`} />
       <div className="no-imprimir">
         <Encabezado titulo="Control del mes"
           descripcion="Quién se vacunó, quién falta por vacunar y qué vacunas pedir. Las alertas de atraso se generan solas cada día.">
@@ -168,10 +181,13 @@ export default function Alertas() {
               <button type="button" className="btn btn-icono" onClick={() => moverMes(1)} disabled={esEsteMes} aria-label="Mes siguiente"><ChevronRight size={20} /></button>
             </div>
           )}
-          <select value={comunidad} onChange={(e) => cambiar({ comunidad: e.target.value })} aria-label="Comunidad">
-            <option value="">Todas las comunidades</option>
-            {comunidades.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-          </select>
+          <SelectorTerritorio puesto={puesto} comunidad={comunidad} onCambio={(t) => cambiar({ ...t, nino: '' })} />
+          {esEsteMes && ['por_vacunar', 'suplementos'].includes(vista) && (
+            <div className="segmentado" role="group" aria-label="Período">
+              <button type="button" className={periodo === 'mes' ? 'activa' : ''} onClick={() => cambiar({ periodo: '' })}>Este mes</button>
+              <button type="button" className={periodo === 'semana' ? 'activa' : ''} onClick={() => cambiar({ periodo: 'semana' })}>Esta semana</button>
+            </div>
+          )}
           {operativo && vista === 'por_vacunar' && (
             <div className="segmentado" role="group" aria-label="Casos">
               <button type="button" className={asignado !== 'yo' ? 'activa' : ''} onClick={() => cambiar({ asignado: '' })}>Todos</button>
@@ -183,12 +199,15 @@ export default function Alertas() {
         <Pestanas valor={vista} onCambio={(v) => cambiar({ vista: v === 'por_vacunar' ? '' : v, nino: '' })} opciones={[
           ['por_vacunar', <><Syringe size={15} />Por vacunar</>, datos && <span className="cuenta">{datos.resumen.pendientes}</span>],
           ['vacunados', <><CheckCircle2 size={15} />Vacunados</>, datos && <span className="cuenta">{datos.resumen.ninos_vacunados}</span>],
+          ['suplementos', <><Pill size={15} />Suplementos</>],
           ['pedido', <><Package size={15} />Pedido de vacunas</>],
         ]} />
+        {lugar.responsable && <p className="responsable-lugar"><User size={15} />Responsable de {lugar.nombre.replace(/ y comunidades a cargo$/, '')}: <strong>{lugar.responsable}</strong></p>}
       </div>
       <Mensaje tipo="error">{error}</Mensaje>
 
-      {vista === 'pedido' ? <Pedido datos={pedido} /> : !datos ? <Cargando /> : vista === 'vacunados' ? (
+      {vista === 'suplementos' ? <Suplementos anio={anio} mes={mes} puesto={puesto} comunidad={comunidad} hastaSemana={esEsteMes && periodo === 'semana' ? finSemana : null} />
+        : vista === 'pedido' ? <Pedido datos={pedido} /> : !datos ? <Cargando /> : vista === 'vacunados' ? (
         <Vacunados datos={datos} />
       ) : (
         <>
@@ -332,6 +351,70 @@ function Vacunados({ datos }) {
       </section>
     );
   });
+}
+
+/** Suplementación del mes: a quién le toca (para llamar), qué se entregó y cuánto pedir. */
+function Suplementos({ anio, mes, puesto, comunidad, hastaSemana }) {
+  const [datos, setDatos] = useState(null);
+  const [vista, setVista] = useState('toca');
+  const [error, setError] = useState('');
+  useEffect(() => {
+    setDatos(null);
+    let vigente = true;
+    api('/suplementos/mes' + qs({ anio, mes, puesto, comunidad })).then((d) => { if (vigente) setDatos(d); }).catch((e) => setError(e.message));
+    return () => { vigente = false; };
+  }, [anio, mes, puesto, comunidad]);
+  if (error) return <Mensaje tipo="error">{error}</Mensaje>;
+  if (!datos) return <Cargando />;
+  const pendientes = hastaSemana ? datos.pendientes.filter((p) => p.suplementos.some((x) => x.programada <= hastaSemana)) : datos.pendientes;
+  const porComunidad = Object.values(pendientes.reduce((m, p) => {
+    (m[p.comunidad_id] ||= { id: p.comunidad_id, nombre: p.comunidad, ninos: [] }).ninos.push(p);
+    return m;
+  }, {}));
+  return (
+    <>
+      <div className="kpis tres no-imprimir">
+        {datos.insumos.map((i) => (
+          <Kpi key={i.insumo} valor={i.pendientes} rotulo={`${i.nombre}: le toca`} icono={Pill} color="azul" pie={`${i.entregados} entregados en el mes`} />
+        ))}
+      </div>
+      <div className="segmentado no-imprimir" style={{ marginBottom: '1rem', width: 'fit-content' }} role="group">
+        <button type="button" className={vista === 'toca' ? 'activa' : ''} onClick={() => setVista('toca')}>Le toca ({pendientes.length})</button>
+        <button type="button" className={vista === 'entregados' ? 'activa' : ''} onClick={() => setVista('entregados')}>Entregados ({datos.entregados.length})</button>
+      </div>
+      {vista === 'entregados' ? (
+        datos.entregados.length === 0 ? <div className="tarjeta"><Vacio icono={Pill} titulo="No se entregaron suplementos en este mes" /></div> : (
+          <div className="casos-filas">
+            {datos.entregados.map((e, i) => (
+              <Link key={i} to={`/ninos/${e.nino_id}`} className="fila-caso t-ok fila-vacunado">
+                <div className="fc-cuerpo"><strong>{e.nombre_completo}</strong><span>{fecha(e.fecha)} · {e.comunidad} · {e.etiqueta}</span></div>
+              </Link>
+            ))}
+          </div>
+        )
+      ) : porComunidad.length === 0 ? (
+        <div className="tarjeta"><Vacio icono={Pill} titulo="A nadie le toca un suplemento en este período" /></div>
+      ) : porComunidad.map((g) => (
+        <section key={g.id} className="grupo-casos">
+          <div className="grupo-casos-cab"><MapPin size={16} /><strong>{g.nombre}</strong><span className="chip">{plural(g.ninos.length, 'niño', 'niños')}</span></div>
+          <div className="casos-filas">
+            {g.ninos.map((p) => (
+              <Link key={p.id} to={`/ninos/${p.id}`} className="fila-caso fila-pendiente t-info">
+                <div className="fc-cuerpo">
+                  <strong>{p.nombre_completo}</strong>
+                  <span><b className="tc-tipo">{p.suplementos.map((x) => x.etiqueta).join(', ')}</b> · {edad(p.fecha_nacimiento)}</span>
+                  <span className="fp-contacto">{p.responsable || 'Sin responsable'}{p.telefono && ` · ${p.telefono}`}
+                    {p.suplementos.some((x) => x.estado !== 'le_toca') && ` · desde el ${fecha(p.suplementos.map((x) => x.programada).sort()[0]).slice(0, 5)}`}</span>
+                </div>
+                <span className="no-imprimir"><BotonLlamar caso={p} /></span>
+                <span className="solo-imprimir-celda fp-nota">Entregado: ________</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ))}
+    </>
+  );
 }
 
 /** Pedido: dosis que tocarán los próximos meses, por vacuna. */

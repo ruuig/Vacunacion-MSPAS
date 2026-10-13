@@ -158,6 +158,13 @@ function calcularEsquema({ fechaNacimiento, aplicaciones = [], catalogo, fechaRe
   const F = aDia(fechaRef);
   const aplicadas = mapaAplicadas(aplicaciones, catalogo);
   const orden = [...catalogo].sort((a, b) => a.orden - b.orden);
+  const porId = new Map(catalogo.map((d) => [d.id, d]));
+  // Series en recuperación: alguna de sus dosis se puso después de su edad recomendada (más la tolerancia)
+  const seriesEnRecuperacion = new Set();
+  for (const [dosisId, dia] of aplicadas) {
+    const x = porId.get(dosisId);
+    if (x && dia > nac + x.edadRecomendadaDias + P.dias_tolerancia_atraso) seriesEnRecuperacion.add(x.serieCodigo);
+  }
   const dosis = [];
 
   const estacional = orden.filter((d) => d.estacional && aplicaAlNino(d, nac));
@@ -172,16 +179,26 @@ function calcularEsquema({ fechaNacimiento, aplicaciones = [], catalogo, fechaRe
     if (d.informativa) continue; // solo aparece si se aplicó
     dosis.push(r);
 
+    // Dosis anterior de la serie. Si esa ya no se puede poner (pasó su edad máxima, como la 2a de neumococo
+    // después del año), la serie continúa desde la última que sí se aplicó.
     let previa = null;
-    if (d.dosisPreviaId) {
-      if (!aplicadas.has(d.dosisPreviaId)) { r.estado = 'en_espera'; continue; }
-      previa = aplicadas.get(d.dosisPreviaId);
+    let dosisPrevia = d.dosisPreviaId ? porId.get(d.dosisPreviaId) : null;
+    while (dosisPrevia && !aplicadas.has(dosisPrevia.id) && dosisPrevia.edadMaximaDias != null && F > nac + dosisPrevia.edadMaximaDias) {
+      dosisPrevia = dosisPrevia.dosisPreviaId ? porId.get(dosisPrevia.dosisPreviaId) : null;
+    }
+    if (dosisPrevia) {
+      if (!aplicadas.has(dosisPrevia.id)) { r.estado = 'en_espera'; continue; }
+      previa = aplicadas.get(dosisPrevia.id);
     }
     // Fecha válida: la más tardía entre la edad exigida y el intervalo desde la previa
     const desdePrevia = (intervalo) => (previa != null ? previa + (intervalo || 0) : -Infinity);
     const minima = Math.max(nac + d.edadMinimaDias, desdePrevia(d.intervaloMinimoDias));
-    const recomendada = desdePrevia(d.intervaloRecomendadoDias);
-    const programada = Math.max(nac + d.edadRecomendadaDias, recomendada);
+    // Esquema acelerado (recuperación): si la dosis anterior se puso tarde, las siguientes van con el intervalo mínimo
+    // (cada mes; el refuerzo, 6 meses después) desde la edad mínima, como hace el servicio. Si va a tiempo, a su edad recomendada.
+    const previaTarde = previa != null && seriesEnRecuperacion.has(d.serieCodigo);
+    const programada = previaTarde
+      ? Math.max(nac + d.edadMinimaDias, desdePrevia(d.intervaloMinimoDias))
+      : Math.max(nac + d.edadRecomendadaDias, desdePrevia(d.intervaloMinimoDias));
     const limite = d.edadMaximaDias != null ? nac + d.edadMaximaDias : null;
     r.fechaMinima = aFecha(minima);
     r.fechaProgramada = aFecha(programada);
@@ -291,7 +308,7 @@ function validarAplicacion({
  * SPR antes de los 12 meses cae en "SPR dosis cero" (informativa) y no en SPR 1.
  * Devuelve [{ esquemaDosisId, temporada }] (temporada = 0 fuera de influenza).
  */
-function dosisQueCumpleProducto({ seriesProducto, catalogo, aplicaciones = [], fechaNacimiento, fecha }) {
+function dosisQueCumpleProducto({ seriesProducto, catalogo, aplicaciones = [], fechaNacimiento, fecha, limites = {} }) {
   const nac = aDia(fechaNacimiento);
   const f = aDia(fecha);
   const aplicadas = mapaAplicadas(aplicaciones, catalogo);
@@ -317,6 +334,8 @@ function dosisQueCumpleProducto({ seriesProducto, catalogo, aplicaciones = [], f
 
     const siguiente = deSerie.find((d) => !aplicadas.has(d.id));
     if (!siguiente) continue;
+    // Hasta qué dosis cubre el producto: la hexavalente no cumple el R1 de polio (ese es OPV)
+    if (limites[serie] != null && siguiente.numero > limites[serie]) continue;
     if (siguiente.informativa) {
       const dentro = f >= nac + siguiente.edadMinimaDias && (siguiente.edadMaximaDias == null || f <= nac + siguiente.edadMaximaDias);
       if (dentro) informativas.push({ esquemaDosisId: siguiente.id, temporada: 0 });

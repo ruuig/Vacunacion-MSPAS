@@ -11,10 +11,11 @@ const { migrar } = require('../db/migrar');
 
 const app = express();
 app.set('trust proxy', 1);
-app.use(express.json());
+app.use(express.json({ limit: '2mb' })); // el logo llega como imagen en base64
 
 const api = express.Router();
 api.use('/auth', require('./routes/auth'));
+api.use('/marca', require('./routes/marca')); // logo: sin sesión, lo usa el inicio de sesión
 api.use(autenticar);
 api.use('/ninos', require('./routes/ninos'));
 api.use('/aplicaciones', require('./routes/aplicaciones'));
@@ -31,6 +32,7 @@ api.use('/casos', require('./routes/casos'));
 api.use('/acciones', require('./routes/acciones'));
 api.use('/lotes', require('./routes/lotes'));
 api.use('/seguimiento', require('./routes/seguimiento'));
+api.use('/suplementos', require('./routes/suplementos'));
 app.use('/api', api);
 
 // Producción: sirve el frontend compilado (frontend/dist) desde el mismo proceso
@@ -63,6 +65,17 @@ if (require.main === module) {
     const [anio, mes] = [d.getFullYear(), d.getMonth() + 1];
     const n = await tomarFoto(pool, anio, mes);
     console.log(`[tablero] foto de ${mes}/${anio}: ${n} indicadores`);
+  }, { timezone: 'America/Guatemala' });
+
+  // Respaldo automático cada noche a las 23:00; se borran los automáticos más viejos que la retención
+  cron.schedule('0 23 * * *', async () => {
+    try {
+      const respaldos = require('./servicios/respaldos');
+      const r = await respaldos.crearRespaldo('auto');
+      const { rows: [p] } = await pool.query("SELECT valor FROM parametro WHERE clave = 'respaldo_retencion_dias'");
+      const borrados = respaldos.limpiar(Number(p?.valor) || 30);
+      console.log(`[respaldo] ${r.nombre} (${Math.round(r.tamano / 1024)} KB), ${borrados} antiguos borrados`);
+    } catch (e) { console.error('[respaldo] falló:', e.message); }
   }, { timezone: 'America/Guatemala' });
 
   const PORT = process.env.PORT || 3100;

@@ -8,7 +8,7 @@ const { pool } = require('../src/db');
 
 const BASE = `http://localhost:${process.env.PORT || 3100}/api`;
 const CONTRASENA_DEMO = 'Demo2026!';
-const TOTAL_NINOS = 160;
+const TOTAL_NINOS = 200;
 
 // Aleatorio con semilla: los mismos datos en cada ejecución
 let semilla = 20261012;
@@ -40,7 +40,7 @@ const VISITAS = [
   [180, ['HEXA']],
   [365, ['NEUMO', 'SPR']],
   [456, ['VARICELA']],
-  [548, ['DPT', 'OPV', 'SPR']],
+  [548, ['HEXA', 'OPV', 'SPR']], // R1: hexavalente + OPV
   [1461, ['DPT', 'OPV', 'VARICELA']],
 ];
 // Antes de la hexavalente (supuesto de la demostración: nacidos antes de 2024) la serie primaria era
@@ -67,7 +67,8 @@ const APELLIDOS = ['Sandoval', 'Lemus', 'Ruano', 'Arana', 'Flores', 'Martínez',
 const MADRES = ['Floridalma', 'Magdalena', 'Reyna', 'Albertina', 'Eluvia', 'Mirna', 'Glenda', 'Ingrid', 'Heidy', 'Karla', 'Vilma', 'Zoila',
   'Dora', 'Leticia', 'Aracely', 'Yolanda', 'Mayra', 'Telma', 'Cindy', 'Lourdes'];
 // Establecimiento más cercano a cada comunidad (ids del seed)
-const PUESTO = { 'Chagüitón': 2, 'Trapichitos': 3, 'Valencia': 4, 'Los Olivos': 5 };
+// Establecimiento de cada comunidad: el puesto de su sector; el casco urbano y sus barrios, el centro de salud
+let PUESTO = {};
 const NOTAS = {
   contactado: 'La madre indicó que vendrá esta semana.', no_localizado: 'No contestó; se intentará con el promotor.',
   cita_acordada: 'Se acordó fecha con la madre.', rechazo: 'La familia no quiere vacunar por ahora.',
@@ -96,7 +97,14 @@ const NOTAS = {
   const idDe = (usuario) => ids[usuarios.find((u) => u.usuario === usuario).nombre];
   console.log('✓ Usuarios: enfermera, vacunador, vacunador2');
 
-  const comunidades = await llamar(enf, '/catalogos/comunidades');
+  // Los niños viven en aldeas, caseríos y barrios (el «Casco urbano» agrupa a los barrios)
+  const catTerritorio = await llamar(enf, '/catalogos/comunidades');
+  const comunidades = catTerritorio.filter((c) => c.tipo !== 'casco_urbano');
+  const establecimientos = await llamar(enf, '/catalogos/establecimientos');
+  PUESTO = Object.fromEntries(comunidades.map((c) => {
+    const central = c.es_central ? c.nombre : c.puesto;
+    return [c.nombre, establecimientos.find((e) => e.nombre === `Puesto de Salud ${central}`)?.id || 1];
+  }));
   const productos = await llamar(enf, '/catalogos/productos');
   const P = Object.fromEntries(productos.map((p) => [p.codigo, p.id]));
   const anio = Number(HOY.slice(0, 4));
@@ -118,14 +126,13 @@ const NOTAS = {
   for (const [i, c] of comunidades.entries()) {
     await llamar(enf, '/cuadernos', { method: 'POST', body: { numero: i + 1, anio, tipo: 'produccion_cobertura', servicio_id: PUESTO[c.nombre] || 1, comunidad_id: c.id } });
   }
-  const urbano = comunidades.find((c) => c.tipo === 'casco_urbano');
-  if (urbano) await llamar(enf, '/cuadernos', { method: 'POST', body: { numero: comunidades.length + 1, anio, tipo: 'produccion_cobertura', servicio_id: 1, comunidad_id: urbano.id } });
+  const urbano = null; // un cuaderno por comunidad o barrio
   console.log('✓ Cuadernos:', comunidades.length + (urbano ? 1 : 0));
 
   // 3. Niñas y niños con distintos perfiles. Cada comunidad tiene su "carácter" para que el tablero muestre problemas distintos:
   //    unas con buen acceso y abandono (categoría 2), otras con poco acceso (3), otras sin problema (1)
   const caracter = Object.fromEntries(comunidades.map((c, i) => [c.id, ['bien', 'abandona', 'bien', 'no_llega', 'abandona', 'bien', 'no_llega', 'mixto'][i % 8]]));
-  const peso = (c) => (c.tipo === 'casco_urbano' ? 12 : c.tipo === 'aldea' ? 6 : 3);
+  const peso = (c) => (c.tipo === 'barrio' ? 5 : c.tipo === 'aldea' ? 5 : 3);
   const bolsa = comunidades.flatMap((c) => Array(peso(c)).fill(c));
   const resumen = { al_dia: 0, atrasado: 0, abandono: 0, dosis_cero: 0, recien_nacido: 0, recuperado: 0 };
   const familias = [];
@@ -165,7 +172,7 @@ const NOTAS = {
       cui: String(entre(1000, 3999)) + String(entre(10000, 99999)) + '2104', primer_nombre: uno(MADRES), segundo_nombre: uno(['', 'Elizabeth', 'Marisol', 'Yolanda']),
       primer_apellido: apellidoMadre, segundo_apellido: uno(APELLIDOS), fecha_nacimiento: sumar(nacimiento, -entre(18, 38) * 365),
       departamento: 'Jalapa', municipio: 'San Luis Jilotepeque', comunidad_id: com.id, numero_casa: String(entre(1, 180)),
-      direccion_detalle: com.tipo === 'casco_urbano' ? `${entre(1, 6)}a. calle, zona ${entre(1, 3)}` : '',
+      direccion_detalle: com.tipo === 'barrio' ? `${entre(1, 6)}a. calle, zona ${entre(1, 3)}` : '',
       telefono: azar() < (car === 'no_llega' ? 0.55 : 0.85) ? String(entre(3, 5)) + String(entre(1000000, 9999999)) : '',
       idioma_preferente: maya && azar() < 0.3 ? 'poqomam' : 'espanol',
     };
@@ -239,6 +246,22 @@ const NOTAS = {
   }
   console.log(`✓ Niños: ${ninos} (${Object.entries(resumen).map(([k, v]) => `${k.replace('_', ' ')} ${v}`).join(', ')}) · dosis: ${dosis} · oportunidades perdidas: ${perdidas}`);
 
+  // 3b. Suplementación: la mayoría recibe vitamina A, micronutrientes y desparasitante cerca de su fecha
+  const { rows: menores3 } = await pool.query("SELECT id FROM nino WHERE fecha_nacimiento > CURRENT_DATE - 1095");
+  let suplementos = 0;
+  for (const { id } of menores3) {
+    for (let pasada = 0; pasada < 3; pasada++) { // la 2a depende de la 1a
+      const { dosis: ds } = await llamar(enf, `/suplementos/nino/${id}`);
+      for (const d of ds.filter((x) => x.programada && x.programada < HOY && ['le_toca', 'no_dada'].includes(x.estado))) {
+        if (azar() > 0.72) continue;
+        const fecha = menor(HOY, sumar(d.programada, entre(0, 25)));
+        try { await llamar(operativo(), `/suplementos/nino/${id}`, { method: 'POST', body: { ids: [d.id], fecha, establecimiento_id: 1 } }); suplementos++; }
+        catch { /* fuera del rango de edad en esa fecha */ }
+      }
+    }
+  }
+  console.log(`✓ Suplementación: ${suplementos} entregas a ${menores3.length} niños menores de 3 años`);
+
   // 4. Población meta proporcional a los niños de cada comunidad (en la vida real la entrega el área de salud)
   const { rows: porCom } = await pool.query(`
     SELECT comunidad_id, count(*) FILTER (WHERE fecha_nacimiento > CURRENT_DATE - 365)::int AS menores_1,
@@ -249,7 +272,7 @@ const NOTAS = {
     const x = porCom.find((p) => p.comunidad_id === c.id) || { menores_1: 0, de_1: 0, total: 0 };
     const factor = caracter[c.id] === 'no_llega' ? 1.6 : caracter[c.id] === 'bien' ? 1.05 : 1.2;
     // Dos caseríos quedan sin meta para mostrar el control de calidad Q7
-    if (c.tipo === 'caserio' && ['Tempiscón', 'El Flor'].includes(c.nombre)) return { comunidad_id: c.id, menor_1: '', '1_anio': '', '1_a_6': '' };
+    if (c.tipo === 'caserio' && ['Los Magueyes', 'Zanja de Agua'].includes(c.nombre)) return { comunidad_id: c.id, menor_1: '', '1_anio': '', '1_a_6': '' };
     return { comunidad_id: c.id, menor_1: Math.max(2, Math.round(x.menores_1 * factor)), '1_anio': Math.max(2, Math.round(x.de_1 * factor)), '1_a_6': Math.max(4, Math.round(x.total * 1.3)) };
   }) } });
   console.log('✓ Población meta', anio);
@@ -322,8 +345,8 @@ const NOTAS = {
   // 7. Jornadas: una realizada hoy y cerrada, otra planificada para la próxima semana
   const tablero = await llamar(enf, '/comunidades/tablero');
   const necesidad = (c) => c.dosis_cero * 3 + c.abandono * 3 + c.atrasados * 2;
-  const rurales = tablero.filter((c) => c.tipo !== 'casco_urbano').sort((a, b) => necesidad(b) - necesidad(a));
-  const j1 = await llamar(enf, '/jornadas', { method: 'POST', body: { fecha: HOY, comunidad_ids: rurales.slice(0, 2).map((c) => c.id), porcentaje_reserva: 10,
+  const rurales = tablero.filter((c) => !['casco_urbano', 'barrio'].includes(c.tipo)).sort((a, b) => necesidad(b) - necesidad(a));
+  const j1 = await llamar(enf, '/jornadas', { method: 'POST', body: { fecha: HOY, comunidad_ids: rurales.slice(0, 2).map((c) => c.id), porcentaje_reserva: 10, equipo_ids: [idDe('vacunador'), idDe('vacunador2')],
     observaciones: 'Punto de vacunación en la escuela de la aldea.' } });
   const det = await llamar(enf, `/jornadas/${j1.id}`);
   // Preparación (vacunas a llevar) y, el día de la jornada, se inicia para poder vacunar
@@ -338,7 +361,9 @@ const NOTAS = {
       continue;
     }
     for (const d of n.dosis_programadas) {
-      const codigo = ['DPT_HIB_HB', 'POLIO'].includes(d.serieCodigo) ? (!/R\d/.test(d.etiqueta) ? 'HEXA' : d.serieCodigo === 'POLIO' ? 'OPV' : 'DPT') : SERIE[d.serieCodigo];
+      const conPenta = n.dosis_programadas.some((x) => x.serieCodigo === 'DPT_HIB_HB' && x.numero === d.numero);
+      const codigo = d.serieCodigo === 'POLIO' ? (d.numero <= 3 && conPenta ? 'HEXA' : d.numero === 1 ? 'IPV' : 'OPV')
+        : d.serieCodigo === 'DPT_HIB_HB' ? (d.numero <= 4 ? 'HEXA' : 'DPT') : SERIE[d.serieCodigo];
       if (!codigo) continue;
       try {
         await llamar(operativo(), `/ninos/${n.nino_id}/aplicaciones`, { method: 'POST', body: { producto_id: P[codigo], fecha_aplicacion: HOY,
