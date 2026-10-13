@@ -7,7 +7,7 @@ services:
     plan: free
     region: oregon
     branch: main
-    buildCommand: cd frontend && npm ci && npm run build && cd ../backend && npm ci
+    buildCommand: cd frontend && npm ci --include=dev && npm run build && cd ../backend && npm ci   # --include=dev: vite compila la página aunque NODE_ENV sea production
     startCommand: cd backend && npm run db:preparar && npm start
     healthCheckPath: /api/auth/ping
     envVars:
