@@ -2,7 +2,7 @@
 // No es un inventario: las existencias y la cadena de frío se reportan por los canales del MSPAS (SIGSA).
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PackagePlus, Printer, Users } from 'lucide-react';
+import { Package, PackagePlus, Printer, Users } from 'lucide-react';
 import { api, qs } from '../api.js';
 import { useDialogos } from '../componentes/Dialogos.jsx';
 import { useCatalogo } from '../componentes/useCatalogo.js';
@@ -19,9 +19,9 @@ export default function Vacunas() {
     <>
       <div className="no-imprimir">
         <Encabezado titulo="Vacunas" />
-        <Pestanas valor={vista} onCambio={setVista} opciones={[['lotes', 'Lotes en uso'], ['consumo', 'Consumo del mes']]} />
+        <Pestanas valor={vista} onCambio={setVista} opciones={[['lotes', 'Lotes en uso'], ['consumo', 'Consumo del mes'], ['pedido', 'Qué pedir']]} />
       </div>
-      {vista === 'lotes' ? <Lotes /> : <Consumo />}
+      {vista === 'lotes' ? <Lotes /> : vista === 'consumo' ? <Consumo /> : <PedidoVacunas />}
     </>
   );
 }
@@ -228,5 +228,47 @@ function Consumo() {
         </>
       )}
     </>
+  );
+}
+
+/** Qué pedir al distrito: dosis que tocarán los próximos meses según el esquema de cada niño. */
+function PedidoVacunas() {
+  const [datos, setDatos] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => { api('/seguimiento/proyeccion').then(setDatos).catch((e) => setError(e.message)); }, []);
+  if (error) return <Mensaje tipo="error">{error}</Mensaje>;
+  return (
+    <>
+      <div className="acciones no-imprimir" style={{ marginTop: 0 }}><button className="btn" onClick={() => window.print()} disabled={!datos}><Printer size={16} />Imprimir</button></div>
+      <EncabezadoImpresion titulo="Pedido de vacunas" detalle="Próximos meses" />
+      <Pedido datos={datos} />
+    </>
+  );
+}
+
+/** Pedido: dosis que tocarán los próximos meses, por vacuna. */
+function Pedido({ datos }) {
+  if (!datos) return <Cargando />;
+  const total = (f) => f.cantidades.reduce((a, b) => a + b, 0);
+  return (
+    <Tarjeta titulo="Dosis que se necesitarán" icono={Package} cuerpo={false}
+      sub={`Dosis que tocarán según el esquema de cada niño. Incluye ${datos.nacimientos_por_mes} nacimientos por mes (promedio del último año) para Hepatitis B y BCG.`}>
+      <Tabla>
+        <thead>
+          <tr><th>Vacuna</th>{datos.columnas.map((c) => <th key={c.clave} className="celda-num">{c.nombre}</th>)}
+            <th className="celda-num">Total</th><th className="celda-num" title="Total más la reserva por pérdidas">+{datos.reserva} %</th></tr>
+        </thead>
+        <tbody>
+          {datos.filas.map((f) => (
+            <tr key={f.codigo}>
+              <td className="fuerte">{f.nombre}</td>
+              {f.cantidades.map((n, i) => <td key={i} className="celda-num">{n || '—'}</td>)}
+              <td className="celda-num fuerte">{total(f)}</td>
+              <td className="celda-num fuerte">{Math.ceil(total(f) * (1 + datos.reserva / 100))}</td>
+            </tr>
+          ))}
+        </tbody>
+      </Tabla>
+    </Tarjeta>
   );
 }

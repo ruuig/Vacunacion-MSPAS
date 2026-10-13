@@ -7,14 +7,14 @@ import Logo, { recargarLogo } from '../componentes/Logo.jsx';
 import { useSesion } from '../App.jsx';
 import { useDialogos } from '../componentes/Dialogos.jsx';
 import { invalidarCatalogo, useCatalogo } from '../componentes/useCatalogo.js';
-import { Campo, Cargando, Encabezado, Mensaje, Pestanas, Tabla, Tarjeta, Vacio, iniciales } from '../componentes/ui.jsx';
+import { Campo, Cargando, Encabezado, Mensaje, Modal, Pestanas, Tabla, Tarjeta, Vacio, iniciales } from '../componentes/ui.jsx';
 import { Estado } from '../componentes/Estado.jsx';
 
 const VISTAS = [
   ['usuarios', <><Users size={15} />Usuarios</>],
   ['parametros', <><SlidersHorizontal size={15} />Parámetros</>],
   ['esquema', <><Syringe size={15} />Esquema</>],
-  ['territorio', <><MapPin size={15} />Territorio</>],
+  ['territorio', <><MapPin size={15} />Puestos y comunidades</>],
   ['bitacora', <><ScrollText size={15} />Bitácora</>],
   ['respaldos', <><DatabaseBackup size={15} />Respaldos</>],
   ['logo', <><ImageUp size={15} />Logo</>],
@@ -135,7 +135,6 @@ function Parametros() {
   }
   return (
     <>
-      <RecalcularFotos />
       <Mensaje tipo="error" onCerrar={() => setError('')}>{error}</Mensaje>
       <Tabla>
         <thead><tr><th>Parámetro</th><th>Descripción</th><th>Valor</th><th /></tr></thead>
@@ -158,40 +157,26 @@ function Parametros() {
 }
 
 /** Las tendencias del tablero salen de una foto mensual que se guarda sola el día 1; aquí se puede repetir. */
-function RecalcularFotos() {
-  const { avisar } = useDialogos();
-  const [anio, setAnio] = useState(new Date().getFullYear());
-  const [ocupado, setOcupado] = useState(false);
-  async function recalcular() {
-    setOcupado(true);
-    try {
-      const r = await api('/admin/fotos', { method: 'POST', body: { anio } });
-      avisar(`Tablero actualizado: ${r.meses.length} meses de ${anio}.`);
-    } catch (e) { avisar(e.message, 'error'); }
-    setOcupado(false);
-  }
-  return (
-    <Tarjeta titulo="Tendencias del tablero" icono={SlidersHorizontal}>
-      <div className="filtros" style={{ marginBottom: 0 }}>
-        <Campo etiqueta="Año"><input type="number" value={anio} onChange={(e) => setAnio(Number(e.target.value))} style={{ maxWidth: 140 }} /></Campo>
-        <div style={{ flex: '0 0 auto' }}><button className="btn btn-primario" disabled={ocupado} onClick={recalcular}>{ocupado ? 'Calculando…' : 'Recalcular meses del año'}</button></div>
-      </div>
-    </Tarjeta>
-  );
-}
-
 const CAMPOS_ESQUEMA = [
-  ['edad_recomendada_dias', 'Edad rec.'], ['edad_minima_dias', 'Edad mín.'], ['edad_maxima_dias', 'Edad máx.'],
-  ['intervalo_minimo_dias', 'Interv. mín.'], ['intervalo_recomendado_dias', 'Interv. rec.'],
+  ['edad_recomendada_dias', 'Edad (días)'], ['edad_minima_dias', 'Desde (días)'], ['edad_maxima_dias', 'Hasta (días)'],
+  ['intervalo_minimo_dias', 'Días desde la anterior'], ['intervalo_recomendado_dias', 'Días recomendados'],
 ];
 
 function Esquema() {
   const [dosis, cargar, error, setError] = useCarga('/admin/esquema');
   const accion = useAccion(cargar, setError);
+  const { confirmar } = useDialogos();
+  async function activar(d) {
+    const ok = await confirmar({ titulo: d.activo ? `Dejar de usar ${d.etiqueta}` : `Volver a usar ${d.etiqueta}`,
+      mensaje: d.activo ? 'Ya no aparecerá en las fichas, en el control del mes ni en las jornadas. Lo ya registrado se conserva.'
+        : 'Volverá a calcularse para todos los niños.', aceptar: d.activo ? 'Dejar de usar' : 'Volver a usar', peligro: d.activo });
+    if (ok) accion(() => api('/admin/esquema/' + d.id, { method: 'PUT', body: { activo: !d.activo } }), `${d.etiqueta} actualizada.`);
+  }
   const [edit, setEdit] = useState({});
   const valor = (d, k) => edit[d.id]?.[k] ?? d[k] ?? '';
   const set = (d, k) => (e) => setEdit({ ...edit, [d.id]: { ...edit[d.id], [k]: e.target.value } });
   async function guardar(d) {
+    if (!(await confirmar({ titulo: `Cambiar ${d.etiqueta}`, aceptar: 'Guardar', mensaje: 'Las fechas de todos los niños se volverán a calcular con este cambio.' }))) return;
     const body = Object.fromEntries(Object.entries(edit[d.id]).map(([k, v]) => [k, v === '' ? null : Number(v)]));
     if (await accion(() => api('/admin/esquema/' + d.id, { method: 'PUT', body }), `${d.etiqueta} actualizada.`)) setEdit({ ...edit, [d.id]: undefined });
   }
@@ -199,11 +184,12 @@ function Esquema() {
     <>
       <Mensaje tipo="error" onCerrar={() => setError('')}>{error}</Mensaje>
       <Tabla>
-        <thead><tr><th>Dosis</th>{CAMPOS_ESQUEMA.map(([, t]) => <th key={t}>{t}</th>)}<th /></tr></thead>
+        <thead><tr><th>Dosis</th><th>Se pone</th>{CAMPOS_ESQUEMA.map(([, t]) => <th key={t}>{t}</th>)}<th /></tr></thead>
         <tbody>
           {dosis.map((d) => (
-            <tr key={d.id}>
-              <td><span className="fuerte">{d.etiqueta}</span><span className="sub">{d.serie}{d.estacional && ' · estacional'}{d.informativa && ' · no cuenta'}</span></td>
+            <tr key={d.id} className={d.activo ? '' : 'anulada'}>
+              <td><span className="fuerte">{d.etiqueta}</span><span className="sub">{d.serie}{d.estacional && ' · por temporada'}{d.informativa && ' · no cuenta'}</span></td>
+              <td><label className="interruptor"><input type="checkbox" checked={d.activo} onChange={() => activar(d)} />{d.activo ? 'Sí' : 'No'}</label></td>
               {CAMPOS_ESQUEMA.map(([k]) => <td key={k}><input type="number" min="0" className="num-input" value={valor(d, k)} onChange={set(d, k)} /></td>)}
               <td className="celda-fin">{edit[d.id] && <button className="btn btn-sm btn-primario" onClick={() => guardar(d)}><Save size={14} />Guardar</button>}</td>
             </tr>
@@ -214,76 +200,81 @@ function Esquema() {
   );
 }
 
+/** Territorio real: cada puesto (comunidad central) con su responsable y las comunidades que atiende; el casco urbano con sus barrios. */
 function Territorio() {
-  const [territorios, cargarT, error, setError] = useCarga('/comunidades/territorios');
-  const [comunidades, setComunidades] = useState([]);
-  const establecimientos = useCatalogo('establecimientos');
-  const [nuevaC, setNuevaC] = useState({ nombre: '', tipo: 'aldea', sector_id: '' });
-  const [nuevoT, setNuevoT] = useState({ servicio_id: '', nombre: '' });
-  const [nuevoS, setNuevoS] = useState({ territorio_id: '', nombre: '' });
-  const cargarC = useCallback(() => { api('/catalogos/comunidades').then(setComunidades).catch(() => {}); }, []);
-  useEffect(cargarC, [cargarC]);
-  const accion = useAccion(() => { invalidarCatalogo('comunidades'); cargarT(); cargarC(); }, setError);
-  const sectores = territorios.flatMap((t) => t.sectores.map((s) => ({ ...s, territorio: t.nombre })));
+  const comunidades = useCatalogo('comunidades');
+  const [usuarios] = useCarga('/admin/usuarios');
+  const [error, setError] = useState('');
+  const [nueva, setNueva] = useState(null); // { comunidad_padre_id, tipo }
+  const [, refrescar] = useState(0);
+  const accion = useAccion(() => { invalidarCatalogo('comunidades'); refrescar((n) => n + 1); window.location.reload(); }, setError);
+  const personal = usuarios.filter((u) => u.activo && u.rol !== 'administrador');
+  const centrales = comunidades.filter((c) => c.es_central).sort((x, y) => (x.tipo === 'casco_urbano') - (y.tipo === 'casco_urbano') || x.nombre.localeCompare(y.nombre));
+  const sueltas = comunidades.filter((c) => !c.es_central && !c.comunidad_padre_id);
+  const guardar = (c, cambios) => accion(() => api('/comunidades/' + c.id, { method: 'PUT', body: cambios }), `${c.nombre} actualizada.`);
 
+  const Responsable = ({ c }) => (
+    <select className="selector-chico" value={c.responsable_id || ''} onChange={(e) => guardar(c, { responsable_id: e.target.value ? Number(e.target.value) : null })}
+      aria-label={`Responsable de ${c.nombre}`}>
+      <option value="">{c.es_central ? 'Sin responsable' : 'El del puesto'}</option>
+      {personal.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+    </select>
+  );
   return (
     <>
       <Mensaje tipo="error" onCerrar={() => setError('')}>{error}</Mensaje>
-      <div className="dos-col" style={{ marginBottom: '1.25rem' }}>
-        <form onSubmit={(e) => { e.preventDefault(); accion(() => api('/comunidades/territorios', { method: 'POST', body: { ...nuevoT, servicio_id: Number(nuevoT.servicio_id) } }), 'Territorio creado.'); }}>
-          <Tarjeta titulo="Territorio" icono={Building2} pie={<div className="acciones"><button className="btn btn-sm"><Plus size={15} />Agregar territorio</button></div>}>
-            <div className="rejilla">
-              <Campo etiqueta="Servicio" requerido><select required value={nuevoT.servicio_id} onChange={(e) => setNuevoT({ ...nuevoT, servicio_id: e.target.value })}>
-                <option value="">Seleccione…</option>{establecimientos.filter((x) => x.es_local).map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
-              </select></Campo>
-              <Campo etiqueta="Nombre o código" requerido><input required value={nuevoT.nombre} onChange={(e) => setNuevoT({ ...nuevoT, nombre: e.target.value })} /></Campo>
-            </div>
+      {centrales.map((c) => {
+        const hijas = comunidades.filter((h) => h.comunidad_padre_id === c.id).sort((x, y) => x.nombre.localeCompare(y.nombre));
+        const urbano = c.tipo === 'casco_urbano';
+        return (
+          <Tarjeta key={c.id} titulo={urbano ? 'Casco urbano · centro de salud' : `Puesto ${c.nombre}`} icono={urbano ? Building2 : MapPin} cuerpo={false}
+            acciones={<span className="botones-fila">{!urbano && <Responsable c={c} />}
+              <button className="btn btn-sm" onClick={() => setNueva({ comunidad_padre_id: c.id, tipo: urbano ? 'barrio' : 'aldea' })}><Plus size={14} />{urbano ? 'Barrio' : 'Comunidad'}</button></span>}>
+            <Tabla>
+              <thead><tr><th>{urbano ? 'Barrio' : 'Comunidad'}</th><th>Responsable</th><th className="celda-num">Km</th><th /></tr></thead>
+              <tbody>
+                {hijas.map((h) => (
+                  <tr key={h.id}>
+                    <td className="fuerte">{h.nombre}<span className="sub">{TIPOS_COMUNIDAD[h.tipo]}</span></td>
+                    <td><Responsable c={h} /></td>
+                    <td className="celda-num"><input type="number" min="0" className="num-input" defaultValue={h.distancia_km ?? ''}
+                      onBlur={(e) => String(e.target.value) !== String(h.distancia_km ?? '') && guardar(h, { distancia_km: e.target.value === '' ? null : Number(e.target.value) })} aria-label={`Distancia de ${h.nombre}`} /></td>
+                    <td className="celda-fin">
+                      <select className="selector-chico" value={h.comunidad_padre_id} onChange={(e) => guardar(h, { comunidad_padre_id: Number(e.target.value) })} aria-label="Mover a otro puesto">
+                        {centrales.map((x) => <option key={x.id} value={x.id}>{x.tipo === 'casco_urbano' ? 'Casco urbano' : `Puesto ${x.nombre}`}</option>)}
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+                {hijas.length === 0 && <tr><td colSpan={4} className="tenue">{urbano ? 'Sin barrios' : 'Solo la aldea del puesto'}</td></tr>}
+              </tbody>
+            </Tabla>
           </Tarjeta>
-        </form>
-        <form onSubmit={(e) => { e.preventDefault(); accion(() => api('/comunidades/sectores', { method: 'POST', body: { ...nuevoS, territorio_id: Number(nuevoS.territorio_id) } }), 'Sector creado.'); }}>
-          <Tarjeta titulo="Sector" icono={ListTree} pie={<div className="acciones"><button className="btn btn-sm"><Plus size={15} />Agregar sector</button></div>}>
-            <div className="rejilla">
-              <Campo etiqueta="Territorio" requerido><select required value={nuevoS.territorio_id} onChange={(e) => setNuevoS({ ...nuevoS, territorio_id: e.target.value })}>
-                <option value="">Seleccione…</option>{territorios.map((t) => <option key={t.id} value={t.id}>{t.servicio} · {t.nombre}</option>)}
-              </select></Campo>
-              <Campo etiqueta="Número o nombre" requerido><input required value={nuevoS.nombre} onChange={(e) => setNuevoS({ ...nuevoS, nombre: e.target.value })} /></Campo>
-            </div>
-          </Tarjeta>
-        </form>
-      </div>
-      <form onSubmit={async (e) => {
-        e.preventDefault();
-        if (await accion(() => api('/comunidades', { method: 'POST', body: { ...nuevaC, sector_id: nuevaC.sector_id ? Number(nuevaC.sector_id) : null } }), 'Comunidad creada.'))
-          setNuevaC({ nombre: '', tipo: 'aldea', sector_id: '' });
-      }}>
-        <Tarjeta titulo="Nueva comunidad" icono={MapPin} pie={<div className="acciones"><button className="btn btn-primario"><Plus size={17} />Agregar comunidad</button></div>}>
-          <div className="rejilla">
-            <Campo etiqueta="Nombre" requerido><input required value={nuevaC.nombre} onChange={(e) => setNuevaC({ ...nuevaC, nombre: e.target.value })} /></Campo>
-            <Campo etiqueta="Tipo"><select value={nuevaC.tipo} onChange={(e) => setNuevaC({ ...nuevaC, tipo: e.target.value })}>
-              {Object.entries(TIPOS_COMUNIDAD).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Campo>
-            <Campo etiqueta="Sector"><select value={nuevaC.sector_id} onChange={(e) => setNuevaC({ ...nuevaC, sector_id: e.target.value })}>
-              <option value="">—</option>{sectores.map((s) => <option key={s.id} value={s.id}>{s.territorio} · {s.nombre}</option>)}</select></Campo>
-          </div>
+        );
+      })}
+      {sueltas.length > 0 && (
+        <Tarjeta titulo="Sin puesto asignado" icono={MapPin} cuerpo={false}>
+          <Tabla>
+            <tbody>{sueltas.map((h) => (
+              <tr key={h.id}><td className="fuerte">{h.nombre}</td>
+                <td className="celda-fin"><select className="selector-chico" value="" onChange={(e) => guardar(h, { comunidad_padre_id: Number(e.target.value) })}>
+                  <option value="">Elegir puesto…</option>{centrales.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}</select></td></tr>
+            ))}</tbody>
+          </Tabla>
         </Tarjeta>
-      </form>
-      <Tabla>
-        <thead><tr><th>Comunidad</th><th>Tipo</th><th>Sector</th></tr></thead>
-        <tbody>
-          {comunidades.map((c) => (
-            <tr key={c.id}>
-              <td className="fuerte">{c.nombre}</td>
-              <td>{TIPOS_COMUNIDAD[c.tipo]}</td>
-              <td>
-                <select value={c.sector_id || ''} style={{ minWidth: 200 }}
-                  onChange={(e) => accion(() => api('/comunidades/' + c.id, { method: 'PUT', body: { sector_id: e.target.value ? Number(e.target.value) : null } }), `${c.nombre} actualizada.`)}>
-                  <option value="">Sin sector</option>
-                  {sectores.map((s) => <option key={s.id} value={s.id}>{s.territorio} · {s.nombre}</option>)}
-                </select>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </Tabla>
+      )}
+      {nueva && (
+        <Modal titulo={nueva.tipo === 'barrio' ? 'Nuevo barrio' : 'Nueva comunidad'} chico onCerrar={() => setNueva(null)}
+          onSubmit={async (e) => { e.preventDefault(); if (await accion(() => api('/comunidades', { method: 'POST', body: nueva }), 'Agregada.')) setNueva(null); }}
+          pie={<><button type="button" className="btn" onClick={() => setNueva(null)}>Cancelar</button><button className="btn btn-primario"><Plus size={16} />Agregar</button></>}>
+          <div className="rejilla">
+            <Campo etiqueta="Nombre" requerido className="ancho"><input required autoFocus value={nueva.nombre || ''} onChange={(e) => setNueva({ ...nueva, nombre: e.target.value })} /></Campo>
+            <Campo etiqueta="Tipo"><select value={nueva.tipo} onChange={(e) => setNueva({ ...nueva, tipo: e.target.value })}>
+              {Object.entries(TIPOS_COMUNIDAD).filter(([k]) => k !== 'casco_urbano').map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Campo>
+            <Campo etiqueta="Km desde la cabecera"><input type="number" min="0" value={nueva.distancia_km || ''} onChange={(e) => setNueva({ ...nueva, distancia_km: e.target.value })} /></Campo>
+          </div>
+        </Modal>
+      )}
     </>
   );
 }

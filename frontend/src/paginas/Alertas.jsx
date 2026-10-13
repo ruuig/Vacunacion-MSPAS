@@ -86,7 +86,6 @@ export default function Alertas() {
   const comunidades = useCatalogo('comunidades');
   const [datos, setDatos] = useState(null);
   const [casos, setCasos] = useState([]);
-  const [pedido, setPedido] = useState(null);
   const [buscar, setBuscar] = useState('');
   const [personal, setPersonal] = useState([]);
   const [marcados, setMarcados] = useState(new Set());
@@ -105,10 +104,6 @@ export default function Alertas() {
     api('/casos').then(setCasos).catch(() => {});
   }, [anio, mes, comunidad, puesto, asignado]);
   useEffect(cargar, [cargar]);
-  useEffect(() => {
-    if (vista === 'pedido' && !pedido) api('/seguimiento/proyeccion' + qs({ comunidad, puesto })).then(setPedido).catch((e) => setError(e.message));
-  }, [vista, pedido, comunidad, puesto]);
-  useEffect(() => setPedido(null), [comunidad, puesto]);
   useEffect(() => { if (esEnfermera) api('/casos/personal').then(setPersonal).catch(() => {}); }, [esEnfermera]);
 
   const cambiar = (cambios) => {
@@ -159,12 +154,12 @@ export default function Alertas() {
     return m;
   }, {}));
   const titulo = `${MESES[mes - 1]} ${anio}`;
-  const IMPRESION = { por_vacunar: 'Niños por vacunar', vacunados: 'Niños vacunados', suplementos: 'Suplementación', pedido: 'Pedido de vacunas' };
+  const IMPRESION = { por_vacunar: 'Niños por vacunar', vacunados: 'Niños vacunados', suplementos: 'Suplementación' };
   const enSemana = esEsteMes && periodo === 'semana' && ['por_vacunar', 'suplementos'].includes(vista);
 
   return (
     <>
-      <EncabezadoImpresion titulo={`${IMPRESION[vista]} · ${vista === 'pedido' ? 'próximos meses' : enSemana ? `semana al ${fecha(finSemana)}` : titulo}`}
+      <EncabezadoImpresion titulo={`${IMPRESION[vista]} · ${enSemana ? `semana al ${fecha(finSemana)}` : titulo}`}
         detalle={`${lugar.nombre}${lugar.responsable ? ` · Responsable: ${lugar.responsable}` : ''}`} />
       <div className="no-imprimir">
         <Encabezado titulo="Control del mes">
@@ -173,7 +168,7 @@ export default function Alertas() {
         </Encabezado>
 
         <div className="control-barra">
-          {vista !== 'pedido' && (
+          {(
             <div className="selector-mes" role="group" aria-label="Mes">
               <button type="button" className="btn btn-icono" onClick={() => moverMes(-1)} aria-label="Mes anterior"><ChevronLeft size={20} /></button>
               <strong>{titulo}</strong>
@@ -199,14 +194,13 @@ export default function Alertas() {
           ['por_vacunar', <><Syringe size={15} />Por vacunar</>, datos && <span className="cuenta">{datos.resumen.pendientes}</span>],
           ['vacunados', <><CheckCircle2 size={15} />Vacunados</>, datos && <span className="cuenta">{datos.resumen.ninos_vacunados}</span>],
           ['suplementos', <><Pill size={15} />Suplementos</>],
-          ['pedido', <><Package size={15} />Pedido de vacunas</>],
         ]} />
         {lugar.responsable && <p className="responsable-lugar"><User size={15} />Responsable de {lugar.nombre.replace(/ y comunidades a cargo$/, '')}: <strong>{lugar.responsable}</strong></p>}
       </div>
       <Mensaje tipo="error">{error}</Mensaje>
 
       {vista === 'suplementos' ? <Suplementos anio={anio} mes={mes} puesto={puesto} comunidad={comunidad} hastaSemana={esEsteMes && periodo === 'semana' ? finSemana : null} />
-        : vista === 'pedido' ? <Pedido datos={pedido} /> : !datos ? <Cargando /> : vista === 'vacunados' ? (
+        : !datos ? <Cargando /> : vista === 'vacunados' ? (
         <Vacunados datos={datos} />
       ) : (
         <>
@@ -416,32 +410,6 @@ function Suplementos({ anio, mes, puesto, comunidad, hastaSemana }) {
   );
 }
 
-/** Pedido: dosis que tocarán los próximos meses, por vacuna. */
-function Pedido({ datos }) {
-  if (!datos) return <Cargando />;
-  const total = (f) => f.cantidades.reduce((a, b) => a + b, 0);
-  return (
-    <Tarjeta titulo="Vacunas para pedir" icono={Package} cuerpo={false}
-      sub={`Dosis que tocarán según el esquema de cada niño. Incluye ${datos.nacimientos_por_mes} nacimientos por mes (promedio del último año) para Hepatitis B y BCG.`}>
-      <Tabla>
-        <thead>
-          <tr><th>Vacuna</th>{datos.columnas.map((c) => <th key={c.clave} className="celda-num">{c.nombre}</th>)}
-            <th className="celda-num">Total</th><th className="celda-num" title="Total más la reserva por pérdidas">+{datos.reserva} %</th></tr>
-        </thead>
-        <tbody>
-          {datos.filas.map((f) => (
-            <tr key={f.codigo}>
-              <td className="fuerte">{f.nombre}</td>
-              {f.cantidades.map((n, i) => <td key={i} className="celda-num">{n || '—'}</td>)}
-              <td className="celda-num fuerte">{total(f)}</td>
-              <td className="celda-num fuerte">{Math.ceil(total(f) * (1 + datos.reserva / 100))}</td>
-            </tr>
-          ))}
-        </tbody>
-      </Tabla>
-    </Tarjeta>
-  );
-}
 
 /** "4 vacunas · 76 días de atraso": lo que hay que saber para decidir a quién llamar primero. */
 function resumenCaso(c) {

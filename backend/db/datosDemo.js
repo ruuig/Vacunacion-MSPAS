@@ -96,6 +96,9 @@ const NOTAS = {
   const ids = Object.fromEntries((await llamar(enf, '/casos/personal')).map((u) => [u.nombre, u.id]));
   const idDe = (usuario) => ids[usuarios.find((u) => u.usuario === usuario).nombre];
   console.log('✓ Usuarios: enfermera, vacunador, vacunador2');
+  // Cada vacunador es responsable de un sector: al entrar ve sus comunidades
+  await pool.query(`UPDATE comunidad c SET responsable_id = u.id FROM usuario u
+    WHERE (c.nombre = 'Los Trapichitos' AND u.usuario = 'vacunador') OR (c.nombre IN ('La Bolsa', 'Izotes') AND u.usuario = 'vacunador2')`);
 
   // Los niños viven en aldeas, caseríos y barrios (el «Casco urbano» agrupa a los barrios)
   const catTerritorio = await llamar(enf, '/catalogos/comunidades');

@@ -28,7 +28,8 @@ router.post('/login', async (req, res) => {
   });
   if (!ok) return res.status(401).json(CREDENCIALES_INVALIDAS);
 
-  const perfil = { id: u.id, nombre: u.nombre, rol: u.rol };
+  const sector = (await require('../territorio').territorioDe(pool, u.id)).length;
+  const perfil = { id: u.id, nombre: u.nombre, rol: u.rol, sector };
   const token = jwt.sign(perfil, process.env.JWT_SECRET, { expiresIn: '8h' });
   res.json({ token, usuario: perfil });
 });

@@ -7,6 +7,7 @@ const esq = require('../servicios/esquema');
 const { calcularEsquema, aDia, aFecha } = require('../motor/motorEsquema');
 const { productosNecesarios } = require('./jornadas');
 const { hoy } = require('../fecha');
+const { territorioDe } = require('../territorio');
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const finDeMes = (a, m) => new Date(Date.UTC(a, m, 0)).toISOString().slice(0, 10);
@@ -98,7 +99,8 @@ router.get('/mes', permitir(...TODOS), async (req, res) => {
       ultimo_contacto: contactos.find((c) => c.nino_id === n.id) || null,
     });
   }
-  const filtrados = asignado === 'yo' ? pendientes.filter((p) => p.asignado_id === req.usuario.id) : pendientes;
+  const mias = asignado === 'yo' ? new Set(await territorioDe(pool, req.usuario.id)) : null;
+  const filtrados = mias ? pendientes.filter((p) => p.asignado_id === req.usuario.id || mias.has(p.comunidad_id)) : pendientes;
   filtrados.sort((a, b) => a.comunidad.localeCompare(b.comunidad) || b.dias_atraso - a.dias_atraso);
 
   res.json({

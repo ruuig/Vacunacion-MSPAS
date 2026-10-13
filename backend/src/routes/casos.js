@@ -1,6 +1,7 @@
 // Casos de seguimiento: un caso = un niño con alertas abiertas (análisis del flujo operativo, F3).
 // El contacto se registra una vez por niño; la asignación define "Mis casos"; el escalamiento sale de los intentos.
 const router = require('express').Router();
+const { SQL_TERRITORIO } = require('../territorio');
 const { pool, transaccion, registrarBitacora } = require('../db');
 const { permitir, TODOS, OPERATIVOS } = require('../middleware/auth');
 const esq = require('../servicios/esquema');
@@ -101,8 +102,8 @@ async function atrasoPorNino(db, ninos, hoy) {
 router.get('/conteo', permitir(...TODOS), async (req, res) => {
   const { rows: [r] } = await pool.query(`
     SELECT count(DISTINCT a.nino_id)::int AS total,
-           count(DISTINCT a.nino_id) FILTER (WHERE ca.usuario_id = $1)::int AS mios
-    FROM alerta a LEFT JOIN caso_asignacion ca ON ca.nino_id = a.nino_id
+           count(DISTINCT a.nino_id) FILTER (WHERE ca.usuario_id = $1 OR n.comunidad_id IN (${SQL_TERRITORIO}))::int AS mios
+    FROM alerta a JOIN nino n ON n.id = a.nino_id LEFT JOIN caso_asignacion ca ON ca.nino_id = a.nino_id
     WHERE a.estado IN ('abierta','en_seguimiento') AND a.tipo <> 'proxima'`, [req.usuario.id]);
   res.json(r);
 });

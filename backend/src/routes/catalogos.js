@@ -6,9 +6,11 @@ const { permitir, TODOS } = require('../middleware/auth');
 router.get('/comunidades', permitir(...TODOS), async (_req, res) => {
   const { rows } = await pool.query(`
     SELECT c.id, c.nombre, c.tipo, c.sector_id, s.nombre AS sector, t.nombre AS territorio,
-           c.es_central, c.responsable, c.distancia_km, c.comunidad_padre_id, p.nombre AS puesto, p.responsable AS responsable_puesto
+           c.es_central, coalesce(ur.nombre, c.responsable) AS responsable, c.responsable_id, c.distancia_km, c.comunidad_padre_id,
+           p.nombre AS puesto, coalesce(up.nombre, p.responsable) AS responsable_puesto
     FROM comunidad c LEFT JOIN sector s ON s.id = c.sector_id LEFT JOIN territorio t ON t.id = s.territorio_id
     LEFT JOIN comunidad p ON p.id = c.comunidad_padre_id
+    LEFT JOIN usuario ur ON ur.id = c.responsable_id LEFT JOIN usuario up ON up.id = p.responsable_id
     WHERE c.activo ORDER BY c.nombre`);
   res.json(rows);
 });

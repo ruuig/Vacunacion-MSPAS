@@ -41,11 +41,12 @@ router.get('/tablero', permitir(...TODOS), async (req, res) => {
 
 // ---- Catálogo territorial (administrador) ----
 router.post('/', permitir('administrador'), async (req, res) => {
-  const { nombre, tipo, comunidad_padre_id, sector_id, distancia_km } = req.body || {};
+  const { nombre, tipo, comunidad_padre_id, sector_id, distancia_km, responsable_id, es_central } = req.body || {};
+  if (!String(nombre || '').trim()) return res.status(400).json({ error: 'Escriba el nombre.' });
   const c = await transaccion(async (cl) => {
     const { rows: [c] } = await cl.query(
-      `INSERT INTO comunidad (nombre, tipo, comunidad_padre_id, sector_id, distancia_km) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-      [nombre, tipo, comunidad_padre_id || null, sector_id || null, distancia_km || null]);
+      `INSERT INTO comunidad (nombre, tipo, comunidad_padre_id, sector_id, distancia_km, responsable_id, es_central) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [String(nombre).trim(), tipo, comunidad_padre_id || null, sector_id || null, distancia_km || null, responsable_id || null, Boolean(es_central)]);
     await registrarBitacora(cl, req, 'crear', 'comunidad', c.id, null, c);
     return c;
   });
@@ -114,15 +115,17 @@ router.put('/poblacion-meta', permitir('administrador', 'enfermera'), async (req
 });
 
 router.put('/:id', permitir('administrador'), async (req, res) => {
-  const { nombre, tipo, comunidad_padre_id, sector_id, distancia_km, activo } = req.body || {};
+  const { nombre, tipo, comunidad_padre_id, sector_id, distancia_km, activo, responsable_id, es_central } = req.body || {};
   const c = await transaccion(async (cl) => {
     const { rows: [antes] } = await cl.query('SELECT * FROM comunidad WHERE id = $1', [req.params.id]);
     if (!antes) return null;
     const { rows: [c] } = await cl.query(
-      `UPDATE comunidad SET nombre = $2, tipo = $3, comunidad_padre_id = $4, sector_id = $5, distancia_km = $6, activo = $7
+      `UPDATE comunidad SET nombre = $2, tipo = $3, comunidad_padre_id = $4, sector_id = $5, distancia_km = $6, activo = $7,
+         responsable_id = $8, es_central = $9
        WHERE id = $1 RETURNING *`,
       [antes.id, nombre ?? antes.nombre, tipo ?? antes.tipo, siEnviado(comunidad_padre_id, antes.comunidad_padre_id),
-        siEnviado(sector_id, antes.sector_id), siEnviado(distancia_km, antes.distancia_km), activo ?? antes.activo]);
+        siEnviado(sector_id, antes.sector_id), siEnviado(distancia_km, antes.distancia_km), activo ?? antes.activo,
+        siEnviado(responsable_id, antes.responsable_id), es_central ?? antes.es_central]);
     await registrarBitacora(cl, req, 'editar', 'comunidad', c.id, antes, c);
     return c;
   });

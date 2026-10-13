@@ -1749,3 +1749,4 @@ label.btn.deshabilitado { opacity: .55; pointer-events: none; }
 .bs-lleno { display: block; height: 100%; border-radius: 8px; background: var(--ambar); }
 .bs-lleno.ok { background: #2fb36b; }
 .bs-pista i { position: absolute; top: -4px; bottom: -4px; width: 3px; border-radius: 2px; background: var(--marino); }
+.selector-chico { min-height: 38px; font-size: .84rem; padding: .3rem .6rem; width: auto; max-width: 240px; }

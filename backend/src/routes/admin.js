@@ -89,6 +89,7 @@ router.put('/esquema/:id', async (req, res) => {
     await registrarBitacora(c, req, 'editar', 'esquema_dosis', d.id, antes, d);
     return d;
   });
+  if (d) require('../servicios/esquema').recalcularTodos(pool).catch((e) => console.error('[esquema] recálculo:', e.message));
   d ? res.json(d) : res.status(404).json({ error: 'Dosis no encontrada.' });
 });
 
