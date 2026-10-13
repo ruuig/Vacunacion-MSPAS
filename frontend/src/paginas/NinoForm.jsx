@@ -195,8 +195,13 @@ export default function NinoForm() {
             ))}
           </div>
           <div className="rejilla" style={{ marginTop: '1rem' }}>
-            <Campo etiqueta="Fecha de nacimiento" requerido ayuda={nino.fecha_nacimiento ? `Tiene ${edad(nino.fecha_nacimiento)}` : 'Como aparece en el carné'}>
-              <input type="date" required min={editando ? undefined : hace7Anios()} max={hoy()} {...n('fecha_nacimiento')} />
+            <Campo etiqueta="Fecha de nacimiento" requerido ayuda={nino.fecha_nacimiento ? `Tiene ${edad(nino.fecha_nacimiento)}` : 'Menores de 7 años'}>
+              {/* El navegador muestra un mensaje confuso; este dice qué pasa en palabras del servicio */}
+              <input type="date" required min={editando ? undefined : hace7Anios()} max={hoy()} {...n('fecha_nacimiento')}
+                onInvalid={(e) => e.target.setCustomValidity(e.target.validity.rangeUnderflow
+                  ? `Con esa fecha tendría ${edad(e.target.value)}. Aquí solo se registran niños menores de 7 años: revise el año.`
+                  : e.target.validity.rangeOverflow ? 'La fecha no puede ser después de hoy.' : 'Escriba la fecha de nacimiento.')}
+                onInput={(e) => e.target.setCustomValidity('')} />
             </Campo>
             <Campo etiqueta="Pueblo" requerido>
               <select required {...n('pueblo')}>
@@ -222,7 +227,7 @@ export default function NinoForm() {
               </Campo>
               <Campo etiqueta="No. de registro del carné"><input {...n('numero_registro_carne')} /></Campo>
               <Campo etiqueta="Fecha de registro del carné"><input type="date" max={hoy()} {...n('fecha_registro_carne')} /></Campo>
-              <Campo etiqueta="Nombre del padre"><input {...n('nombre_padre')} /></Campo>
+              <Campo etiqueta="Nombre del padre (opcional)"><input {...n('nombre_padre')} /></Campo>
               {editando && usuario.rol === 'enfermera' && (
                 <Campo etiqueta="Estado del registro">
                   <select {...n('estado')}>
@@ -246,7 +251,7 @@ export default function NinoForm() {
             ))}
           </div>
           <div className="rejilla" style={{ marginTop: '1rem' }}>
-            <Campo etiqueta="CUI (DPI) de la mamá o responsable" ayuda="Si ya vino con otro hijo, sus datos se llenan solos" className="doble">
+            <Campo etiqueta="DPI de la mamá o responsable" ayuda="Si ya vino con otro hijo, sus datos aparecen solos" className="doble">
               <InputCui value={resp.cui} onCambio={(cui) => { setResp({ ...resp, cui }); buscarResponsable(cui); }} autoFocus />
             </Campo>
           </div>

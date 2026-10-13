@@ -110,7 +110,7 @@ export default function Inicio() {
         {operativo && <Mosaico to="/ninos/nuevo" icono={UserPlus} titulo="Niño nuevo" texto="Primera vez que viene" color="verde" />}
         {operativo && (
           <Mosaico to={pendientes.mios ? '/alertas?asignado=yo' : '/alertas'} icono={Phone} titulo="Niños a buscar"
-            texto={pendientes.mios ? 'Los que le asignaron' : 'Llamar o visitar'}
+            texto={pendientes.mios ? (usuario.sector ? 'En su sector' : 'Los que le asignaron') : 'Llamar o visitar'}
             color="rojo" contador={pendientes.mios || pendientes.total} />
         )}
         {operativo && (

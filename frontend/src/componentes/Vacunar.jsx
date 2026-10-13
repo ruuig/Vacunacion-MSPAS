@@ -4,7 +4,7 @@
 //   3. ¡Listo!                    (qué anotar en el carné y en el cuaderno)
 import { useEffect, useMemo, useState } from 'react';
 import {
-  BookOpen, CalendarCheck, Check, CheckCircle2, ChevronLeft, ClipboardList, HeartPulse, PackageX, Thermometer, UserX, Clock, HelpCircle, Syringe,
+  BookOpen, CalendarCheck, Check, CheckCircle2, ChevronLeft, Printer, ClipboardList, HeartPulse, PackageX, Thermometer, UserX, Clock, HelpCircle, Syringe,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { useCatalogo } from './useCatalogo.js';
@@ -15,6 +15,21 @@ import { fecha, hoy } from '../util.js';
 // Fecha corta para el lote (31/03/27): el texto completo no cabía en el celular
 const fechaCorta = (f) => fecha(f).replace(/\/(\d{2})(\d{2})$/, '/$2');
 const MANUAL = 'manual';
+
+/** Hoja pequeña con la próxima cita para entregar a la mamá (por si pierde o no trae el carné). */
+function imprimirCita(nombre, cita, vacunas) {
+  const v = window.open('', '_blank', 'width=420,height=560');
+  if (!v) return;
+  const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  v.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Próxima cita</title>
+    <style>body{font-family:system-ui,sans-serif;margin:24px;color:#1b2a5c}h1{font-size:15px;margin:0 0 4px}p{margin:4px 0}
+    .fecha{font-size:34px;font-weight:800;margin:14px 0 6px}.caja{border:2px solid #1b2a5c;border-radius:12px;padding:16px}small{color:#555}</style></head>
+    <body><div class="caja"><h1>Ministerio de Salud Pública y Asistencia Social</h1><small>Centro de Salud de San Luis Jilotepeque</small>
+    <p style="margin-top:14px"><strong>${esc(nombre)}</strong></p><p>Próxima vacuna:</p><div class="fecha">${esc(fecha(cita))}</div>
+    <p>${esc(vacunas.join(', '))}</p><p style="margin-top:14px"><small>Traiga el carné de vacunación.</small></p></div>
+    <script>window.onload=()=>{window.print();}</script></body></html>`);
+  v.document.close();
+}
 
 /** Producto que se aplica para una dosis del esquema (la hexavalente cubre Penta y Polio del mismo número). */
 function productoPara(d) {
@@ -157,7 +172,12 @@ export default function Vacunar({ ninoId, nombre, esquema, jornadaId, fechaDefec
     const r = resultado;
     return (
       <Modal titulo={nombre} className="modal-completo" onCerrar={() => onTerminado(r)}
-        pie={<button className="btn btn-primario btn-grande" style={{ flex: 1 }} onClick={() => onTerminado(r)}><Check size={20} />Terminar</button>}>
+        pie={(
+          <>
+            {r.cita?.proximaCita && <button className="btn btn-grande" onClick={() => imprimirCita(nombre, r.cita.proximaCita, r.cita.vacunas)}><Printer size={20} />Imprimir cita</button>}
+            <button className="btn btn-primario btn-grande" style={{ flex: 1 }} onClick={() => onTerminado(r)}><Check size={20} />Terminar</button>
+          </>
+        )}>
         <div className="confirmacion">
           <div className="sello"><CheckCircle2 size={46} /></div>
           <h2>{r.hechas.length ? `¡Listo! Se ${r.hechas.length === 1 ? 'guardó 1 vacuna' : `guardaron ${r.hechas.length} vacunas`}` : 'Se guardó la visita'}</h2>

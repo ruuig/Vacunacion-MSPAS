@@ -81,7 +81,8 @@ export default function Alertas() {
   const periodo = params.get('periodo') || 'mes';
   const { describir } = useTerritorio();
   const lugar = describir({ puesto, comunidad });
-  const asignado = params.get('asignado') || '';
+  // Quien tiene un sector a cargo entra viendo lo suyo; puede cambiar a «Todos»
+  const asignado = params.get('asignado') ?? (usuario.rol === 'vacunador' && usuario.sector ? 'yo' : '');
   const filtro = params.get('tipo') || '';
   const comunidades = useCatalogo('comunidades');
   const [datos, setDatos] = useState(null);
@@ -184,8 +185,8 @@ export default function Alertas() {
           )}
           {operativo && vista === 'por_vacunar' && (
             <div className="segmentado" role="group" aria-label="Casos">
-              <button type="button" className={asignado !== 'yo' ? 'activa' : ''} onClick={() => cambiar({ asignado: '' })}>Todos</button>
-              <button type="button" className={asignado === 'yo' ? 'activa' : ''} onClick={() => cambiar({ asignado: 'yo' })}>Mis casos</button>
+              <button type="button" className={asignado !== 'yo' ? 'activa' : ''} onClick={() => { const p = new URLSearchParams(params); p.set('asignado', ''); setParams(p, { replace: true }); }}>Todos</button>
+              <button type="button" className={asignado === 'yo' ? 'activa' : ''} onClick={() => cambiar({ asignado: 'yo' })}>{usuario.sector ? 'Mi sector' : 'Mis casos'}</button>
             </div>
           )}
         </div>

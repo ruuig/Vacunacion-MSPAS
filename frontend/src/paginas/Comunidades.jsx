@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AlertOctagon, AlertTriangle, Baby, CalendarX, Clock, Download, Save, Truck, UserX } from 'lucide-react';
+import { AlertOctagon, AlertTriangle, Baby, CalendarX, Clock, Download, Save, Search, Truck, UserX } from 'lucide-react';
 import { api } from '../api.js';
 import { useSesion } from '../App.jsx';
 import { useDialogos } from '../componentes/Dialogos.jsx';
@@ -44,10 +44,13 @@ function Cobertura({ valor, sinMeta, onIrMeta }) {
   );
 }
 
+const sinTildes = (t = '') => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
 function Tablero({ rol, onIrMeta }) {
   const ir = useNavigate();
   const [filas, setFilas] = useState(null);
   const [error, setError] = useState('');
+  const [buscar, setBuscar] = useState('');
   useEffect(() => { api('/comunidades/tablero').then(setFilas).catch((e) => setError(e.message)); }, []);
   const ordenadas = [...(filas || [])].filter((c) => c.tipo !== 'casco_urbano').sort((a, b) => puntaje(b) - puntaje(a) || b.activos - a.activos);
   const maximo = ordenadas.length ? puntaje(ordenadas[0]) : 0;
@@ -75,7 +78,11 @@ function Tablero({ rol, onIrMeta }) {
         <Kpi resaltar valor={total('inasistencia')} rotulo="Inasistencias" icono={CalendarX} color="morado" to="/alertas?tipo=inasistencia" />
       </div>
 
-      <div className="pagina-cab" style={{ marginBottom: '.75rem', alignItems: 'center' }}>
+      <div className="pagina-cab" style={{ marginBottom: '.75rem', alignItems: 'center', gap: '.75rem' }}>
+        <div className="con-icono" style={{ flex: '1 1 260px' }}>
+          <Search size={18} />
+          <input type="search" value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Buscar comunidad, barrio o puesto" aria-label="Buscar comunidad" />
+        </div>
         <button className="btn btn-sm" onClick={exportar}><Download size={15} />Exportar a Excel</button>
       </div>
 
@@ -85,7 +92,7 @@ function Tablero({ rol, onIrMeta }) {
             <th className="celda-num">Inasist.</th><th>Cobertura Penta 3</th><th /></tr>
         </thead>
         <tbody>
-          {ordenadas.map((c, i) => {
+          {ordenadas.filter((c) => !buscar || sinTildes(`${c.nombre} ${c.puesto || ''} ${c.responsable || ''}`).includes(sinTildes(buscar))).map((c, i) => {
             const nivel = nivelComunidad(c, maximo);
             const casos = c.dosis_cero + c.abandono + c.atrasados + c.inasistencia;
             // Toda la fila abre la comunidad: sus casos por contactar o, si no tiene, la lista de sus niños
