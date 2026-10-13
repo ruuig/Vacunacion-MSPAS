@@ -1,5 +1,5 @@
 # Despliegue en Render (plan gratuito): un servicio web que sirve la API y el frontend compilado,
-# y una base PostgreSQL. En Render: New → Blueprint → elegir este repositorio.
+# conectado a una base PostgreSQL externa (por ejemplo Neon, gratis). En Render: Blueprints → New Blueprint Instance.
 services:
   - type: web
     name: vacunacion-mspas
@@ -16,9 +16,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        fromDatabase:
-          name: vacunacion-db
-          property: connectionString
+        sync: false   # dirección de la base PostgreSQL (Neon u otra); Render la pide al crear el servicio
       - key: JWT_SECRET
         generateValue: true
       - key: ADMIN_USUARIO
@@ -26,8 +24,3 @@ services:
       - key: ADMIN_CONTRASENA
         sync: false   # Render la pide al crear el servicio: escriba una contraseña segura
 
-databases:
-  - name: vacunacion-db
-    plan: free
-    region: oregon
-    databaseName: vacunacion
