@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  AlertOctagon, AlertTriangle, BellOff, CalendarCheck, CalendarClock, CalendarDays, CalendarX, Check, CheckCircle2, ChevronLeft, ChevronRight,
+  AlertOctagon, AlertTriangle, BellOff, CalendarCheck, CalendarClock, CalendarDays, CalendarX, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight,
   Clock, Home, Languages, MapPin, MessageCircle, Package, Phone, PhoneMissed, Pill, Printer, Search, Syringe, Truck, User, Users, UserX, X,
 } from 'lucide-react';
 import { api, qs } from '../api.js';
@@ -23,15 +23,15 @@ const sumar = (d) => sumarDias(hoy(), d);
 // Contacto en lenguaje sencillo: cada opción es un botón grande
 const COMO = [
   { id: 'llamada', texto: 'Llamada', icono: Phone },
-  { id: 'visita', texto: 'Visita a la casa', icono: Home },
-  { id: 'lider_comunitario', texto: 'Líder comunitario', icono: Users },
+  { id: 'visita', texto: 'Visita', icono: Home },
+  { id: 'lider_comunitario', texto: 'Líder', icono: Users },
 ];
 const QUE_PASO = [
-  { id: 'cita_acordada', texto: 'Vendrá a vacunarse', ayuda: 'Acordamos una fecha', icono: CalendarCheck, tono: 't-ok' },
-  { id: 'contactado', texto: 'Hablamos, sin fecha', ayuda: 'Se le explicó, no dio día', icono: MessageCircle },
-  { id: 'no_localizado', texto: 'No contestó o no estaba', ayuda: 'Se intentará otra vez', icono: PhoneMissed },
-  { id: 'rechazo', texto: 'No quiere vacunar', ayuda: 'Necesita consejería', icono: UserX, tono: 't-critico' },
-  { id: 'trasladado', texto: 'Se fue a vivir a otro lugar', ayuda: 'La enfermera cerrará el caso', icono: Truck },
+  { id: 'cita_acordada', texto: 'Vendrá', icono: CalendarCheck, tono: 't-ok' },
+  { id: 'contactado', texto: 'Habló, sin fecha', icono: MessageCircle },
+  { id: 'no_localizado', texto: 'No contestó o no estaba', icono: PhoneMissed },
+  { id: 'rechazo', texto: 'No quiere', icono: UserX, tono: 't-critico' },
+  { id: 'trasladado', texto: 'Se mudó', icono: Truck },
 ];
 /**
  * Enlace de WhatsApp con el mensaje redactado: lo envía la persona desde su teléfono (no es envío automático,
@@ -105,6 +105,10 @@ export default function Alertas() {
     api('/casos').then(setCasos).catch(() => {});
   }, [anio, mes, comunidad, puesto, asignado]);
   useEffect(cargar, [cargar]);
+  const cargarSuave = () => {
+    api('/seguimiento/mes' + qs({ anio, mes, comunidad, puesto, asignado })).then(setDatos).catch(() => {});
+    api('/casos').then(setCasos).catch(() => {});
+  };
   useEffect(() => { if (esEnfermera) api('/casos/personal').then(setPersonal).catch(() => {}); }, [esEnfermera]);
 
   const cambiar = (cambios) => {
@@ -121,6 +125,8 @@ export default function Alertas() {
   // El caso (alertas, contactos) del niño abierto; sin alertas abiertas, se abre su ficha
   const abierto = params.get('nino');
   const actual = casos.find((c) => String(c.nino_id) === abierto);
+  const visibles = (datos?.pendientes || []).filter((p) => casos.some((c) => c.nino_id === p.id));
+  const siguiente = visibles[visibles.findIndex((p) => String(p.id) === abierto) + 1] || null;
   const abrir = (p) => {
     if (modoAsignar) { alternarMarca(p.id); return; }
     if (casos.some((c) => c.nino_id === p.id)) cambiar({ nino: String(p.id) }); else ir(`/ninos/${p.id}`);
@@ -176,14 +182,15 @@ export default function Alertas() {
               <button type="button" className="btn btn-icono" onClick={() => moverMes(1)} disabled={esEsteMes} aria-label="Mes siguiente"><ChevronRight size={20} /></button>
             </div>
           )}
-          <SelectorTerritorio puesto={puesto} comunidad={comunidad} onCambio={(t) => cambiar({ ...t, nino: '' })} />
+          {datos?.solo_sector ? <span className="chip-sector"><MapPin size={16} />Su sector</span>
+            : <SelectorTerritorio puesto={puesto} comunidad={comunidad} onCambio={(t) => cambiar({ ...t, nino: '' })} />}
           {esEsteMes && ['por_vacunar', 'suplementos'].includes(vista) && (
             <div className="segmentado" role="group" aria-label="Período">
               <button type="button" className={periodo === 'mes' ? 'activa' : ''} onClick={() => cambiar({ periodo: '' })}>Este mes</button>
               <button type="button" className={periodo === 'semana' ? 'activa' : ''} onClick={() => cambiar({ periodo: 'semana' })}>Esta semana</button>
             </div>
           )}
-          {operativo && vista === 'por_vacunar' && (
+          {operativo && vista === 'por_vacunar' && !datos?.solo_sector && (
             <div className="segmentado" role="group" aria-label="Casos">
               <button type="button" className={asignado !== 'yo' ? 'activa' : ''} onClick={() => { const p = new URLSearchParams(params); p.set('asignado', ''); setParams(p, { replace: true }); }}>Todos</button>
               <button type="button" className={asignado === 'yo' ? 'activa' : ''} onClick={() => cambiar({ asignado: 'yo' })}>{usuario.sector ? 'Mi sector' : 'Mis casos'}</button>
@@ -271,8 +278,8 @@ export default function Alertas() {
       )}
 
       {actual && (
-        <DetalleCaso key={actual.nino_id} caso={actual} rol={usuario.rol} esCelular={esCelular}
-          onCerrarPanel={() => cambiar({ nino: '' })} onCambio={() => { cargar(); refrescarAlertas(); }} />
+        <DetalleCaso key={actual.nino_id} caso={actual} rol={usuario.rol} esCelular={esCelular} onSiguiente={siguiente ? () => abrir(siguiente) : null}
+          onCerrarPanel={() => cambiar({ nino: '' })} onCambio={() => { cargarSuave(); refrescarAlertas(); }} />
       )}
     </>
   );
@@ -283,31 +290,31 @@ function FilaPendiente({ p, seleccionado, marcado, onMarcar, onAbrir }) {
   const s = SITUACION[p.situacion];
   const tono = p.alerta ? tonoDe(p.alerta) : s.tono;
   const teclado = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); (marcado != null ? onMarcar : onAbrir)(); } };
-  const lista = p.dosis.map((d) => d.etiqueta).join(', ');
-  const cuando = p.situacion === 'por_venir'
-    ? `Le toca el ${fecha(p.dosis[0].programada).slice(0, 5)}`
-    : `${p.alerta ? TIPO_ALERTA[p.alerta] : s.texto}${p.dias_atraso ? ` · ${plural(p.dias_atraso, 'día', 'días')}` : ''}`;
+  const etiqueta = p.situacion === 'por_venir' ? 'Le toca' : p.alerta ? TIPO_ALERTA[p.alerta] : s.texto;
+  const u = p.ultimo_contacto;
   return (
     <article className={`fila-caso fila-pendiente t-${tono} ${seleccionado ? 'seleccionado' : ''} ${marcado ? 'marcada' : ''}`} role="button" tabIndex={0}
-      onClick={marcado != null ? onMarcar : onAbrir} onKeyDown={teclado} aria-label={`${p.nombre_completo}: ${cuando}. Le falta ${lista}`}>
+      onClick={marcado != null ? onMarcar : onAbrir} onKeyDown={teclado} aria-label={`${p.nombre_completo}: ${etiqueta}`}>
       {marcado != null && (
         <span className={`casilla-asignar no-imprimir ${marcado ? 'si' : ''}`} role="checkbox" aria-checked={marcado} aria-label={`Marcar a ${p.nombre_completo}`}>
           {marcado && <Check size={16} strokeWidth={3} />}
         </span>
       )}
       <div className="fc-cuerpo">
-        <strong>{p.nombre_completo}</strong>
-        <span><b className="tc-tipo">{cuando}</b> · {edad(p.fecha_nacimiento)} · {lista}</span>
+        <span className="fp-linea1">
+          <strong>{p.nombre_completo}</strong>
+          <span className="fp-estado"><b className="tc-tipo">{etiqueta}</b>{p.situacion === 'por_venir'
+            ? ` ${fecha(p.dosis[0].programada).slice(0, 5)}` : p.dias_atraso ? ` · ${p.dias_atraso} días` : ''}</span>
+        </span>
+        <span className="fichas-hoy">{p.dosis.map((d) => <span key={d.etiqueta} className={`ficha-vacuna ${d.situacion === 'por_venir' ? '' : 'atrasada'}`}>{d.etiqueta}</span>)}</span>
         <span className="fp-contacto">
-          {p.responsable || 'Sin responsable'}{p.telefono && ` · ${p.telefono}`}
-          {p.ultimo_contacto ? ` · contacto ${fecha(p.ultimo_contacto.fecha).slice(0, 5)}` : ' · sin contactar'}
-          {p.asignado_nombre && ` · ${p.asignado_nombre.split(' ')[0]}`}
-          {p.vacunado_en_el_mes && ' · vino este mes, le falta'}
+          {p.responsable ? p.responsable.split(' ').slice(0, 2).join(' ') : 'Sin responsable'}
+          <span> · {p.intentos ? `${plural(p.intentos, 'intento', 'intentos')}${u ? `, ${RESULTADO_CORTO[u.resultado]} (${fecha(u.fecha).slice(0, 5)})` : ''}` : 'sin buscar todavía'}</span>
         </span>
       </div>
       {marcado == null && <span className="no-imprimir"><BotonLlamar caso={p} /></span>}
       {marcado != null && p.asignado_nombre && <span className="chip no-imprimir">{p.asignado_nombre.split(' ')[0]}</span>}
-      <span className="solo-imprimir-celda fp-nota">Resultado: ________________</span>
+      <span className="solo-imprimir-celda fp-nota">{p.telefono || ''} · Resultado: ____________</span>
     </article>
   );
 }
@@ -412,16 +419,6 @@ function Suplementos({ anio, mes, puesto, comunidad, hastaSemana }) {
 }
 
 
-/** "4 vacunas · 76 días de atraso": lo que hay que saber para decidir a quién llamar primero. */
-function resumenCaso(c) {
-  const vacunas = c.alertas.filter((a) => a.tipo !== 'inasistencia').length;
-  const partes = [];
-  if (vacunas) partes.push(plural(vacunas, 'vacuna', 'vacunas'));
-  if (c.dias_atraso > 0) partes.push(`${plural(c.dias_atraso, 'día', 'días')} de atraso`);
-  else if (c.peor === 'inasistencia') partes.push('faltó a la jornada o cita');
-  return partes.join(' · ');
-}
-
 function BotonLlamar({ caso: c }) {
   return c.telefono ? (
     <a className="tc-tel" href={`tel:${c.telefono}`} onClick={(e) => e.stopPropagation()} aria-label={`Llamar al ${c.telefono}`} title={`Llamar al ${c.telefono}`}>
@@ -430,61 +427,65 @@ function BotonLlamar({ caso: c }) {
   ) : <span className="tc-sin-tel">Sin teléfono</span>;
 }
 
-/** Vacunas pendientes agrupadas por la fecha en que le tocaban: una línea por fecha, no una por vacuna. */
-function porFecha(alertas) {
-  const grupos = new Map();
-  for (const a of alertas.filter((x) => x.etiqueta)) {
-    const k = a.programada || '';
-    if (!grupos.has(k)) grupos.set(k, { fecha: a.programada, dias: a.dias_atraso, vacunas: [] });
-    grupos.get(k).vacunas.push(a.etiqueta);
-  }
-  return [...grupos.values()].sort((x, y) => (x.fecha || '').localeCompare(y.fecha || ''));
-}
+// La influenza es campaña de temporada: no es un atraso del esquema (igual que en la lista del mes)
+const deEsquema = (a) => !/^Influenza/.test(a.etiqueta || '');
+const RESULTADO_CORTO = { contactado: 'habló, sin fecha', no_localizado: 'no contestó', cita_acordada: 'vendrá', rechazo: 'no quiere', trasladado: 'se mudó' };
+const MEDIO_CORTO = { llamada: 'Llamada', visita: 'Visita', lider_comunitario: 'Líder', jornada: 'Jornada', otro: 'Otro' };
 
-function DetalleCaso({ caso, rol, esCelular, onCerrarPanel, onCambio }) {
+/**
+ * Atender un caso, en pasos como «Vacunar»: cómo se buscó → ¿contestó? → ¿qué dijo? → guardado y siguiente niño.
+ * Arriba solo lo necesario: qué le falta, a quién llamar y cuántas veces se ha intentado.
+ */
+function DetalleCaso({ caso, rol, esCelular, onCerrarPanel, onCambio, onSiguiente }) {
   const { pedirTexto, avisar } = useDialogos();
   const [personal, setPersonal] = useState([]);
-  useEffect(() => { if (puede(rol, 'enfermera')) api('/casos/personal').then(setPersonal).catch(() => {}); }, [rol]);
-  async function reasignar(usuarioId) {
-    try {
-      await api('/casos/asignar', { method: 'POST', body: { nino_ids: [caso.nino_id], usuario_id: usuarioId ? Number(usuarioId) : null } });
-      avisar(usuarioId ? `Caso asignado a ${personal.find((x) => String(x.id) === usuarioId)?.nombre}.` : 'Asignación quitada.');
-      onCambio();
-    } catch (e) { avisar(e.message, 'error'); }
-  }
   const [seguimientos, setSeguimientos] = useState([]);
-  const [verTodos, setVerTodos] = useState(false);
+  const [verHistorial, setVerHistorial] = useState(false);
   const [como, setComo] = useState(caso.telefono ? 'llamada' : 'visita');
-  const [paso, setPaso] = useState(null);
+  const [contesto, setContesto] = useState(null); // null | true | false
+  const [paso, setPaso] = useState(null); // resultado elegido cuando sí contestó
   const [cuando, setCuando] = useState('');
   const [nota, setNota] = useState('');
+  const [conNota, setConNota] = useState(false);
+  const [guardado, setGuardado] = useState(null);
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
   const operativo = puede(rol, 'enfermera', 'vacunador');
+  const jefa = puede(rol, 'enfermera');
 
+  useEffect(() => { if (jefa) api('/casos/personal').then(setPersonal).catch(() => {}); }, [jefa]);
   const cargar = useCallback(() => {
     api(`/casos/${caso.nino_id}/seguimientos`).then(setSeguimientos).catch((e) => setError(e.message));
   }, [caso.nino_id]);
   useEffect(cargar, [cargar]);
+  const cargarSuave = () => {
+    api('/seguimiento/mes' + qs({ anio, mes, comunidad, puesto, asignado })).then(setDatos).catch(() => {});
+    api('/casos').then(setCasos).catch(() => {});
+  };
 
-  async function registrar() {
-    if (paso === 'cita_acordada' && !cuando) { setError('Elija qué día vendrá.'); return; }
+  async function guardar(resultado) {
+    if (resultado === 'cita_acordada' && !cuando) { setError('Elija qué día vendrá.'); return; }
     setError('');
     setGuardando(true);
     try {
-      await api(`/casos/${caso.nino_id}/seguimientos`, { method: 'POST', body: { medio: como, resultado: paso, fecha_compromiso: paso === 'cita_acordada' ? cuando : '', nota } });
-      avisar('Contacto guardado.');
-      setPaso(null); setCuando(''); setNota('');
+      await api(`/casos/${caso.nino_id}/seguimientos`, { method: 'POST', body: {
+        medio: como, resultado, fecha_compromiso: resultado === 'cita_acordada' ? cuando : '', nota: conNota ? nota : '' } });
+      setGuardado(resultado);
       cargar();
       onCambio();
     } catch (err) { setError(err.message); }
     setGuardando(false);
   }
-
+  async function reasignar(usuarioId) {
+    try {
+      await api('/casos/asignar', { method: 'POST', body: { nino_ids: [caso.nino_id], usuario_id: usuarioId ? Number(usuarioId) : null } });
+      avisar(usuarioId ? 'Caso asignado.' : 'Asignación quitada.');
+      onCambio();
+    } catch (e) { avisar(e.message, 'error'); }
+  }
   async function cerrar() {
     const motivo = await pedirTexto({
-      titulo: 'Cerrar caso sin vacunar', peligro: true, aceptar: 'Cerrar caso', etiqueta: 'Motivo de cierre',
-      mensaje: `Se cerrarán las ${caso.alertas.length} vacunas pendientes de ${caso.nombre_completo}. Use esto solo si se fue a vivir a otro lugar, falleció o la familia rechaza la vacuna.`,
+      titulo: 'Cerrar caso sin vacunar', peligro: true, aceptar: 'Cerrar caso', etiqueta: 'Motivo',
       placeholder: 'Se mudó, falleció, rechazo definitivo…',
     });
     if (!motivo) return;
@@ -496,135 +497,151 @@ function DetalleCaso({ caso, rol, esCelular, onCerrarPanel, onCambio }) {
     } catch (err) { setError(err.message); }
   }
 
-  const fechas = porFecha(caso.alertas);
+  const falta = caso.alertas.filter((a) => a.etiqueta && deEsquema(a));
   const inasistencia = caso.alertas.some((a) => a.tipo === 'inasistencia');
-  const contactos = verTodos ? seguimientos : seguimientos.slice(0, 2);
+  const ultimo = seguimientos[0];
+  const aviso = caso.avisos.find((x) => x.tipo === 'visitar') || caso.avisos[0];
+  const encontrado = como === 'llamada' ? '¿Contestó?' : como === 'visita' ? '¿Lo encontró?' : '¿Pudo hablar con la familia?';
 
   const titulo = (
     <span className="caso-cab">
       <span className={`tc-avatar t-${tonoDe(caso.peor)}`}>{iniciales(caso.nombre_completo)}</span>
       <span>
-        <Link to={`/ninos/${caso.nino_id}`} className="caso-nombre" title="Abrir la ficha">{caso.nombre_completo}</Link>
-        <span className="caso-meta">{edad(caso.fecha_nacimiento)} · {caso.comunidad} · {cuadernoFila(caso)}</span>
+        <Link to={`/ninos/${caso.nino_id}`} className="caso-nombre">{caso.nombre_completo}</Link>
+        <span className="caso-meta">{edad(caso.fecha_nacimiento)} · {caso.comunidad}</span>
       </span>
     </span>
   );
 
-  const pie = operativo && (
-    <>
-      {puede(rol, 'enfermera') && <button type="button" className="btn btn-fantasma btn-sm caso-cerrar" onClick={cerrar}><X size={15} />Cerrar caso</button>}
-      <button className="btn btn-primario" style={{ flex: 1 }} disabled={!paso || guardando} onClick={registrar}>
-        <Check size={18} />{guardando ? 'Guardando…' : paso ? 'Guardar contacto' : 'Elija qué pasó para guardar'}
-      </button>
-    </>
-  );
+  // Cuando se guarda: confirmación y pasar al siguiente niño de la lista sin volver atrás
+  if (guardado) {
+    return (
+      <Modal titulo={titulo} onCerrar={onCerrarPanel} className={`modal-caso ${esCelular ? 'modal-completo' : 'modal-caso-ancho'}`}
+        pie={<>
+          <button className="btn btn-grande" onClick={onCerrarPanel}>Cerrar</button>
+          {onSiguiente && <button className="btn btn-primario btn-grande" style={{ flex: 1 }} onClick={onSiguiente}>Siguiente niño <ChevronRight size={20} /></button>}
+        </>}>
+        <div className="confirmacion">
+          <div className="sello"><CheckCircle2 size={46} /></div>
+          <h2>Guardado</h2>
+          <p className="suave">{MEDIO_CORTO[como]} · {RESULTADO_CORTO[guardado]}{guardado === 'cita_acordada' && cuando && ` el ${fecha(cuando)}`}</p>
+        </div>
+      </Modal>
+    );
+  }
 
   return (
-    <Modal titulo={titulo} onCerrar={onCerrarPanel} pie={pie} className={`modal-caso ${esCelular ? 'modal-completo' : 'modal-caso-ancho'}`}>
-      <div className="caso-estado">
-        <Estado de={caso.peor} grande />
-        <span>{resumenCaso(caso)}</span>
-      </div>
-
-      <div className="caso-columnas">
-        <div className="caso-info">
-      <section className="caso-bloque">
-        <div className="caso-responsable">
-          <div>
-            <span className="rotulo">Mamá o responsable</span>
-            <strong>{caso.responsable || 'Sin registrar'}</strong>
-            <span className="tenue">{caso.telefono || 'Sin teléfono: visita o líder comunitario'}
-              {caso.idioma_preferente === 'poqomam' && <> · <Languages size={12} style={{ verticalAlign: '-1px' }} /> habla poqomam</>}</span>
-          </div>
-          {caso.telefono && (
-            <div className="caso-botones">
-              <a className="btn btn-verde btn-sm" href={`tel:${caso.telefono}`}><Phone size={15} />Llamar</a>
-              <a className="btn btn-sm boton-whatsapp" href={enlaceWhatsApp(caso)} target="_blank" rel="noreferrer"
-                title="Abre WhatsApp con un mensaje listo; usted decide si lo envía"><MessageCircle size={15} />WhatsApp</a>
-            </div>
-          )}
+    <Modal titulo={titulo} onCerrar={onCerrarPanel} className={`modal-caso ${esCelular ? 'modal-completo' : 'modal-caso-ancho'}`}>
+      {/* Qué le falta: lo primero que se quiere saber */}
+      <section className="caso-bloque caso-falta-cab">
+        <div className="caso-falta-fichas">
+          {falta.map((a) => <span key={a.id} className={`ficha-vacuna ${a.dias_atraso > 0 ? 'atrasada' : 'le_toca'}`}>{a.etiqueta}</span>)}
+          {inasistencia && <span className="ficha-vacuna">No llegó a la jornada</span>}
         </div>
-        {caso.avisos.map((a) => <div key={a.tipo} className="caso-aviso"><AlertTriangle size={14} />{a.texto}</div>)}
-        {puede(rol, 'enfermera') ? (
+        {caso.dias_atraso > 0 && <span className="caso-dias"><b>{caso.dias_atraso}</b> días</span>}
+      </section>
+
+      {/* A quién llamar */}
+      <section className="caso-bloque caso-familia">
+        <div>
+          <span className="rotulo">Mamá o responsable</span>
+          <strong>{caso.responsable || 'Sin registrar'}</strong>
+          {caso.idioma_preferente === 'poqomam' && <span className="etiqueta celeste">Habla poqomam</span>}
+        </div>
+        {caso.telefono ? (
+          <span className="caso-botones">
+            <a className="btn btn-verde" href={`tel:${caso.telefono}`} onClick={() => setComo('llamada')}><Phone size={17} />{caso.telefono}</a>
+            <a className="btn boton-whatsapp btn-icono" href={enlaceWhatsApp(caso)} target="_blank" rel="noreferrer" aria-label="WhatsApp"><MessageCircle size={17} /></a>
+          </span>
+        ) : <span className="tenue">Sin teléfono</span>}
+      </section>
+
+      {/* Intentos: un resumen; el historial se abre si se necesita */}
+      <section className="caso-bloque">
+        <button type="button" className="caso-intentos" onClick={() => setVerHistorial(!verHistorial)} aria-expanded={verHistorial} disabled={!seguimientos.length}>
+          <span className="ci-numero">{seguimientos.length}</span>
+          <span>{seguimientos.length === 1 ? 'intento' : 'intentos'}
+            {ultimo && <small>Último: {fecha(ultimo.fecha).slice(0, 5)} · {MEDIO_CORTO[ultimo.medio]} · {RESULTADO_CORTO[ultimo.resultado]}</small>}</span>
+          {seguimientos.length > 0 && <ChevronDown size={18} className={verHistorial ? 'girada' : ''} />}
+        </button>
+        {verHistorial && (
+          <ul className="caso-historial">
+            {seguimientos.map((s) => (
+              <li key={s.id}>
+                <span className="ch-fecha">{fecha(s.fecha).slice(0, 5)}</span>
+                <span><strong>{MEDIO_CORTO[s.medio]} · {RESULTADO_CORTO[s.resultado]}</strong>{s.fecha_compromiso && ` · vendrá el ${fecha(s.fecha_compromiso).slice(0, 5)}`}
+                  <small>{s.usuario}{s.nota && ` · ${s.nota}`}</small></span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {aviso && <div className="caso-aviso"><AlertTriangle size={14} />{aviso.texto}</div>}
+      </section>
+
+      {/* Anotar lo que pasó */}
+      {operativo && (
+        <section className="caso-bloque caso-anotar-pasos">
+          <div className="segmentado caso-como" role="group" aria-label="Cómo lo buscó">
+            {COMO.map((m) => (
+              <button key={m.id} type="button" className={como === m.id ? 'activa' : ''} onClick={() => { setComo(m.id); setContesto(null); setPaso(null); }} aria-pressed={como === m.id}>
+                <m.icono size={15} />{m.texto}
+              </button>
+            ))}
+          </div>
+
+          <p className="caso-pregunta">{encontrado}</p>
+          <div className="caso-sino">
+            <button type="button" className={`caso-resultado t-ok ${contesto === true ? 'marcada' : ''}`} onClick={() => { setContesto(true); setPaso(null); }}><Check size={18} />Sí</button>
+            <button type="button" className={`caso-resultado ${contesto === false ? 'marcada' : ''}`} onClick={() => { setContesto(false); setPaso(null); }}><PhoneMissed size={18} />No</button>
+          </div>
+
+          {contesto === true && (
+            <>
+              <p className="caso-pregunta">¿Qué dijo?</p>
+              <div className="caso-resultados">
+                {QUE_PASO.filter((r) => r.id !== 'no_localizado').map((r) => (
+                  <button key={r.id} type="button" className={`caso-resultado ${r.tono || ''} ${paso === r.id ? 'marcada' : ''}`} onClick={() => setPaso(r.id)} aria-pressed={paso === r.id}>
+                    <r.icono size={16} />{r.texto}
+                  </button>
+                ))}
+              </div>
+              {paso === 'cita_acordada' && (
+                <>
+                  <p className="caso-pregunta">¿Qué día vendrá?</p>
+                  <div className="chips-filtro" style={{ marginBottom: '.5rem' }}>
+                    {FECHAS_RAPIDAS.map(([t, d]) => <button key={t} type="button" className={`chip-filtro ${cuando === sumar(d) ? 'activa' : ''}`} onClick={() => setCuando(sumar(d))}>{t}</button>)}
+                  </div>
+                  <input type="date" min={hoy()} value={cuando} onChange={(e) => setCuando(e.target.value)} aria-label="Fecha en que vendrá" />
+                </>
+              )}
+            </>
+          )}
+
+          {contesto !== null && (conNota
+            ? <textarea rows={2} className="mt" value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Nota" aria-label="Nota" autoFocus />
+            : <button type="button" className="enlace-tenue mt" onClick={() => setConNota(true)}>+ Agregar nota</button>)}
+          {error && <Mensaje tipo="error" className="mt">{error}</Mensaje>}
+
+          {contesto !== null && (
+            <button className="btn btn-primario btn-grande btn-bloque mt" disabled={guardando || (contesto && !paso)}
+              onClick={() => guardar(contesto ? paso : 'no_localizado')}>
+              <Check size={20} />{guardando ? 'Guardando…' : contesto ? (paso ? 'Guardar' : 'Elija qué dijo') : `Guardar: ${como === 'llamada' ? 'no contestó' : 'no lo encontré'}`}
+            </button>
+          )}
+        </section>
+      )}
+
+      {jefa && (
+        <section className="caso-bloque caso-mas">
           <label className="caso-asignado"><span>Asignado a</span>
             <select value={caso.asignado_id || ''} onChange={(e) => reasignar(e.target.value)}>
               <option value="">Nadie</option>
               {personal.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
             </select>
           </label>
-        ) : caso.asignado_nombre && <p className="tenue" style={{ marginTop: '.6rem' }}>Asignado a {caso.asignado_nombre}</p>}
-      </section>
-
-      <section className="caso-bloque">
-        <div className="seccion-titulo">Le falta</div>
-        {fechas.map((g) => (
-          <div key={g.fecha || 'sin'} className="caso-falta">
-            <strong>{g.vacunas.join(' · ')}</strong>
-            {g.fecha && <span>Le tocaba{g.vacunas.length > 1 ? 'n' : ''} el {fecha(g.fecha)}{g.dias > 0 && ` · ${plural(g.dias, 'día', 'días')} de atraso`}</span>}
-          </div>
-        ))}
-        {inasistencia && <div className="caso-falta"><strong>No llegó a la jornada o cita</strong></div>}
-      </section>
-
-      <section className="caso-bloque">
-        <div className="seccion-titulo">Contactos anteriores {seguimientos.length > 0 && `(${seguimientos.length})`}</div>
-        {seguimientos.length === 0 ? <p className="tenue">Nadie ha llamado todavía.</p> : (
-          <>
-            <ul className="linea-tiempo">
-              {contactos.map((s) => (
-                <li key={s.id}>
-                  <div className="cuando">{fecha(s.fecha)} · {s.usuario}</div>
-                  <strong>{MEDIOS[s.medio]}</strong> · {RESULTADOS[s.resultado]}
-                  {s.fecha_compromiso && <> · vendrá el <strong>{fecha(s.fecha_compromiso)}</strong></>}
-                  {s.nota && <div className="suave">{s.nota}</div>}
-                </li>
-              ))}
-            </ul>
-            {seguimientos.length > 2 && (
-              <button type="button" className="enlace-tenue" style={{ marginTop: '.6rem' }} onClick={() => setVerTodos(!verTodos)}>
-                {verTodos ? 'Ver menos' : `Ver los ${seguimientos.length} contactos`}
-              </button>
-            )}
-          </>
-        )}
-      </section>
-        </div>
-        <div className="caso-anotar">
-      {operativo && (
-        <section className="caso-bloque">
-          <div className="seccion-titulo">Anotar un contacto</div>
-          <div className="segmentado caso-como" role="group" aria-label="¿Cómo lo contactó?">
-            {COMO.map((m) => (
-              <button key={m.id} type="button" className={como === m.id ? 'activa' : ''} onClick={() => setComo(m.id)} aria-pressed={como === m.id}>
-                <m.icono size={15} />{m.texto}
-              </button>
-            ))}
-          </div>
-          <p className="caso-pregunta">¿Qué pasó?</p>
-          <div className="caso-resultados">
-            {QUE_PASO.map((r) => (
-              <button key={r.id} type="button" className={`caso-resultado ${r.tono || ''} ${paso === r.id ? 'marcada' : ''}`} onClick={() => setPaso(r.id)}
-                aria-pressed={paso === r.id} title={r.ayuda}>
-                <r.icono size={16} />{r.texto}
-              </button>
-            ))}
-          </div>
-          {paso === 'cita_acordada' && (
-            <>
-              <p className="caso-pregunta">¿Qué día vendrá?</p>
-              <div className="chips-filtro" style={{ marginBottom: '.5rem' }}>
-                {FECHAS_RAPIDAS.map(([t, d]) => <button key={t} type="button" className={`chip-filtro ${cuando === sumar(d) ? 'activa' : ''}`} onClick={() => setCuando(sumar(d))}>{t}</button>)}
-              </div>
-              <input type="date" min={hoy()} value={cuando} onChange={(e) => setCuando(e.target.value)} aria-label="Fecha en que vendrá" />
-            </>
-          )}
-          {paso && <textarea rows={2} className="mt" value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Nota opcional para quien llame después" aria-label="Nota" />}
-          {error && <Mensaje tipo="error" className="mt">{error}</Mensaje>}
+          <button type="button" className="enlace-tenue rojo" onClick={cerrar}>Cerrar caso sin vacunar</button>
         </section>
       )}
-
-        </div>
-      </div>
     </Modal>
   );
 }

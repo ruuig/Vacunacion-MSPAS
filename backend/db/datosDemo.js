@@ -69,10 +69,8 @@ const MADRES = ['Floridalma', 'Magdalena', 'Reyna', 'Albertina', 'Eluvia', 'Mirn
 // Establecimiento más cercano a cada comunidad (ids del seed)
 // Establecimiento de cada comunidad: el puesto de su sector; el casco urbano y sus barrios, el centro de salud
 let PUESTO = {};
-const NOTAS = {
-  contactado: 'La madre indicó que vendrá esta semana.', no_localizado: 'No contestó; se intentará con el promotor.',
-  cita_acordada: 'Se acordó fecha con la madre.', rechazo: 'La familia no quiere vacunar por ahora.',
-};
+// Las notas son opcionales: casi siempre el resultado basta
+const NOTAS = { contactado: null, no_localizado: null, cita_acordada: null, rechazo: 'La familia no quiere vacunar por ahora.' };
 
 (async () => {
   console.log('Datos de demostración →', BASE);

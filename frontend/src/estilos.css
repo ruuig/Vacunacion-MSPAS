@@ -1771,3 +1771,44 @@ label.btn.deshabilitado { opacity: .55; pointer-events: none; }
 .fila-simple:hover { text-decoration: none; }
 .fs-fecha { flex-shrink: 0; font-weight: 800; color: var(--marino); }
 @media print { .pedido-vacuna { border: 1px solid #999; } .pedido-vacuna strong { font-size: 1.4rem; } }
+
+/* ---------- Control del mes: filas limpias y panel del caso por pasos ---------- */
+.chip-sector { display: inline-flex; align-items: center; gap: .4rem; padding: .55rem .9rem; border-radius: 14px; font-weight: 800; color: var(--marino);
+  background: var(--celeste-bg); border: 2px solid #b8daf1; }
+.fp-linea1 { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; }
+.fp-linea1 strong { min-width: 0; }
+.fp-estado { flex-shrink: 0; font-size: .8rem; color: var(--suave); white-space: nowrap; }
+.fila-pendiente .fichas-hoy { margin: .3rem 0 .2rem; }
+.fila-pendiente .ficha-vacuna { font-size: .72rem; padding: .15rem .5rem; }
+.fila-pendiente .fp-contacto { display: block; font-size: .78rem; color: var(--texto); font-weight: 600; }
+.fila-pendiente .fp-contacto span { color: var(--tenue); font-weight: 500; }
+.caso-falta-cab { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.caso-falta-fichas { display: flex; flex-wrap: wrap; gap: .4rem; }
+.caso-falta-fichas .ficha-vacuna { font-size: .85rem; padding: .35rem .75rem; }
+.caso-dias { flex-shrink: 0; text-align: right; font-size: .8rem; color: var(--suave); font-weight: 700; }
+.caso-dias b { display: block; font-size: 1.6rem; font-weight: 900; color: var(--rojo); line-height: 1; }
+.caso-familia { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+.caso-familia > div { display: grid; gap: .1rem; }
+.caso-familia .rotulo { font-size: .68rem; text-transform: uppercase; letter-spacing: .07em; font-weight: 800; color: var(--tenue); }
+.caso-familia strong { color: var(--marino); }
+.caso-intentos { font: inherit; width: 100%; display: flex; align-items: center; gap: .75rem; padding: .6rem .8rem; border-radius: 14px; cursor: pointer; text-align: left;
+  background: var(--superficie-2); border: 2px solid var(--borde); color: var(--texto); font-weight: 800; }
+.caso-intentos:disabled { cursor: default; }
+.caso-intentos > span:nth-child(2) { flex: 1; display: grid; }
+.caso-intentos small { font-weight: 600; color: var(--suave); font-size: .78rem; }
+.ci-numero { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; background: #fff; border: 2px solid var(--borde); font-size: 1.1rem; font-weight: 900; color: var(--marino); }
+.caso-historial { list-style: none; margin: .6rem 0 0; padding: 0; display: grid; gap: .45rem; }
+.caso-historial li { display: flex; gap: .75rem; font-size: .84rem; }
+.ch-fecha { flex-shrink: 0; width: 44px; font-weight: 800; color: var(--suave); }
+.caso-historial small { display: block; color: var(--tenue); font-size: .74rem; }
+.caso-sino { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.caso-sino .caso-resultado { justify-content: center; font-size: .95rem; min-height: 54px; }
+.caso-mas { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; background: var(--superficie-2); }
+.caso-mas .caso-asignado { margin: 0; }
+.enlace-tenue.rojo { color: var(--rojo); }
+.modal.modal-caso-ancho { max-width: 560px; }
+.modal-caso .caso-columnas { display: block; }
+.fila-pendiente .fc-cuerpo .fichas-hoy { display: flex; }
+.fila-pendiente .fc-cuerpo .fp-linea1 { display: flex; }
+.fila-pendiente .fp-contacto span { display: inline; }
+.fila-pendiente .fichas-hoy .ficha-vacuna { display: inline-block; }

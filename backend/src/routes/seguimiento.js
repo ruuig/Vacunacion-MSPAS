@@ -80,6 +80,12 @@ router.get('/mes', permitir(...TODOS), async (req, res) => {
   const { rows: contactos } = await pool.query(`
     SELECT DISTINCT ON (nino_id) nino_id, fecha, medio, resultado, fecha_compromiso FROM seguimiento ORDER BY nino_id, fecha DESC, id DESC`);
   const GRAVEDAD = ['dosis_cero', 'abandono', 'atrasada', 'inasistencia'];
+  // Intentos desde que se abrió el caso actual (para decidir a quién llamar y cuándo visitar)
+  const { rows: cuentas } = await pool.query(`
+    SELECT s.nino_id, count(*)::int AS n FROM seguimiento s
+    WHERE s.fecha >= (SELECT min(a.fecha_generada) FROM alerta a WHERE a.nino_id = s.nino_id AND a.estado IN ('abierta','en_seguimiento'))
+    GROUP BY 1`);
+  const intentos = new Map(cuentas.map((c) => [c.nino_id, c.n]));
 
   const pendientes = [];
   for (const n of ninos) {
@@ -101,6 +107,7 @@ router.get('/mes', permitir(...TODOS), async (req, res) => {
       alerta: GRAVEDAD.find((t) => tipos.includes(t)) || null,
       vacunado_en_el_mes: vacunados.some((v) => v.nino_id === n.id),
       ultimo_contacto: contactos.find((c) => c.nino_id === n.id) || null,
+      intentos: intentos.get(n.id) || 0,
     });
   }
   const mias = asignado === 'yo' ? new Set(await territorioDe(pool, req.usuario.id)) : null;
