@@ -90,7 +90,7 @@ export default function App() {
           <nav className="menu">
             <div className="menu-titulo">Principal</div>
             <NavLink to="/" end><Home size={19} />Inicio</NavLink>
-            <NavLink to="/ninos"><Baby size={19} />Niñas y niños</NavLink>
+            <NavLink to="/ninos"><Baby size={19} />Niños</NavLink>
             <NavLink to="/alertas"><CalendarCheck size={19} />Control del mes{contador}</NavLink>
             <div className="menu-titulo">Territorio</div>
             <NavLink to="/comunidades"><MapPinned size={19} />Comunidades</NavLink>

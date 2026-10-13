@@ -167,7 +167,7 @@ export default function NinoForm() {
 
   return (
     <>
-      <Encabezado titulo={editando ? 'Editar ficha' : 'Registrar niña o niño nuevo'} migas={[['Niñas y niños', '/ninos'], [editando ? 'Editar' : 'Nuevo registro']]} />
+      <Encabezado titulo={editando ? 'Editar ficha' : 'Registrar niño nuevo'} migas={[['Niños', '/ninos'], [editando ? 'Editar' : 'Nuevo registro']]} />
       <div className="pasos-barra" aria-hidden="true">
         {PASOS.map((p, i) => <span key={p} className={i + 1 < paso ? 'hecho' : i + 1 === paso ? 'actual' : ''} />)}
       </div>

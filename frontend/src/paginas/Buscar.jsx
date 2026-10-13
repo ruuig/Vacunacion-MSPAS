@@ -23,7 +23,7 @@ export default function Buscar() {
   const { usuario } = useSesion();
   return (
     <>
-      <Encabezado titulo="Niñas y niños">
+      <Encabezado titulo="Niños">
         {puede(usuario.rol, 'enfermera', 'vacunador') && (
           <Link className="btn btn-verde" to="/ninos/nuevo"><UserPlus size={18} />Niño nuevo</Link>
         )}
