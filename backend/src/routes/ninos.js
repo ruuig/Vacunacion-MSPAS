@@ -163,7 +163,7 @@ router.get('/:id', permitir(...TODOS), async (req, res) => {
 
 // Editar datos del niño; solo la enfermera cambia el estado (falleció, emigró, trasladado)
 router.put('/:id', permitir(...OPERATIVOS), async (req, res) => {
-  const campos = [...CAMPOS_NINO, ...(req.usuario.rol === 'enfermera' ? ['estado'] : [])];
+  const campos = [...CAMPOS_NINO, ...(['enfermera', 'administrador'].includes(req.usuario.rol) ? ['estado'] : [])];
   const o = normalizarNino(req.body || {}, campos);
   if (!Object.keys(o).length) return res.status(400).json({ error: 'Nada que actualizar.' });
   const n = await transaccion(async (c) => {

@@ -71,7 +71,7 @@ export default function Alertas() {
   const ir = useNavigate();
   const [params, setParams] = useSearchParams();
   const operativo = puede(usuario.rol, 'enfermera', 'vacunador');
-  const esEnfermera = usuario.rol === 'enfermera';
+  const esEnfermera = puede(usuario.rol, 'enfermera');
   const ahora = hoy();
   const anio = Number(params.get('anio')) || Number(ahora.slice(0, 4));
   const mes = Number(params.get('mes')) || Number(ahora.slice(5, 7));
@@ -444,7 +444,7 @@ function porFecha(alertas) {
 function DetalleCaso({ caso, rol, esCelular, onCerrarPanel, onCambio }) {
   const { pedirTexto, avisar } = useDialogos();
   const [personal, setPersonal] = useState([]);
-  useEffect(() => { if (rol === 'enfermera') api('/casos/personal').then(setPersonal).catch(() => {}); }, [rol]);
+  useEffect(() => { if (puede(rol, 'enfermera')) api('/casos/personal').then(setPersonal).catch(() => {}); }, [rol]);
   async function reasignar(usuarioId) {
     try {
       await api('/casos/asignar', { method: 'POST', body: { nino_ids: [caso.nino_id], usuario_id: usuarioId ? Number(usuarioId) : null } });
@@ -512,7 +512,7 @@ function DetalleCaso({ caso, rol, esCelular, onCerrarPanel, onCambio }) {
 
   const pie = operativo && (
     <>
-      {rol === 'enfermera' && <button type="button" className="btn btn-fantasma btn-sm caso-cerrar" onClick={cerrar}><X size={15} />Cerrar caso</button>}
+      {puede(rol, 'enfermera') && <button type="button" className="btn btn-fantasma btn-sm caso-cerrar" onClick={cerrar}><X size={15} />Cerrar caso</button>}
       <button className="btn btn-primario" style={{ flex: 1 }} disabled={!paso || guardando} onClick={registrar}>
         <Check size={18} />{guardando ? 'Guardando…' : paso ? 'Guardar contacto' : 'Elija qué pasó para guardar'}
       </button>
@@ -545,7 +545,7 @@ function DetalleCaso({ caso, rol, esCelular, onCerrarPanel, onCambio }) {
           )}
         </div>
         {caso.avisos.map((a) => <div key={a.tipo} className="caso-aviso"><AlertTriangle size={14} />{a.texto}</div>)}
-        {rol === 'enfermera' ? (
+        {puede(rol, 'enfermera') ? (
           <label className="caso-asignado"><span>Asignado a</span>
             <select value={caso.asignado_id || ''} onChange={(e) => reasignar(e.target.value)}>
               <option value="">Nadie</option>

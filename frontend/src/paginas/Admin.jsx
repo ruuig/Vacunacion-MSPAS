@@ -19,7 +19,7 @@ const VISTAS = [
   ['respaldos', <><DatabaseBackup size={15} />Respaldos</>],
   ['logo', <><ImageUp size={15} />Logo</>],
 ];
-const ROLES = { administrador: 'Administrador', enfermera: 'Enfermera', vacunador: 'Personal de vacunación' };
+const ROLES = { administrador: 'Administrador', enfermera: 'Enfermera', vacunador: 'Personal de vacunación', encargado: 'Encargada (solo consulta)' };
 const TIPOS_COMUNIDAD = { casco_urbano: 'Casco urbano', barrio: 'Barrio', aldea: 'Aldea', caserio: 'Caserío', canton: 'Cantón' };
 
 export default function Admin() {

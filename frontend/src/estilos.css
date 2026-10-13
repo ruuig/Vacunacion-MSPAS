@@ -1750,3 +1750,24 @@ label.btn.deshabilitado { opacity: .55; pointer-events: none; }
 .bs-lleno.ok { background: #2fb36b; }
 .bs-pista i { position: absolute; top: -4px; bottom: -4px; width: 3px; border-radius: 2px; background: var(--marino); }
 .selector-chico { min-height: 38px; font-size: .84rem; padding: .3rem .6rem; width: auto; max-width: 240px; }
+
+/* ---------- Pedido de vacunas por mes ---------- */
+.pedido-meses { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .6rem; margin-bottom: 1.25rem; }
+.pedido-mes { font: inherit; cursor: pointer; display: grid; gap: .15rem; text-align: left; padding: .8rem 1rem; border-radius: 16px;
+  background: #fff; border: 2px solid var(--borde); border-bottom-width: 4px; color: var(--suave); }
+.pedido-mes strong { font-size: 1.5rem; font-weight: 900; color: var(--marino); line-height: 1; }
+.pedido-mes span { font-size: .82rem; font-weight: 800; }
+.pedido-mes.activo { background: var(--celeste-bg); border-color: var(--celeste); border-bottom-color: var(--celeste-2); }
+.pedido-mes:active { transform: translateY(2px); }
+.pedido-cab { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .9rem; }
+.pedido-cab h2 { font-size: 1.25rem; }
+.pedido-cab h2 span { color: var(--suave); font-weight: 700; }
+.pedido-vacunas { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: .75rem; }
+.pedido-vacuna { display: grid; gap: .1rem; padding: 1rem 1.1rem; border-radius: 18px; background: #fff; border: 2px solid var(--borde); border-bottom-width: 5px; }
+.pedido-vacuna strong { font-size: 2rem; font-weight: 900; color: var(--marino); line-height: 1.05; }
+.pv-nombre { font-weight: 800; color: var(--texto); }
+.pv-detalle { font-size: .76rem; color: var(--tenue); font-weight: 600; }
+.fila-simple { display: flex; align-items: center; gap: .9rem; text-decoration: none; color: inherit; }
+.fila-simple:hover { text-decoration: none; }
+.fs-fecha { flex-shrink: 0; font-weight: 800; color: var(--marino); }
+@media print { .pedido-vacuna { border: 1px solid #999; } .pedido-vacuna strong { font-size: 1.4rem; } }

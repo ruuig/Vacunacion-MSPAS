@@ -26,7 +26,7 @@ const Tablero = lazy(() => import('./paginas/Tablero.jsx'));
 const Sesion = createContext(null);
 export const useSesion = () => useContext(Sesion);
 
-export const ROL = { administrador: 'Administrador', enfermera: 'Enfermera', vacunador: 'Personal de vacunación' };
+export const ROL = { administrador: 'Administrador', enfermera: 'Enfermera', vacunador: 'Personal de vacunación', encargado: 'Encargada (consulta)' };
 
 export default function App() {
   const [sesion, setSesion] = useState(sesionGuardada);
@@ -67,7 +67,7 @@ export default function App() {
   const { rol, nombre } = sesion.usuario;
   // El número del menú es de niños por contactar (no de alertas): lo que el personal tiene que hacer
   const totalAlertas = pendientes.total;
-  const verInformes = ['enfermera', 'administrador'].includes(rol);
+  const verInformes = ['enfermera', 'administrador', 'encargado'].includes(rol);
   const contador = totalAlertas > 0 && <b className="contador-menu">{totalAlertas > 99 ? '99+' : totalAlertas}</b>;
 
   return (

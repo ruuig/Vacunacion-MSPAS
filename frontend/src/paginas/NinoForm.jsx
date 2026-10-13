@@ -7,7 +7,7 @@ import { api, qs } from '../api.js';
 import { useSesion } from '../App.jsx';
 import { useCatalogo } from '../componentes/useCatalogo.js';
 import { Campo, Encabezado, InputCui, InputNombreDoble, Mensaje } from '../componentes/ui.jsx';
-import { DEPARTAMENTOS, ESTADO_REGISTRO, LINGUISTICAS, MUNICIPIOS, PUEBLOS, cuadernoFila, edad, fecha, hoy, sumarDias } from '../util.js';
+import { DEPARTAMENTOS, ESTADO_REGISTRO, LINGUISTICAS, MUNICIPIOS, PUEBLOS, cuadernoFila, edad, fecha, hoy, sumarDias, puede } from '../util.js';
 
 const VACIO_NINO = {
   cuaderno_id: '', fila: '', cui: '', primer_nombre: '', segundo_nombre: '', primer_apellido: '', segundo_apellido: '',
@@ -228,7 +228,7 @@ export default function NinoForm() {
               <Campo etiqueta="No. de registro del carné"><input {...n('numero_registro_carne')} /></Campo>
               <Campo etiqueta="Fecha de registro del carné"><input type="date" max={hoy()} {...n('fecha_registro_carne')} /></Campo>
               <Campo etiqueta="Nombre del padre (opcional)"><input {...n('nombre_padre')} /></Campo>
-              {editando && usuario.rol === 'enfermera' && (
+              {editando && puede(usuario.rol, 'enfermera') && (
                 <Campo etiqueta="Estado del registro">
                   <select {...n('estado')}>
                     {Object.entries(ESTADO_REGISTRO).map(([k, v]) => <option key={k} value={k} disabled={k === 'egresado'}>{v}</option>)}

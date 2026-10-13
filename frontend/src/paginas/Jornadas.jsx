@@ -34,7 +34,7 @@ export function ListaJornadas() {
   const [jornadas, setJornadas] = useState(null);
   const [error, setError] = useState('');
   useEffect(() => { api('/jornadas').then(setJornadas).catch((e) => setError(e.message)); }, []);
-  const esEnfermera = usuario.rol === 'enfermera';
+  const esEnfermera = puede(usuario.rol, 'enfermera');
   const porCerrar = (jornadas || []).filter((j) => estadoJornada(j) === 'por_cerrar').length;
 
   return (
@@ -503,9 +503,9 @@ export function JornadaDetalle() {
           descripcion={`${j.comunidades.map((c) => c.nombre).join(' → ')} · Equipo: ${equipo}`}>
           <Estado de={estado} grande />
           <button className="btn" onClick={() => window.print()}><Printer size={16} />Imprimir hoja</button>
-          {abierta && usuario.rol === 'enfermera' && !sinRed && <button className="btn" onClick={() => setEquipoAbierto(true)}><Users size={16} />Equipo</button>}
-          {preparacion && usuario.rol === 'enfermera' && !sinRed && <button className="btn btn-peligro" onClick={cancelar}><XCircle size={16} />Cancelar</button>}
-          {abierta && usuario.rol === 'enfermera' && !sinRed && (enCursoAhora || estado === 'por_cerrar') && (
+          {abierta && puede(usuario.rol, 'enfermera') && !sinRed && <button className="btn" onClick={() => setEquipoAbierto(true)}><Users size={16} />Equipo</button>}
+          {preparacion && puede(usuario.rol, 'enfermera') && !sinRed && <button className="btn btn-peligro" onClick={cancelar}><XCircle size={16} />Cancelar</button>}
+          {abierta && puede(usuario.rol, 'enfermera') && !sinRed && (enCursoAhora || estado === 'por_cerrar') && (
             <button className="btn btn-primario" onClick={cerrar}><Lock size={16} />Cerrar jornada</button>
           )}
         </Encabezado>
@@ -524,7 +524,7 @@ export function JornadaDetalle() {
           {yaPaso && <button className="btn btn-verde btn-grande" onClick={iniciar}><PlayCircle size={20} />Iniciar jornada</button>}
         </div>
       )}
-      {estado === 'por_cerrar' && usuario.rol === 'enfermera' && (
+      {estado === 'por_cerrar' && puede(usuario.rol, 'enfermera') && (
         <Mensaje tipo="aviso" className="no-imprimir">La fecha de esta jornada ya pasó. Anote lo que falte y ciérrela: quienes no llegaron pasarán al control del mes.</Mensaje>
       )}
 

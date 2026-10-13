@@ -19,7 +19,7 @@ export default function Comunidades() {
   return (
     <>
       <Encabezado titulo="Comunidades">
-        {usuario.rol === 'enfermera' && <Link className="btn btn-primario" to="/jornadas/nueva"><Truck size={18} />Planificar jornada</Link>}
+        {puede(usuario.rol, 'enfermera') && <Link className="btn btn-primario" to="/jornadas/nueva"><Truck size={18} />Planificar jornada</Link>}
       </Encabezado>
       <Pestanas valor={vista} onCambio={setVista} opciones={[['tablero', 'Tablero territorial'], ['meta', 'Población meta']]} />
       {vista === 'tablero' ? <Tablero rol={usuario.rol} onIrMeta={() => setVista('meta')} /> : <PoblacionMeta editable={editaMeta} />}
@@ -119,7 +119,7 @@ function Tablero({ rol, onIrMeta }) {
                 <td onClick={(e) => c.meta_menor_1 == null && e.stopPropagation()}><Cobertura valor={c.cobertura_dpt3} sinMeta={c.meta_menor_1 == null} onIrMeta={onIrMeta} /></td>
                 <td className="celda-fin">
                   <span className="botones-fila" onClick={(e) => e.stopPropagation()}>
-                    {rol === 'enfermera' && casos > 0 && (
+                    {puede(rol, 'enfermera') && casos > 0 && (
                       <Link className="btn btn-sm btn-primario" to={`/jornadas/nueva?comunidad=${c.id}`} title="Planificar una jornada en esta comunidad">
                         <Truck size={14} />Jornada aquí
                       </Link>

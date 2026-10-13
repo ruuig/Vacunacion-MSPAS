@@ -16,6 +16,7 @@ const siguienteMes = (a, m, k) => { const t = a * 12 + (m - 1) + k; return [Math
 
 // Dosis que "tocan" a una fecha: ya pasó su fecha programada y no están aplicadas
 const PENDIENTE = ['le_toca', 'atrasada', 'proxima', 'pendiente'];
+const d0 = (dosis) => dosis.reduce((m, d) => (d.fechaProgramada < m ? d.fechaProgramada : m), dosis[0].fechaProgramada);
 
 /**
  * Comunidades del filtro: una comunidad, o un puesto o el casco urbano con todas las que tiene a cargo.
@@ -55,8 +56,11 @@ router.get('/mes', permitir(...TODOS), async (req, res) => {
   const desde = inicioDeMes(anio, mes);
   const hasta = finDeMes(anio, mes);
   const corte = hasta < hoy() ? hasta : hoy(); // el estado se mira al cierre del mes, o a hoy si el mes está en curso
-  const { asignado } = req.query;
-  const comunidad = await filtroTerritorio(pool, req.query);
+  // El personal de un puesto o barrio solo ve su sector (y los niños que le asignaron); no puede ver todo el municipio
+  const sector = req.usuario.rol === 'vacunador' ? await territorioDe(pool, req.usuario.id) : [];
+  const soloSector = sector.length > 0;
+  const asignado = soloSector ? 'yo' : req.query.asignado;
+  const comunidad = soloSector && !req.query.comunidad && !req.query.puesto ? sector : await filtroTerritorio(pool, req.query);
 
   const { rows: vacunados } = await pool.query(`
     SELECT a.id, a.fecha_aplicacion AS fecha, a.nino_id, n.nombre_completo, n.fecha_nacimiento, n.sexo,
@@ -70,7 +74,7 @@ router.get('/mes', permitir(...TODOS), async (req, res) => {
     ORDER BY a.fecha_aplicacion, c.nombre, n.nombre_completo, p.nombre`, [desde, hasta, comunidad]);
 
   const ctx = { catalogo: await esq.cargarCatalogo(pool), params: await esq.cargarParametros(pool) };
-  const { ninos, aplicaciones } = await cargarNinos(pool, comunidad);
+  const { ninos, aplicaciones } = await cargarNinos(pool, soloSector ? null : comunidad);
   const { rows: alertas } = await pool.query(`
     SELECT nino_id, tipo FROM alerta WHERE estado IN ('abierta','en_seguimiento') AND tipo <> 'proxima'`);
   const { rows: contactos } = await pool.query(`
@@ -104,6 +108,7 @@ router.get('/mes', permitir(...TODOS), async (req, res) => {
   filtrados.sort((a, b) => a.comunidad.localeCompare(b.comunidad) || b.dias_atraso - a.dias_atraso);
 
   res.json({
+    solo_sector: soloSector,
     anio, mes, nombre_mes: MESES[mes - 1], desde, hasta, corte, en_curso: hasta >= hoy(),
     vacunados, pendientes: filtrados,
     resumen: {
@@ -127,6 +132,7 @@ router.get('/proyeccion', permitir(...TODOS), async (req, res) => {
   const columnas = [{ clave: 'atrasadas', nombre: 'Atrasadas' }, { clave: 'este_mes', nombre: `Resto de ${MESES[m0 - 1]}` }];
   for (let k = 1; k <= meses; k++) { const [a, m] = siguienteMes(a0, m0, k); columnas.push({ clave: `${a}-${m}`, nombre: `${MESES[m - 1]} ${a}`, anio: a, mes: m }); }
   const cuenta = Object.fromEntries(columnas.map((c) => [c.clave, {}]));
+  const quienes = Object.fromEntries(columnas.map((c) => [c.clave, []])); // niños que se vacunan en cada columna
   const sumar = (col, dosis) => { for (const p of productosNecesarios(dosis)) cuenta[col][p] = (cuenta[col][p] || 0) + 1; };
 
   for (const n of ninos) {
@@ -143,6 +149,9 @@ router.get('/proyeccion', permitir(...TODOS), async (req, res) => {
       if (i === 1) dosis = dosis.filter((d) => d.tipo !== 'regular' || d.fechaProgramada >= hoy());
       if (!dosis.length) continue;
       sumar(col.clave, dosis);
+      quienes[col.clave].push({ id: n.id, nombre_completo: n.nombre_completo, fecha_nacimiento: n.fecha_nacimiento, comunidad_id: n.comunidad_id,
+        comunidad: n.comunidad, responsable: n.responsable, telefono: n.telefono,
+        dosis: dosis.map((d) => d.etiqueta), fecha: aFecha(Math.max(aDia(i < 2 ? hoy() : inicioDeMes(col.anio, col.mes)), aDia(d0(dosis)))) });
       const inicio = i < 2 ? hoy() : inicioDeMes(col.anio, col.mes);
       for (const d of dosis) apps.push({ esquemaDosisId: d.esquemaDosisId, fecha: aFecha(Math.max(aDia(inicio), aDia(d.fechaProgramada))) });
     }
@@ -156,7 +165,8 @@ router.get('/proyeccion', permitir(...TODOS), async (req, res) => {
 
   const filas = productos.map((p) => ({ codigo: p.codigo, nombre: p.nombre, cantidades: columnas.map((c) => cuenta[c.clave][p.codigo] || 0) }))
     .filter((f) => f.cantidades.some(Boolean));
-  res.json({ columnas: columnas.map(({ clave, nombre }) => ({ clave, nombre })), filas, nacimientos_por_mes: porMes,
+  const orden = (l) => l.sort((a, b) => a.comunidad.localeCompare(b.comunidad) || a.nombre_completo.localeCompare(b.nombre_completo));
+  res.json({ columnas: columnas.map(({ clave, nombre }) => ({ clave, nombre, ninos: orden(quienes[clave]) })), filas, nacimientos_por_mes: porMes,
     reserva: Number(ctx.params.porcentaje_reserva_jornada) || 10 });
 });
 

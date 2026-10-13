@@ -86,7 +86,8 @@ export function edad(nacimiento, ref = hoy()) {
 
 export const cuadernoFila = (x) => (x.cuaderno_numero ? `Cuad. ${x.cuaderno_numero}/${x.cuaderno_anio} · fila ${x.fila}` : 'Sin cuaderno');
 
-export const puede = (rol, ...roles) => roles.includes(rol);
+// El administrador puede todo (superusuario); la encargada solo consulta (no aparece en las acciones)
+export const puede = (rol, ...roles) => rol === 'administrador' || roles.includes(rol);
 
 /** Descarga filas como CSV que Excel abre directamente (separador ; y BOM para tildes). */
 export function descargarCSV(nombre, columnas, filas) {

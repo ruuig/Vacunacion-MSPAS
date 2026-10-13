@@ -15,7 +15,7 @@ import { plural } from '../componentes/Estado.jsx';
 import {
   GraficaBarras, GraficaCuadrantes, GraficaJornadas, GraficaMonitoreo, GraficaOportunidad, GraficaTendencia, SERIE,
 } from '../componentes/Graficas.jsx';
-import { MESES, fecha, hoy } from '../util.js';
+import { MESES, fecha, hoy, puede } from '../util.js';
 
 // Tres preguntas y lo que se acordó hacer; los indicadores técnicos (homogeneidad, cuadrantes) van en la sala situacional impresa
 const VISTAS = [
@@ -219,9 +219,9 @@ function Territorio({ consulta, rol, elegirComunidad }) {
                   <td style={{ maxWidth: 260 }}>{c.estrategia?.accion}</td>
                   <td className="celda-fin">
                     <span className="botones-fila">
-                      {[3, 4].includes(c.categoria) && rol === 'enfermera' && <Link className="btn btn-sm btn-primario" to={`/jornadas/nueva?comunidad=${c.id}`}><Truck size={14} />Jornada</Link>}
+                      {[3, 4].includes(c.categoria) && puede(rol, 'enfermera') && <Link className="btn btn-sm btn-primario" to={`/jornadas/nueva?comunidad=${c.id}`}><Truck size={14} />Jornada</Link>}
                       {[2, 4].includes(c.categoria) && <Link className="btn btn-sm" to={`/alertas?comunidad=${c.id}`}><Phone size={14} />Casos</Link>}
-                      {rol === 'enfermera' && <button className="btn btn-sm btn-fantasma" onClick={() => setNueva({ comunidad_id: c.id, indicador_codigo: 'C2', valor_inicial: c.C2,
+                      {puede(rol, 'enfermera') && <button className="btn btn-sm btn-fantasma" onClick={() => setNueva({ comunidad_id: c.id, indicador_codigo: 'C2', valor_inicial: c.C2,
                         problema: `${c.nombre}: ${c.estrategia?.titulo.toLowerCase()}`, accion: c.estrategia?.accion || '' })}><Plus size={14} />Acción</button>}
                     </span>
                   </td>
@@ -430,7 +430,7 @@ function Acciones({ rol }) {
   const { pedirTexto, avisar } = useDialogos();
   const cargar = useCallback(() => { api('/acciones').then(setLista).catch(() => setLista([])); }, []);
   useEffect(cargar, [cargar]);
-  const puedeEditar = rol === 'enfermera';
+  const puedeEditar = puede(rol, 'enfermera');
 
   async function mover(a, estado) {
     let extra = {};

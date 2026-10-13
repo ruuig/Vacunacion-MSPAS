@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  ArrowRight, Bell, CalendarDays, ChevronRight, FileText, LayoutDashboard, Lock, MapPinned, Phone, Search, Settings, Syringe, Truck, UserPlus,
+  ArrowRight, Bell, CalendarDays, ChevronRight, FileText, LayoutDashboard, Lock, Package, MapPinned, Phone, Search, Settings, Syringe, Truck, UserPlus,
 } from 'lucide-react';
 import { api, qs } from '../api.js';
 import { useSesion } from '../App.jsx';
@@ -43,7 +43,7 @@ export default function Inicio() {
   const [citas, setCitas] = useState(null);
   const [buscar, setBuscar] = useState('');
   const operativo = puede(usuario.rol, 'enfermera', 'vacunador');
-  const gestion = puede(usuario.rol, 'enfermera', 'administrador');
+  const gestion = puede(usuario.rol, 'enfermera', 'encargado');
 
   useEffect(refrescarAlertas, [refrescarAlertas]);
   useEffect(() => {
@@ -87,7 +87,7 @@ export default function Inicio() {
         ) : <p>¿Qué quiere hacer?</p>}
       </section>
 
-      {usuario.rol === 'enfermera' && porCerrar.length > 0 && (
+      {puede(usuario.rol, 'enfermera') && porCerrar.length > 0 && (
         <Mensaje tipo="aviso">
           <strong>{porCerrar.length === 1 ? 'Tiene 1 jornada por cerrar' : `Tiene ${porCerrar.length} jornadas por cerrar`}:</strong>{' '}
           {porCerrar.map((j, i) => (
@@ -120,6 +120,7 @@ export default function Inicio() {
         {!operativo && gestion && <Mosaico to="/tablero" icono={LayoutDashboard} titulo="Tablero" texto="Cómo vamos" color="destacado" />}
         {!operativo && <Mosaico to="/ninos" icono={Search} titulo="Buscar niño" texto="Fichas e historial" />}
         {!operativo && gestion && <Mosaico to="/informes" icono={FileText} titulo="Informes" texto="Informe mensual SIGSA" />}
+        {!operativo && gestion && <Mosaico to="/vacunas?vista=pedido" icono={Package} titulo="Pedido de vacunas" texto="Quiénes se vacunan cada mes" color="verde" />}
         {usuario.rol === 'administrador' && <Mosaico to="/admin" icono={Settings} titulo="Administración" texto="Usuarios y respaldos" />}
       </div>
 
@@ -199,7 +200,7 @@ export default function Inicio() {
           {jornadas === null ? <div className="tarjeta-cuerpo"><div className="esqueleto" /></div> : proximas.length === 0 ? (
             <div className="vacio-linea">
               <span>No hay jornadas planificadas.</span>
-              {usuario.rol === 'enfermera' && <Link className="btn btn-sm btn-primario" to="/jornadas/nueva"><Truck size={15} />Planificar jornada</Link>}
+              {puede(usuario.rol, 'enfermera') && <Link className="btn btn-sm btn-primario" to="/jornadas/nueva"><Truck size={15} />Planificar jornada</Link>}
             </div>
           ) : (
             <ul className="lista-items">

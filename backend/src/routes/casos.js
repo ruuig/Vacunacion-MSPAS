@@ -15,7 +15,7 @@ router.get('/', permitir(...TODOS), async (req, res) => {
   const { tipo, comunidad, prioridad, asignado } = req.query;
   const params = await esq.cargarParametros(pool);
   const intentosEscalar = Number(params.intentos_escalamiento) || 3;
-  const { rows } = await pool.query(`
+  let { rows } = await pool.query(`
     SELECT a.id, a.nino_id, a.tipo, a.prioridad, a.estado, a.fecha_generada, a.esquema_dosis_id, d.etiqueta,
            n.nombre_completo, n.fecha_nacimiento, n.sexo, n.fila, c.id AS comunidad_id, c.nombre AS comunidad, s.nombre AS sector,
            cu.numero AS cuaderno_numero, cu.anio AS cuaderno_anio,
@@ -34,6 +34,11 @@ router.get('/', permitir(...TODOS), async (req, res) => {
     ORDER BY n.id, d.orden NULLS LAST`,
     [tipo || null, comunidad || null, prioridad || null, asignado === 'yo' ? req.usuario.id : asignado ? Number(asignado) : null]);
 
+  // El personal de un puesto o barrio solo ve su sector y los niños que le asignaron
+  if (req.usuario.rol === 'vacunador') {
+    const sector = new Set(await require('../territorio').territorioDe(pool, req.usuario.id));
+    if (sector.size) rows = rows.filter((r) => sector.has(r.comunidad_id) || r.asignado_id === req.usuario.id);
+  }
   // Historial de contactos de los niños de la bandeja (para escalamiento y último contacto)
   const ids = [...new Set(rows.map((r) => r.nino_id))];
   const { rows: contactos } = ids.length ? await pool.query(`

@@ -214,7 +214,7 @@ export default function Ficha() {
                       <small>{a.dosis.join(', ')}{a.lote && ` · lote ${a.lote}`}{a.es_recuperacion && ' · recuperación'}{!a.fuente_primaria && ' · del carné'}</small>
                       {a.anulada && <small className="rojo">Anulada: {a.motivo_anulacion}</small>}
                     </span>
-                    {usuario.rol === 'enfermera' && !a.anulada && (
+                    {puede(usuario.rol, 'enfermera') && !a.anulada && (
                       <MenuMas etiqueta={`Acciones de ${a.producto}`} opciones={[{ texto: 'Anular esta dosis', icono: Trash2, peligro: true, onClick: () => anular(a) }]} />
                     )}
                   </span>
