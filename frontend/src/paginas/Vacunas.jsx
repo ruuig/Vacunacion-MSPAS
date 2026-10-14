@@ -110,7 +110,9 @@ function PedidoVacunas() {
   const vacunas = datos.filas.map((f) => {
     const mes = f.cantidades[col];
     const atrasados = conAtrasados ? f.cantidades[0] : 0;
-    return { ...f, mes, atrasados, n: mes + atrasados };
+    // BCG y Hepatitis B se ponen al nacer: en los meses que vienen se suman los recién nacidos estimados (aún no registrados)
+    const porNacer = col >= 2 && ['BCG', 'HB_PED'].includes(f.codigo) ? Math.min(mes, datos.nacimientos_por_mes || 0) : 0;
+    return { ...f, mes, atrasados, porNacer, n: mes + atrasados };
   }).filter((f) => f.n > 0).sort((x, y) => y.n - x.n);
   const ninos = conAtrasados ? [...c.ninos, ...atr.ninos.map((n) => ({ ...n, atrasado: true }))] : c.ninos;
   const porComunidad = Object.values(ninos.reduce((m, n) => { (m[n.comunidad_id] ||= { nombre: n.comunidad, ninos: [] }).ninos.push(n); return m; }, {}))
@@ -157,6 +159,7 @@ function PedidoVacunas() {
                 onClick={() => setVacunaSel(vacunaSel === v.codigo ? '' : v.codigo)}>
                 <strong>{reserva(v.n)}</strong>
                 <span className="pv-nombre">{v.nombre}</span>
+                {v.porNacer > 0 && <span className="pv-detalle">{v.porNacer === v.n ? 'Recién nacidos (estimado)' : `${v.porNacer} recién nacidos estimados`}</span>}
                 {v.atrasados > 0 && <span className="pv-detalle">{v.mes} del mes + {v.atrasados} atrasados</span>}
               </button>
             ))}
@@ -178,6 +181,12 @@ function PedidoVacunas() {
               )}
               {(comunidadSel || vacunaSel) && <span className="tenue">{filtrados.length} niños</span>}
             </div>
+            {(() => {
+              const v = vacunas.find((x) => x.codigo === vacunaSel);
+              return v?.porNacer > 0 && !comunidadSel && (
+                <Mensaje tipo="info">{v.porNacer} de las {v.n} dosis de {v.nombre} son para los bebés que nacerán en {nombreMes(c).toLowerCase()}: se calcula con el promedio de nacimientos ({datos.nacimientos_por_mes} por mes). Todavía no están registrados.</Mensaje>
+              );
+            })()}
             {(comunidadSel || vacunaSel) && gruposFiltrados.map((g) => (
               <section key={g.nombre} className="grupo-casos">
                 <div className="grupo-casos-cab"><strong>{g.nombre}</strong><span className="chip">{g.ninos.length}</span></div>
