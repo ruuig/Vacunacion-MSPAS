@@ -7,6 +7,7 @@ import { api, qs } from '../api.js';
 import { useSesion } from '../App.jsx';
 import { useDialogos } from '../componentes/Dialogos.jsx';
 import Vacunar from '../componentes/Vacunar.jsx';
+import Documento, { TablaDoc } from '../componentes/Documento.jsx';
 import { useCatalogo } from '../componentes/useCatalogo.js';
 import {
   Campo, Cargando, Encabezado, EncabezadoImpresion, Mensaje, Modal, Pestanas, Tabla, Tarjeta, Vacio, useEsCelular,
@@ -555,30 +556,48 @@ export function JornadaDetalle() {
           </div>
         </div>
       ))}
-      {/* Hoja impresa: la lista completa con espacio para anotar a mano */}
-      <div className="solo-imprimir">
-        <table className="hoja-jornada">
-          <thead><tr><th>Niña o niño</th><th>Comunidad</th><th>Responsable</th><th>Le toca</th><th>Vacunado (fecha)</th></tr></thead>
-          <tbody>
-            {j.ninos.map((n) => (
-              <tr key={n.nino_id}>
-                <td>{n.nombre_completo}<div>{edad(n.fecha_nacimiento, j.fecha.slice(0, 10))} · {cuadernoFila(n)}</div></td>
-                <td>{n.comunidad}</td>
-                <td>{n.responsable || '—'}<div>{n.telefono || ''}{n.numero_casa && ` · casa ${n.numero_casa}`}</div></td>
-                <td>{n.dosis_programadas.map((d) => d.etiqueta).join(', ')}</td>
-                <td />
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </Tarjeta>
   );
 
   const equipo = j.equipo?.length ? j.equipo.map((u) => u.nombre).join(', ') : j.responsable;
+  // Hoja impresa: documento ordenado por comunidad, con casillas para anotar a mano (no es una captura de la pantalla)
+  const porComunidadDoc = Object.values(j.ninos.reduce((m, n) => { (m[n.comunidad] ||= { nombre: n.comunidad, ninos: [] }).ninos.push(n); return m; }, {}))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre));
+  const diaLargo = new Date(`${j.fecha.slice(0, 10)}T12:00:00Z`).toLocaleDateString('es-GT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const cerrada = j.estado === 'cerrada';
+  const documento = (
+    <Documento titulo="Hoja de jornada" periodo={diaLargo.replace(/^\w/, (x) => x.toUpperCase())} detalle={j.comunidades.map((c) => c.nombre).join(', ')}>
+      <p className="doc-nota"><b>Responsable:</b> {j.responsable} · <b>Equipo:</b> {equipo}
+        {j.iniciada_en && <> · <b>Inició:</b> {hora(j.iniciada_en)}</>}{j.cerrada_en && <> · <b>Cerró:</b> {hora(j.cerrada_en)}</>}</p>
+      <h2 className="doc-seccion">Vacunas</h2>
+      <TablaDoc columnas={[
+        { titulo: 'Vacuna', valor: 'nombre' },
+        { titulo: 'Llevar', valor: (b) => b.dosis_llevadas ?? '—', num: true },
+        ...(preparacion ? [{ titulo: 'Llevada', valor: () => '☐', num: true }]
+          : [{ titulo: 'Aplicadas', valor: 'aplicadas', num: true }, ...(cerrada ? [{ titulo: 'Devueltas', valor: (b) => b.dosis_devueltas ?? '—', num: true }] : [])]),
+      ]} filas={j.biologicos} />
+      <h2 className="doc-seccion">Niños · {j.ninos.length}{!preparacion && ` (${cuenta('vacunado')} vacunados, ${cuenta('no_asistio')} no llegaron)`}</h2>
+      {porComunidadDoc.map((g) => (
+        <section key={g.nombre}>
+          <h3 className="doc-subseccion">{g.nombre} · {g.ninos.length}</h3>
+          <TablaDoc columnas={[
+            { titulo: 'Niña o niño', valor: (n) => <><strong>{n.nombre_completo}</strong><br />{edad(n.fecha_nacimiento, j.fecha.slice(0, 10))} · {cuadernoFila(n)}</>, ancho: '27%' },
+            { titulo: 'Mamá o responsable', valor: (n) => <>{n.responsable || '—'}<br />{n.telefono || ''}{n.numero_casa && ` · casa ${n.numero_casa}`}</>, ancho: '24%' },
+            { titulo: 'Le toca', valor: (n) => n.dosis_programadas.map((d) => d.etiqueta).join(', ') },
+            { titulo: 'Resultado', ancho: '20%', valor: (n) => {
+              const st = situacion(n);
+              if (st === 'vacunado') return <>✓ Vacunado{n.aplicadas?.length ? <><br />{n.aplicadas.map((a) => a.producto).join(', ')}</> : null}</>;
+              if (st === 'no_asistio') return 'No llegó';
+              return '☐ Vacunado   ☐ No llegó';
+            } },
+          ]} filas={g.ninos} />
+        </section>
+      ))}
+    </Documento>
+  );
   return (
-    <>
-      <EncabezadoImpresion titulo={`Hoja de jornada · ${fecha(j.fecha)}`} detalle={`${j.comunidades.map((c) => c.nombre).join(', ')} · Equipo: ${equipo}`} />
+    <div className="con-documento">
+      {documento}
       <div className="no-imprimir">
         <Encabezado titulo={`Jornada del ${fecha(j.fecha)}`} migas={[['Jornadas', '/jornadas'], [fecha(j.fecha)]]}
           descripcion={`${j.comunidades.map((c) => c.nombre).join(' → ')} · Equipo: ${equipo}`}>
@@ -649,7 +668,7 @@ export function JornadaDetalle() {
       )}
       {cerrando && <CerrarJornada biologicos={j.biologicos} faltan={cuenta('falta')} onCerrar={() => setCerrando(false)} onConfirmar={confirmarCierre} />}
       {equipoAbierto && <EditarEquipo jornada={j} onCerrar={() => setEquipoAbierto(false)} onGuardado={() => { setEquipoAbierto(false); cargar(); }} />}
-    </>
+    </div>
   );
 }
 

@@ -1946,3 +1946,6 @@ tr.fila-en-curso .estado.grande .ic { background: rgba(255,255,255,.2); color: #
 .login { grid-template-columns: 1fr; background: #fff; }
 .login-form-lado, .login-form-lado:only-child { min-height: 100vh; background: #fff; border-top: none; }
 .login-tarjeta .login-titulo { font-size: 1.35rem; font-weight: 900; color: var(--marino); line-height: 1.2; }
+/* Páginas con documento impreso: al imprimir solo sale el documento */
+@media print { .con-documento > :not(.documento) { display: none !important; } }
+.doc-subseccion { font-size: 10pt; margin: .6rem 0 .25rem; color: #1b2a5c; break-after: avoid; }
