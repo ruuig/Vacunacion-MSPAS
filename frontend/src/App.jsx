@@ -2,6 +2,7 @@ import { createContext, lazy, Suspense, useContext, useEffect, useState, useCall
 import { Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom';
 import {
   Baby, Bell, CalendarCheck, BookOpen, FileText, Home, LayoutDashboard, LogOut, MapPinned, Menu, Package, Search, Settings, Truck, MoreHorizontal,
+  ClipboardList,
 } from 'lucide-react';
 import { api, sesionGuardada, guardarSesion } from './api.js';
 import { cola } from './componentes/fueraDeLinea.js';
@@ -20,6 +21,7 @@ import { ListaJornadas, NuevaJornada, JornadaDetalle } from './paginas/Jornadas.
 import Informes from './paginas/Informes.jsx';
 import Admin from './paginas/Admin.jsx';
 import Vacunas from './paginas/Vacunas.jsx';
+import Listado from './paginas/Listado.jsx';
 import { centroActual, centroCorto, useCentro } from './componentes/useCentro.js';
 // El tablero (con la librería de gráficas) se descarga solo al abrirlo
 const Tablero = lazy(() => import('./paginas/Tablero.jsx'));
@@ -99,6 +101,7 @@ export default function App() {
             <NavLink to="/" end><Home size={19} />Inicio</NavLink>
             <NavLink to="/ninos"><Baby size={19} />Niños</NavLink>
             <NavLink to="/alertas"><CalendarCheck size={19} />Control del mes{contador}</NavLink>
+            <NavLink to="/listado"><ClipboardList size={19} />Listado para vacunar</NavLink>
             <div className="menu-titulo">Territorio</div>
             <NavLink to="/comunidades"><MapPinned size={19} />Comunidades</NavLink>
             <NavLink to="/jornadas"><Truck size={19} />Jornadas</NavLink>
@@ -141,6 +144,7 @@ export default function App() {
               <Route path="/ninos/:id" element={<Ficha />} />
               <Route path="/ninos/:id/editar" element={<NinoForm />} />
               <Route path="/alertas" element={<Alertas />} />
+              <Route path="/listado" element={<Listado />} />
               <Route path="/cuadernos" element={<ListaCuadernos />} />
               <Route path="/cuadernos/:id" element={<CuadernoDetalle />} />
               <Route path="/comunidades" element={<Comunidades />} />

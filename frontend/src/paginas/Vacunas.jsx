@@ -99,6 +99,7 @@ function PedidoVacunas() {
   const [impreso, setImpreso] = useState('pedido');
   // Se elige qué documento sale y luego se abre la impresión
   const imprimir = (cual) => { setImpreso(cual); setTimeout(() => window.print(), 50); };
+  const { avisar } = useDialogos();
   useEffect(() => { api('/seguimiento/proyeccion').then(setDatos).catch((e) => setError(e.message)); }, []);
   if (error) return <Mensaje tipo="error">{error}</Mensaje>;
   if (!datos) return <Cargando />;
@@ -142,7 +143,15 @@ function PedidoVacunas() {
             {conAtrasados ? <Check size={15} /> : <Plus size={15} />} Sumar {atr.ninos.length} atrasados
           </label>
           <div className="pedido-imprimir">
-            <button className="btn" onClick={() => imprimir('pedido')} disabled={!vacunas.length}><Printer size={16} />Imprimir pedido</button>
+            <button className="btn" disabled={!vacunas.length} onClick={() => {
+              // Al imprimir, el pedido se guarda: a fin de mes se compara con lo aplicado (Informes → Pedido vs. aplicado)
+              if (c.anio && c.mes) {
+                api('/lotes/pedido', { method: 'POST', body: { anio: c.anio, mes: c.mes, incluye_atrasados: conAtrasados,
+                  detalle: vacunas.map((v) => ({ codigo: v.codigo, cantidad: v.n })) } })
+                  .then(() => avisar(`Pedido de ${nombreMes(c)} guardado.`)).catch(() => {});
+              }
+              imprimir('pedido');
+            }}><Printer size={16} />Imprimir pedido</button>
             <button className="btn" onClick={() => imprimir('listado')} disabled={!ninos.length}><Printer size={16} />Imprimir listado de niños</button>
           </div>
         </div>

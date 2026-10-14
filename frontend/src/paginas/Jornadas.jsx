@@ -24,8 +24,42 @@ function Avance({ hechos, total }) {
   return (
     <span className="barra-progreso">
       <span className="pista"><span className="lleno" style={{ width: `${p}%`, background: 'var(--verde)' }} /></span>
-      <span>{hechos} de {total}</span>
+      <span>{hechos} de {total}{total ? ` · ${p} %` : ''}</span>
     </span>
+  );
+}
+
+const pctCumplimiento = (v, c) => (c ? Math.round((v / c) * 100) : null);
+const tonoCumplimiento = (p) => (p == null ? '' : p >= 80 ? 'verde' : p >= 60 ? 'ambar' : 'rojo');
+
+/** Cumplimiento de las jornadas ya realizadas: vacunados de la lista ÷ convocados, por encargado (responsable de la jornada). */
+function CumplimientoEncargados({ jornadas }) {
+  const realizadas = jornadas.filter((j) => j.estado === 'cerrada');
+  if (!realizadas.length) return null;
+  const filas = Object.values(realizadas.reduce((m, j) => {
+    const k = j.responsable || 'Sin responsable';
+    const r = (m[k] ||= { nombre: k, jornadas: 0, convocados: 0, vacunados: 0 });
+    r.jornadas += 1; r.convocados += j.convocados; r.vacunados += Math.min(j.vacunados, j.convocados);
+    return m;
+  }, {})).sort((a, b) => (pctCumplimiento(b.vacunados, b.convocados) ?? 0) - (pctCumplimiento(a.vacunados, a.convocados) ?? 0));
+  const total = filas.reduce((t, f) => ({ c: t.c + f.convocados, v: t.v + f.vacunados }), { c: 0, v: 0 });
+  return (
+    <Tarjeta titulo="Cumplimiento de las jornadas" icono={CalendarCheck} sub={`Vacunados de la lista ÷ convocados · ${plural(realizadas.length, 'jornada realizada', 'jornadas realizadas')} · en total ${pctCumplimiento(total.v, total.c) ?? 0} %`} cuerpo={false}>
+      <Tabla>
+        <thead><tr><th>Encargado de la jornada</th><th className="celda-num">Jornadas</th><th className="celda-num">Convocados</th><th className="celda-num">Vacunados</th><th>Cumplimiento</th></tr></thead>
+        <tbody>
+          {filas.map((f) => {
+            const p = pctCumplimiento(f.vacunados, f.convocados);
+            return (
+              <tr key={f.nombre}>
+                <td className="fuerte">{f.nombre}</td><td className="celda-num">{f.jornadas}</td><td className="celda-num">{f.convocados}</td><td className="celda-num">{f.vacunados}</td>
+                <td><span className={`cumplimiento ${tonoCumplimiento(p)}`}><span className="pista"><span className="lleno" style={{ width: `${p ?? 0}%` }} /></span><b>{p ?? '—'} %</b></span></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </Tabla>
+    </Tarjeta>
   );
 }
 
@@ -56,6 +90,7 @@ export function ListaJornadas() {
           {plural(porCerrar, 'jornada ya pasó y sigue abierta', 'jornadas ya pasaron y siguen abiertas')}. Ciérrela para pasar a quienes no llegaron al control del mes.
         </Mensaje>
       )}
+      {jornadas && <CumplimientoEncargados jornadas={jornadas} />}
       {jornadas === null ? <Cargando /> : jornadas.length === 0 ? (
         <div className="tarjeta">
           <Vacio icono={Truck} titulo="Todavía no hay jornadas"
@@ -643,7 +678,7 @@ export function JornadaDetalle() {
             {j.cerrada_en && <span className="tenue">{duracion(j.iniciada_en, j.cerrada_en)}</span>}
           </span>
         )}
-        <div className="texto"><strong>{atendidos} de {j.ninos.length} niños atendidos</strong>
+        <div className="texto"><strong>{atendidos} de {j.ninos.length} niños atendidos · cumplimiento {pctCumplimiento(cuenta('vacunado'), j.ninos.length) ?? 0} %</strong>
           <span>{cuenta('vacunado')} vacunados · {cuenta('no_asistio')} no llegaron · {cuenta('falta')} faltan{j.resumen.no_convocados_vacunados ? ` · ${j.resumen.no_convocados_vacunados} vacunados sin estar en la lista` : ''}</span></div>
         <div className="pista"><span className="lleno" style={{ width: `${j.ninos.length ? (atendidos / j.ninos.length) * 100 : 0}%` }} /></div>
       </div>

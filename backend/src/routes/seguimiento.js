@@ -133,7 +133,11 @@ router.get('/proyeccion', permitir(...TODOS), async (req, res) => {
   const meses = Math.min(6, Math.max(1, Number(req.query.meses) || 3));
   const [a0, m0] = [Number(hoy().slice(0, 4)), Number(hoy().slice(5, 7))];
   const ctx = { catalogo: await esq.cargarCatalogo(pool), params: await esq.cargarParametros(pool) };
-  const { ninos, aplicaciones } = await cargarNinos(pool, await filtroTerritorio(pool, req.query));
+  // El personal con sector solo ve lo suyo, aunque pida otro lugar
+  let lugares = await filtroTerritorio(pool, req.query);
+  const alcance = await require('../territorio').alcanceDe(pool, req.usuario);
+  if (alcance) lugares = lugares ? lugares.filter((c) => alcance.includes(c)) : alcance;
+  const { ninos, aplicaciones } = await cargarNinos(pool, lugares);
   const { rows: productos } = await pool.query('SELECT codigo, nombre FROM producto WHERE activo ORDER BY nombre');
 
   // Columnas: atrasadas a hoy, lo que falta de este mes y los meses siguientes

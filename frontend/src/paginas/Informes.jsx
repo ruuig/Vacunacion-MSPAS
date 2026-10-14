@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, BarChart3, CheckCircle2, ClipboardList, Download, FileText, Printer, Search, Send, ShieldCheck, Syringe, TrendingUp } from 'lucide-react';
+import { AlertTriangle, BarChart3, CheckCircle2, ClipboardList, Download, FileText, Package, Printer, Search, Send, ShieldCheck, Syringe, TrendingUp } from 'lucide-react';
 import { api, qs } from '../api.js';
 import { useCatalogo } from '../componentes/useCatalogo.js';
 import { Campo, Cargando, Encabezado, EncabezadoImpresion, Mensaje, Pestanas, Tabla, Tarjeta } from '../componentes/ui.jsx';
@@ -14,12 +14,13 @@ import { Calidad } from './Tablero.jsx';
 const VISTAS = [
   ['mensual', <><FileText size={15} />Informe mensual SIGSA 5a</>],
   ['nominal', <><ClipboardList size={15} />Listado de vacunados</>],
+  ['pedido', <><Package size={15} />Pedido vs. aplicado</>],
 ];
-const TITULO = { mensual: 'Informe mensual de vacunación', nominal: 'Listado de vacunados' };
+const TITULO = { mensual: 'Informe mensual de vacunación', nominal: 'Listado de vacunados', pedido: 'Vacunas pedidas y aplicadas' };
 
 export default function Informes() {
   const ahora = new Date();
-  const [vista, setVista] = useState('mensual');
+  const [vista, setVista] = useState(() => new URLSearchParams(window.location.search).get('vista') || 'mensual');
   const [f, setF] = useState({ anio: ahora.getFullYear(), mes: ahora.getMonth() + 1, tipo: '', comunidad: '', tipoAlerta: '',
     modo: 'mes', desde: `${ahora.getFullYear()}-01-01`, hasta: hoy() });
   const [cargado, setCargado] = useState(null); // { vista, datos }: evita pintar una vista con datos de otra
@@ -36,6 +37,7 @@ export default function Informes() {
     const ruta = {
       mensual: `/informes/mensual${qs({ ...periodoConsulta, tipo: f.tipo, comunidad: f.comunidad })}`,
       nominal: `/informes/nominal${qs({ ...periodoConsulta, tipo: f.tipo, comunidad: f.comunidad })}`,
+      pedido: `/lotes/pedido-vs-aplicado${qs({ anio: f.anio, mes: f.mes })}`,
     }[vista];
     api(ruta).then((d) => setCargado({ vista, datos: d })).catch((e) => setError(e.message));
   }, [vista, f.anio, f.mes, f.tipo, f.comunidad, f.tipoAlerta, f.modo, f.desde, f.hasta]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -60,7 +62,8 @@ export default function Informes() {
                 <select value={f.modo} onChange={set('modo')}><option value="mes">Un mes</option><option value="rango">Elegir fechas…</option></select>
               </Campo>
             )}
-            {f.modo !== 'rango' && <Campo etiqueta="Año"><input type="number" value={f.anio} onChange={set('anio')} /></Campo>}
+            {(f.modo !== 'rango' || vista === 'pedido') && <Campo etiqueta="Año"><input type="number" value={f.anio} onChange={set('anio')} /></Campo>}
+            {vista === 'pedido' && <Campo etiqueta="Mes"><select value={f.mes} onChange={set('mes')}>{MESES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}</select></Campo>}
             {['mensual', 'nominal'].includes(vista) && f.modo === 'rango' && (
               <>
                 <Campo etiqueta="Desde"><input type="date" value={f.desde} max={f.hasta} onChange={set('desde')} /></Campo>
@@ -78,12 +81,14 @@ export default function Informes() {
                 </Campo>
               </>
             )}
-            <Campo etiqueta="Comunidad">
-              <select value={f.comunidad} onChange={set('comunidad')}>
-                <option value="">Todas</option>
-                {comunidades.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-              </select>
-            </Campo>
+            {vista !== 'pedido' && (
+              <Campo etiqueta="Comunidad">
+                <select value={f.comunidad} onChange={set('comunidad')}>
+                  <option value="">Todas</option>
+                  {comunidades.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+              </Campo>
+            )}
           </div>
         </div></div>
       </div>
@@ -94,8 +99,51 @@ export default function Informes() {
           {vista === 'mensual' && f.modo === 'mes' && <CierreMes anio={Number(f.anio)} mes={Number(f.mes)} />}
           {vista === 'mensual' && <Mensual d={datos} periodo={periodo} />}
           {vista === 'nominal' && <Nominal filas={datos} periodo={periodo} />}
+          {vista === 'pedido' && <PedidoVsAplicado d={datos} periodo={`${MESES[f.mes - 1]} ${f.anio}`} />}
         </>
       )}
+    </>
+  );
+}
+
+/** Lo que se pidió al distrito para el mes contra lo que se aplicó (en el servicio y en jornadas). */
+function PedidoVsAplicado({ d, periodo }) {
+  const t = (k) => d.vacunas.reduce((s, v) => s + (v[k] || 0), 0);
+  const uso = (v) => (v.pedidas ? Math.round((v.aplicadas / v.pedidas) * 100) : null);
+  const pedidas = t('pedidas');
+  const aplicadas = t('aplicadas');
+  return (
+    <>
+      {d.pedido ? (
+        <p className="tenue" style={{ marginBottom: '1rem' }}>Pedido guardado el {new Date(d.pedido.creado_en).toLocaleDateString('es-GT')}{d.pedido.creado_por_nombre ? ` por ${d.pedido.creado_por_nombre}` : ''}{d.pedido.incluye_atrasados ? ' · incluye atrasados' : ''}.</p>
+      ) : <Mensaje tipo="aviso">No se guardó el pedido de {periodo}: se guarda al tocar «Imprimir pedido» en Vacunas → Qué pedir. Abajo solo sale lo aplicado.</Mensaje>}
+      <div className="kpis tres">
+        <div className="kpi marino"><div className="kpi-icono"><Package size={19} /></div><strong>{d.pedido ? pedidas : '—'}</strong><span>Dosis pedidas</span></div>
+        <div className="kpi verde"><div className="kpi-icono"><Syringe size={19} /></div><strong>{aplicadas}</strong><span>Dosis aplicadas en {periodo}</span></div>
+        <div className="kpi azul"><div className="kpi-icono"><BarChart3 size={19} /></div><strong>{d.pedido && pedidas ? `${Math.round((aplicadas / pedidas) * 100)} %` : '—'}</strong><span>De lo pedido se aplicó</span></div>
+      </div>
+      <Tarjeta titulo={`Por vacuna · ${periodo}`} icono={Package} cuerpo={false}>
+        <Tabla>
+          <thead><tr><th>Vacuna</th><th className="celda-num">Pedidas</th><th className="celda-num">En el servicio</th><th className="celda-num">En jornadas</th><th className="celda-num">Aplicadas</th><th className="celda-num">Diferencia</th><th className="celda-num">Uso</th></tr></thead>
+          <tbody>
+            {d.vacunas.map((v) => (
+              <tr key={v.producto_id}>
+                <td className="fuerte">{v.nombre}</td>
+                <td className="celda-num">{v.pedidas ?? '—'}</td>
+                <td className="celda-num">{v.en_servicio}</td><td className="celda-num">{v.en_jornadas}</td>
+                <td className="celda-num fuerte">{v.aplicadas}</td>
+                <td className={`celda-num ${v.pedidas != null && v.aplicadas > v.pedidas ? 'rojo' : ''}`}>{v.pedidas != null ? v.pedidas - v.aplicadas : '—'}</td>
+                <td className="celda-num">{uso(v) != null ? `${uso(v)} %` : '—'}</td>
+              </tr>
+            ))}
+            {d.vacunas.length === 0 && <tr><td colSpan={7} className="tenue">Sin pedido ni dosis aplicadas en este mes.</td></tr>}
+            {d.vacunas.length > 0 && (
+              <tr className="fila-total"><td>Total</td><td className="celda-num">{d.pedido ? pedidas : '—'}</td><td className="celda-num">{t('en_servicio')}</td><td className="celda-num">{t('en_jornadas')}</td>
+                <td className="celda-num">{aplicadas}</td><td className="celda-num">{d.pedido ? pedidas - aplicadas : '—'}</td><td /></tr>
+            )}
+          </tbody>
+        </Tabla>
+      </Tarjeta>
     </>
   );
 }
@@ -180,6 +228,12 @@ function exportar(vista, datos, f) {
       { titulo: 'Recuperación', valor: (r) => (r.es_recuperacion ? 'Sí' : '') }, { titulo: 'Cuaderno', valor: (r) => (r.cuaderno_numero ? `${r.cuaderno_numero}/${r.cuaderno_anio}` : '') },
       { titulo: 'Fila', valor: 'fila' }, { titulo: 'Comunidad', valor: 'comunidad' },
     ], datos);
+  } else if (vista === 'pedido') {
+    descargarCSV(`pedido-vs-aplicado-${sufijo}`, [
+      { titulo: 'Vacuna', valor: 'nombre' }, { titulo: 'Pedidas', valor: 'pedidas' }, { titulo: 'En el servicio', valor: 'en_servicio' },
+      { titulo: 'En jornadas', valor: 'en_jornadas' }, { titulo: 'Aplicadas', valor: 'aplicadas' },
+      { titulo: 'Diferencia', valor: (v) => (v.pedidas != null ? v.pedidas - v.aplicadas : '') },
+    ], datos.vacunas);
   }
 }
 

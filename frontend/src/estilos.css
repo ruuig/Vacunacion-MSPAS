@@ -2040,3 +2040,19 @@ button.pedido-vacuna.activa { background: #e8f1fb; border-color: #9fc0e6; border
 table th .sub { display: block; text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--suave); margin-top: .15rem; }
 td select.selector-chico { min-width: 130px; }
 .tabla-roles td:first-child { min-width: 260px; }
+/* Listado para vacunar */
+.listado-filtros .lf-fila { display: flex; flex-wrap: wrap; gap: .8rem 1rem; align-items: flex-end; }
+.listado-filtros .lf-fila + .lf-fila { margin-top: .9rem; }
+.lf-campo { display: grid; gap: .3rem; flex: 1 1 220px; }
+.lf-campo > span { font-size: .8rem; font-weight: 800; color: var(--suave); }
+.listado-resumen { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 1rem 0; }
+.lr-total { display: inline-flex; align-items: center; gap: .35rem; margin-right: .5rem; color: var(--marino); font-weight: 700; }
+.lr-total strong { font-size: 1.4rem; font-weight: 900; }
+
+/* Cumplimiento de jornadas */
+.cumplimiento { display: inline-flex; align-items: center; gap: .6rem; min-width: 180px; }
+.cumplimiento .pista { flex: 1; height: 10px; border-radius: 999px; background: #e8ecf2; overflow: hidden; }
+.cumplimiento .lleno { display: block; height: 100%; border-radius: 999px; background: var(--marino); }
+.cumplimiento.verde .lleno { background: #1a8f57; } .cumplimiento.verde b { color: #12683f; }
+.cumplimiento.ambar .lleno { background: #e0a100; } .cumplimiento.ambar b { color: #9a6b00; }
+.cumplimiento.rojo .lleno { background: #c0392b; } .cumplimiento.rojo b { color: #b4302a; }
