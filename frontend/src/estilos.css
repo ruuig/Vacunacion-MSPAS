@@ -1846,7 +1846,7 @@ label.btn.deshabilitado { opacity: .55; pointer-events: none; }
 
 .pedido-barra { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; margin-bottom: 1rem; }
 .pedido-barra .chip-filtro { cursor: pointer; display: inline-flex; align-items: center; gap: .35rem; margin: 0; }
-.pedido-resumen { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; margin-bottom: 1rem; }
+.pedido-resumen { display: grid; grid-template-columns: repeat(2, 1fr); gap: .75rem; margin-bottom: 1rem; }
 .pedido-resumen > div { display: grid; padding: .9rem 1.1rem; border-radius: 18px; background: var(--marino); color: #fff; border-bottom: 5px solid var(--marino-hondo); }
 .pedido-resumen strong { font-size: 1.8rem; font-weight: 900; line-height: 1.1; }
 .pedido-resumen span { font-size: .82rem; font-weight: 700; opacity: .85; }

@@ -5,15 +5,18 @@ const { permitir, TODOS } = require('../middleware/auth');
 const FILAS = 25;
 
 // Lista de cuadernos con filas ocupadas
+const { alcanceDe } = require('../territorio');
+
 router.get('/', permitir(...TODOS), async (req, res) => {
   const { anio, comunidad } = req.query;
+  const alcance = await alcanceDe(pool, req.usuario);
   const { rows } = await pool.query(`
     SELECT cu.*, e.nombre AS servicio, c.nombre AS comunidad, s.nombre AS sector,
            (SELECT count(*)::int FROM nino n WHERE n.cuaderno_id = cu.id) AS ocupadas
     FROM cuaderno cu JOIN establecimiento e ON e.id = cu.servicio_id
     LEFT JOIN comunidad c ON c.id = cu.comunidad_id LEFT JOIN sector s ON s.id = cu.sector_id
-    WHERE ($1::int IS NULL OR cu.anio = $1) AND ($2::int IS NULL OR cu.comunidad_id = $2)
-    ORDER BY cu.anio DESC, cu.numero`, [anio || null, comunidad || null]);
+    WHERE ($1::int IS NULL OR cu.anio = $1) AND ($2::int IS NULL OR cu.comunidad_id = $2) AND ($3::int[] IS NULL OR cu.comunidad_id = ANY($3))
+    ORDER BY cu.anio DESC, cu.numero`, [anio || null, comunidad || null, alcance]);
   res.json(rows);
 });
 
@@ -38,6 +41,8 @@ router.get('/:id', permitir(...TODOS), async (req, res) => {
     SELECT cu.*, e.nombre AS servicio, c.nombre AS comunidad, s.nombre AS sector
     FROM cuaderno cu JOIN establecimiento e ON e.id = cu.servicio_id
     LEFT JOIN comunidad c ON c.id = cu.comunidad_id LEFT JOIN sector s ON s.id = cu.sector_id WHERE cu.id = $1`, [req.params.id]);
+  const alcance = await alcanceDe(pool, req.usuario);
+  if (cu && alcance && !alcance.includes(cu.comunidad_id)) return res.status(403).json({ error: 'Este cuaderno es de otro puesto de salud.' });
   if (!cu) return res.status(404).json({ error: 'Cuaderno no encontrado.' });
   const { rows: ninos } = await pool.query(`
     SELECT n.id, n.fila, n.nombre_completo, n.cui, n.fecha_nacimiento, n.sexo, n.estado, r.nombre_completo AS responsable, r.telefono,

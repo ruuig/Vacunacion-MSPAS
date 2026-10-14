@@ -1,7 +1,8 @@
 // Casos de seguimiento: un caso = un niño con alertas abiertas (análisis del flujo operativo, F3).
 // El contacto se registra una vez por niño; la asignación define "Mis casos"; el escalamiento sale de los intentos.
 const router = require('express').Router();
-const { SQL_TERRITORIO } = require('../territorio');
+const { SQL_TERRITORIO, soloSuSector } = require('../territorio');
+router.param('ninoId', soloSuSector('ninoId'));
 const { pool, transaccion, registrarBitacora } = require('../db');
 const { permitir, TODOS, OPERATIVOS } = require('../middleware/auth');
 const esq = require('../servicios/esquema');
@@ -37,7 +38,7 @@ router.get('/', permitir(...TODOS), async (req, res) => {
   // El personal de un puesto o barrio solo ve su sector y los niños que le asignaron
   if (req.usuario.rol === 'vacunador') {
     const sector = new Set(await require('../territorio').territorioDe(pool, req.usuario.id));
-    if (sector.size) rows = rows.filter((r) => sector.has(r.comunidad_id) || r.asignado_id === req.usuario.id);
+    if (sector.size) rows = rows.filter((r) => sector.has(r.comunidad_id));
   }
   // Historial de contactos de los niños de la bandeja (para escalamiento y último contacto)
   const ids = [...new Set(rows.map((r) => r.nino_id))];

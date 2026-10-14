@@ -281,7 +281,6 @@ function PedidoVacunas() {
         <div className="pedido-resumen">
           <div><strong>{ninos.length}</strong><span>niños</span></div>
           <div><strong>{total}</strong><span>dosis a pedir</span></div>
-          <div><strong>{datos.reserva} %</strong><span>de reserva incluida</span></div>
         </div>
 
         {vacunas.length === 0 ? <div className="tarjeta"><Vacio icono={Package} titulo="Nadie se vacuna en este mes" /></div> : (
@@ -290,7 +289,7 @@ function PedidoVacunas() {
               <div key={v.codigo} className="pedido-vacuna">
                 <strong>{reserva(v.n)}</strong>
                 <span className="pv-nombre">{v.nombre}</span>
-                <span className="pv-detalle">{v.mes} del mes{v.atrasados ? ` + ${v.atrasados} atrasados` : ''} + {reserva(v.n) - v.n} reserva</span>
+                {v.atrasados > 0 && <span className="pv-detalle">{v.mes} del mes + {v.atrasados} atrasados</span>}
               </div>
             ))}
           </div>
@@ -328,7 +327,7 @@ function PedidoVacunas() {
           { titulo: 'Vacuna', valor: 'nombre' },
           { titulo: 'Niños del mes', valor: 'mes', num: true },
           ...(conAtrasados ? [{ titulo: 'Atrasados', valor: 'atrasados', num: true }] : []),
-          { titulo: `Reserva ${datos.reserva} %`, valor: (v) => reserva(v.n) - v.n, num: true },
+          ...(datos.reserva ? [{ titulo: `Reserva ${datos.reserva} %`, valor: (v) => reserva(v.n) - v.n, num: true }] : []),
           { titulo: 'Dosis a pedir', valor: (v) => <strong>{reserva(v.n)}</strong>, num: true },
         ]} filas={vacunas} />
         <p className="doc-nota">Cálculo según el esquema de vacunación de cada niño registrado. Total: {total} dosis para {ninos.length} niños.</p>

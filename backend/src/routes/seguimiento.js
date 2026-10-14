@@ -111,7 +111,8 @@ router.get('/mes', permitir(...TODOS), async (req, res) => {
     });
   }
   const mias = asignado === 'yo' ? new Set(await territorioDe(pool, req.usuario.id)) : null;
-  const filtrados = mias ? pendientes.filter((p) => p.asignado_id === req.usuario.id || mias.has(p.comunidad_id)) : pendientes;
+  const filtrados = soloSector ? pendientes.filter((p) => mias.has(p.comunidad_id))
+    : mias ? pendientes.filter((p) => p.asignado_id === req.usuario.id || mias.has(p.comunidad_id)) : pendientes;
   filtrados.sort((a, b) => a.comunidad.localeCompare(b.comunidad) || b.dias_atraso - a.dias_atraso);
 
   res.json({
@@ -174,7 +175,7 @@ router.get('/proyeccion', permitir(...TODOS), async (req, res) => {
     .filter((f) => f.cantidades.some(Boolean));
   const orden = (l) => l.sort((a, b) => a.comunidad.localeCompare(b.comunidad) || a.nombre_completo.localeCompare(b.nombre_completo));
   res.json({ columnas: columnas.map(({ clave, nombre }) => ({ clave, nombre, ninos: orden(quienes[clave]) })), filas, nacimientos_por_mes: porMes,
-    reserva: Number(ctx.params.porcentaje_reserva_jornada) || 10 });
+    reserva: Number(ctx.params.porcentaje_reserva_jornada) || 0 });
 });
 
 module.exports = router;

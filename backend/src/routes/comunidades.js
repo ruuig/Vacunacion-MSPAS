@@ -35,7 +35,7 @@ router.get('/tablero', permitir(...TODOS), async (req, res) => {
       (SELECT max(j.fecha) FROM jornada j JOIN jornada_comunidad jc ON jc.jornada_id = j.id
        WHERE jc.comunidad_id = c.id AND j.estado <> 'cancelada') AS ultima_jornada
     FROM comunidad c LEFT JOIN sector s ON s.id = c.sector_id LEFT JOIN territorio t ON t.id = s.territorio_id
-    WHERE c.activo ORDER BY c.nombre`, [anio]);
+    WHERE c.activo AND ($2::int[] IS NULL OR c.id = ANY($2)) ORDER BY c.nombre`, [anio, await require('../territorio').alcanceDe(pool, req.usuario)]);
   res.json(rows.map((r) => ({ ...r, cobertura_dpt3: r.meta_menor_1 ? Math.round((r.dpt3_anio / r.meta_menor_1) * 1000) / 10 : null })));
 });
 

@@ -69,7 +69,8 @@ router.get('/mes', permitir(...TODOS), async (req, res) => {
   const desde = `${anio}-${String(mes).padStart(2, '0')}-01`;
   const hasta = new Date(Date.UTC(anio, mes, 0)).toISOString().slice(0, 10);
   const corte = hasta < hoy() ? hasta : hoy();
-  const comunidades = await filtroTerritorio(pool, req.query);
+  const sector = await require('../territorio').alcanceDe(pool, req.usuario);
+  const comunidades = sector && !req.query.comunidad ? sector : await filtroTerritorio(pool, req.query);
   const { rows: ninos } = await pool.query(`
     SELECT n.id, n.nombre_completo, n.fecha_nacimiento, n.comunidad_id, c.nombre AS comunidad, r.nombre_completo AS responsable, r.telefono
     FROM nino n JOIN comunidad c ON c.id = n.comunidad_id

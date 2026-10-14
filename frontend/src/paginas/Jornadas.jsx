@@ -75,7 +75,6 @@ export function ListaJornadas() {
   );
 }
 
-const RESERVAS = [0, 10, 20];
 
 export function NuevaJornada() {
   const { usuario } = useSesion();
@@ -83,7 +82,7 @@ export function NuevaJornada() {
   const ir = useNavigate();
   const comunidades = useCatalogo('comunidades');
   const productos = useCatalogo('productos');
-  const [f, setF] = useState({ fecha: hoy(), porcentaje_reserva: 10, observaciones: '', responsable_id: String(usuario.id) });
+  const [f, setF] = useState({ fecha: hoy(), porcentaje_reserva: 0, observaciones: '', responsable_id: String(usuario.id) });
   const [equipo, setEquipo] = useState(new Set());
   const [elegidas, setElegidas] = useState(params.get('comunidad') ? [Number(params.get('comunidad'))] : null);
   const [previa, setPrevia] = useState(null);
@@ -154,15 +153,6 @@ export function NuevaJornada() {
               {personal.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
               {!personal.some((p) => String(p.id) === f.responsable_id) && <option value={usuario.id}>{usuario.nombre}</option>}
             </select>
-          </Campo>
-          <Campo etiqueta="Reserva de vacunas" ayuda="Dosis extra por pérdidas o niños nuevos encontrados">
-            <div className="segmentado">
-              {RESERVAS.map((r) => (
-                <button key={r} type="button" className={reserva === r ? 'activa' : ''} onClick={() => setF({ ...f, porcentaje_reserva: r })}>
-                  {r} %
-                </button>
-              ))}
-            </div>
           </Campo>
           <div className="campo ancho">
             <span>También salen (solo el equipo verá la jornada)</span>
@@ -382,7 +372,7 @@ export function JornadaDetalle() {
 
   const tarjetaBiologicos = (
     <Tarjeta titulo="Vacunas a llevar" icono={Package} cuerpo={false}
-      sub={preparacion ? `Calculadas con ${Number(j.porcentaje_reserva)} % de reserva; ajuste o agregue otras antes de iniciar` : 'Fijas desde que inició la jornada'}
+      sub={preparacion ? 'Ajuste o agregue otras antes de iniciar' : 'Fijas desde que inició la jornada'}
       pie={editaPreparacion && (
         <div className="acciones" style={{ justifyContent: 'space-between' }}>
           {sinAgregar.length > 0 ? (

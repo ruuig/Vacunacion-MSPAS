@@ -45,8 +45,13 @@ const insertar = (tabla, o) => [
   Object.values(o)];
 
 // Búsqueda: nombre del niño o del responsable (aproximada), CUI de cualquiera, No. de registro del carné o fecha
+// Personal de puesto: solo niños de su sector (las rutas con :id se revisan con soloSuSector)
+const { alcanceDe, soloSuSector } = require('../territorio');
+router.param('id', soloSuSector('id'));
+
 router.get('/', permitir(...TODOS), async (req, res) => {
   const { q = '', comunidad, estado } = req.query;
+  const alcance = await alcanceDe(pool, req.usuario);
   const { rows } = await pool.query(`
     SELECT n.id, n.nombre_completo, n.cui, n.fecha_nacimiento, n.estado, n.fila, c.nombre AS comunidad,
            cu.numero AS cuaderno_numero, cu.anio AS cuaderno_anio, r.nombre_completo AS responsable,
@@ -59,8 +64,8 @@ router.get('/', permitir(...TODOS), async (req, res) => {
     WHERE ($1 = '' OR n.cui = $1 OR r.cui = $1 OR n.numero_registro_carne = $1 OR n.fecha_nacimiento::text = $1
            OR f_unaccent(n.nombre_completo) % f_unaccent($1) OR f_unaccent(n.nombre_completo) ILIKE '%' || f_unaccent($1) || '%'
            OR f_unaccent(r.nombre_completo) % f_unaccent($1) OR f_unaccent(r.nombre_completo) ILIKE '%' || f_unaccent($1) || '%')
-      AND ($2::int IS NULL OR n.comunidad_id = $2) AND ($3::text IS NULL OR n.estado = $3)
-    ORDER BY sim DESC, n.primer_apellido LIMIT 50`, [q.trim().toUpperCase(), comunidad || null, estado || null]);
+      AND ($2::int IS NULL OR n.comunidad_id = $2) AND ($3::text IS NULL OR n.estado = $3) AND ($4::int[] IS NULL OR n.comunidad_id = ANY($4))
+    ORDER BY sim DESC, n.primer_apellido LIMIT 50`, [q.trim().toUpperCase(), comunidad || null, estado || null, alcance]);
   res.json(rows);
 });
 
@@ -85,6 +90,9 @@ router.post('/', permitir(...OPERATIVOS), async (req, res) => {
   const { responsable, parentesco, ...datos } = req.body || {};
   if (!responsable) return res.status(400).json({ error: 'Faltan los datos de la madre, padre o responsable.' });
   if (!['madre', 'padre', 'otro'].includes(parentesco)) return res.status(400).json({ error: 'Indique el parentesco.' });
+  const alcance = await alcanceDe(pool, req.usuario);
+  if (alcance && responsable.comunidad_id && !alcance.includes(Number(responsable.comunidad_id)))
+    return res.status(403).json({ error: 'Esa comunidad es de otro puesto de salud.' });
   if (datos.fecha_nacimiento && mesesEntre(datos.fecha_nacimiento, hoy()) >= 84)
     return res.status(400).json({ error: 'El cuaderno SIGSA 5a registra niñas y niños menores de 7 años.' });
 
@@ -106,12 +114,13 @@ router.post('/', permitir(...OPERATIVOS), async (req, res) => {
 router.get('/citas', permitir(...TODOS), async (req, res) => {
   const { desde = hoy(), hasta, comunidad } = req.query;
   if (!hasta) return res.status(400).json({ error: 'Indique hasta qué fecha.' });
+  const alcance = await alcanceDe(pool, req.usuario);
   const { rows } = await pool.query(`
     SELECT n.id, n.nombre_completo, n.fecha_nacimiento, n.fila, c.nombre AS comunidad, cu.numero AS cuaderno_numero,
            cu.anio AS cuaderno_anio, r.nombre_completo AS responsable, r.telefono
     FROM nino n JOIN comunidad c ON c.id = n.comunidad_id LEFT JOIN cuaderno cu ON cu.id = n.cuaderno_id
     LEFT JOIN nino_responsable nr ON nr.nino_id = n.id AND nr.es_principal LEFT JOIN responsable r ON r.id = nr.responsable_id
-    WHERE n.estado = 'activo' AND ($1::int IS NULL OR n.comunidad_id = $1)`, [comunidad || null]);
+    WHERE n.estado = 'activo' AND ($1::int IS NULL OR n.comunidad_id = $1) AND ($2::int[] IS NULL OR n.comunidad_id = ANY($2))`, [comunidad || null, alcance]);
   const ctx = { catalogo: await esq.cargarCatalogo(pool), params: await esq.cargarParametros(pool) };
   const citas = [];
   for (const n of rows) {

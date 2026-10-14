@@ -3,7 +3,8 @@ const { pool } = require('../db');
 const { permitir, TODOS } = require('../middleware/auth');
 
 // Listas de solo lectura para los formularios (el CRUD completo va en administración)
-router.get('/comunidades', permitir(...TODOS), async (_req, res) => {
+router.get('/comunidades', permitir(...TODOS), async (req, res) => {
+  const alcance = await require('../territorio').alcanceDe(pool, req.usuario);
   const { rows } = await pool.query(`
     SELECT c.id, c.nombre, c.tipo, c.sector_id, s.nombre AS sector, t.nombre AS territorio,
            c.es_central, coalesce(ur.nombre, c.responsable) AS responsable, c.responsable_id, c.distancia_km, c.comunidad_padre_id,
@@ -11,7 +12,7 @@ router.get('/comunidades', permitir(...TODOS), async (_req, res) => {
     FROM comunidad c LEFT JOIN sector s ON s.id = c.sector_id LEFT JOIN territorio t ON t.id = s.territorio_id
     LEFT JOIN comunidad p ON p.id = c.comunidad_padre_id
     LEFT JOIN usuario ur ON ur.id = c.responsable_id LEFT JOIN usuario up ON up.id = p.responsable_id
-    WHERE c.activo ORDER BY c.nombre`);
+    WHERE c.activo AND ($1::int[] IS NULL OR c.id = ANY($1)) ORDER BY c.nombre`, [alcance]);
   res.json(rows);
 });
 

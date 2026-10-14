@@ -99,7 +99,7 @@ router.post('/', permitir('enfermera'), async (req, res) => {
   const j = await transaccion(async (c) => {
     const params = await esq.cargarParametros(c);
     const catalogo = await esq.cargarCatalogo(c);
-    const reserva = porcentaje_reserva ?? params.porcentaje_reserva_jornada ?? 10;
+    const reserva = Number(porcentaje_reserva ?? params.porcentaje_reserva_jornada ?? 0);
     const { rows: [j] } = await c.query(
       'INSERT INTO jornada (fecha, responsable_id, porcentaje_reserva, observaciones) VALUES ($1,$2,$3,$4) RETURNING *',
       [fecha, responsable_id || req.usuario.id, reserva, observaciones || null]);
