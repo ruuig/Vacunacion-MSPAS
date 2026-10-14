@@ -115,7 +115,7 @@ router.post('/', permitir('enfermera'), async (req, res) => {
     for (const p of productos) {
       const n = totales[p.codigo];
       await c.query('INSERT INTO jornada_biologico (jornada_id, producto_id, dosis_estimadas, dosis_llevadas) VALUES ($1,$2,$3,$4)',
-        [j.id, p.id, n, Math.ceil(n * (1 + reserva / 100))]);
+        [j.id, p.id, n, n]); // cabales: ni una más
     }
     await registrarBitacora(c, req, 'crear', 'jornada', j.id, null, { ...j, comunidad_ids });
     return j;
@@ -145,7 +145,7 @@ router.get('/:id', permitir(...TODOS), soloEquipo, async (req, res) => {
       LEFT JOIN nino_responsable nr ON nr.nino_id = n.id AND nr.es_principal LEFT JOIN responsable r ON r.id = nr.responsable_id
       WHERE jn.jornada_id = $1 ORDER BY c.nombre, n.primer_apellido, n.primer_nombre`, [j.id]),
     pool.query(`
-      SELECT p.id AS producto_id, p.nombre, coalesce(jb.dosis_estimadas, 0) AS dosis_estimadas, jb.dosis_llevadas, jb.dosis_devueltas,
+      SELECT p.id AS producto_id, p.nombre, coalesce(jb.dosis_estimadas, 0) AS dosis_estimadas, jb.dosis_llevadas, jb.dosis_devueltas, coalesce(jb.llevada, false) AS llevada,
              (SELECT count(*) FROM aplicacion a WHERE a.jornada_id = $1 AND a.producto_id = p.id AND NOT a.anulada)::int AS aplicadas
       FROM producto p LEFT JOIN jornada_biologico jb ON jb.producto_id = p.id AND jb.jornada_id = $1
       WHERE jb.jornada_id IS NOT NULL OR EXISTS (SELECT 1 FROM aplicacion a WHERE a.jornada_id = $1 AND a.producto_id = p.id)
@@ -213,6 +213,15 @@ router.put('/:id/biologicos', permitir(...OPERATIVOS), soloEquipo, async (req, r
     await registrarBitacora(c, req, 'editar', 'jornada_biologico', req.params.id, null, { biologicos });
   });
   res.json({ ok: true });
+});
+
+// Marcar una vacuna como guardada en el termo (lista para salir)
+router.put('/:id/biologicos/:productoId/llevada', permitir(...OPERATIVOS), soloEquipo, async (req, res) => {
+  const { rowCount } = await pool.query(
+    `UPDATE jornada_biologico jb SET llevada = $3 FROM jornada j
+     WHERE j.id = jb.jornada_id AND j.estado IN ('planificada', 'en_curso') AND jb.jornada_id = $1 AND jb.producto_id = $2`,
+    [req.params.id, req.params.productoId, Boolean(req.body?.llevada)]);
+  rowCount ? res.json({ ok: true }) : res.status(409).json({ error: 'La jornada ya se cerró.' });
 });
 
 // Cerrar: quien no recibió dosis queda como inasistencia y genera alerta

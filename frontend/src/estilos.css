@@ -1878,3 +1878,14 @@ label.btn.deshabilitado { opacity: .55; pointer-events: none; }
   .control-grupo span { font-size: .88rem; }
 }
 @media (max-width: 700px) { .control-barra > * { min-width: 0; max-width: 100%; } .control-barra select { width: 100%; } }
+
+/* Vacunas a llevar: cantidad cabal y casilla para marcar al guardarla en el termo */
+.llevar-num { font-size: 1.25rem; font-weight: 900; }
+.celda-llevada { width: 1%; text-align: right; white-space: nowrap; }
+.btn-llevada { display: inline-flex; align-items: center; gap: .4rem; padding: .55rem 1rem; border-radius: 14px; font: inherit; font-weight: 800; cursor: pointer;
+  background: #fff; color: var(--texto-suave, #5b6478); border: 2px solid #dfe3ea; border-bottom-width: 4px; transition: transform .08s; }
+.btn-llevada svg { opacity: .35; }
+.btn-llevada:active { transform: translateY(2px); border-bottom-width: 2px; }
+.btn-llevada.si { background: #1a8f57; color: #fff; border-color: #1a8f57; border-bottom-color: var(--verde-hondo, #12683f); }
+.btn-llevada.si svg { opacity: 1; }
+.btn-llevada:disabled { cursor: default; }

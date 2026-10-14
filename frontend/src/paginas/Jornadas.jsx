@@ -339,6 +339,9 @@ export function JornadaDetalle() {
     }
   };
   async function iniciar() {
+    const faltan = j.biologicos.filter((b) => b.dosis_llevadas > 0 && !b.llevada);
+    if (faltan.length && !await confirmar({ titulo: '¿Ya lleva todas las vacunas?',
+      mensaje: `Falta marcar: ${faltan.map((b) => b.nombre).join(', ')}.`, aceptar: 'Sí, ya las llevo' })) return;
     try {
       await api(`/jornadas/${id}/iniciar`, { method: 'POST' });
       avisar('Jornada iniciada: ya puede vacunar.');
@@ -359,6 +362,16 @@ export function JornadaDetalle() {
   };
   const confirmarCierre = (devueltas) => accion(() => api(`/jornadas/${id}/cerrar`, { method: 'POST', body: { devueltas } }),
     (r) => { setCerrando(false); borrarJornada(id); setCopia(null); return `Jornada cerrada. ${r.inasistencias === 1 ? '1 niño no llegó' : `${r.inasistencias} niños no llegaron`}: pasan al control del mes.`; });
+  const marcarLlevada = async (b) => {
+    const llevada = !b.llevada;
+    setBiologicos((l) => l.map((x) => (x.producto_id === b.producto_id ? { ...x, llevada } : x)));
+    try {
+      await api(`/jornadas/${id}/biologicos/${b.producto_id}/llevada`, { method: 'PUT', body: { llevada } });
+      setJ((x) => ({ ...x, biologicos: x.biologicos.map((y) => (y.producto_id === b.producto_id ? { ...y, llevada } : y)) }));
+    }
+    catch (e) { avisar(e.message, 'error'); setBiologicos(j.biologicos); }
+  };
+  const listas = biologicos.filter((b) => b.llevada).length;
   const setBio = (i, k) => (e) => setBiologicos(biologicos.map((b, x) => (x === i ? { ...b, [k]: e.target.value } : b)));
   const agregarVacuna = (productoId) => {
     const p = productos.find((x) => String(x.id) === String(productoId));
@@ -372,7 +385,7 @@ export function JornadaDetalle() {
 
   const tarjetaBiologicos = (
     <Tarjeta titulo="Vacunas a llevar" icono={Package} cuerpo={false}
-      sub={preparacion ? 'Ajuste o agregue otras antes de iniciar' : 'Fijas desde que inició la jornada'}
+      sub={preparacion ? (biologicos.length ? `Cabales, ni una más · ${listas} de ${biologicos.length} listas` : null) : 'Fijas desde que inició la jornada'}
       pie={editaPreparacion && (
         <div className="acciones" style={{ justifyContent: 'space-between' }}>
           {sinAgregar.length > 0 ? (
@@ -391,15 +404,25 @@ export function JornadaDetalle() {
       )}>
       <Tabla className="tabla-biologicos">
         <thead>
-          <tr><th>Vacuna</th><th className="celda-num">Calculadas</th><th className="celda-num">Llevar</th>
+          <tr><th>Vacuna</th><th className="celda-num">Llevar</th>{preparacion && <th className="celda-llevada">Llevada</th>}
             {alCierre && <><th className="celda-num">Aplicadas</th><th className="celda-num">Devueltas</th></>}</tr>
         </thead>
         <tbody>
           {biologicos.map((b, i) => (
             <tr key={b.producto_id}>
               <td className="fuerte">{b.nombre}{(b.agregada || !b.dosis_estimadas) && <span className="etiqueta">Agregada</span>}</td>
-              <td className="celda-num">{b.dosis_estimadas || '—'}</td>
-              <td className="celda-num">{editaPreparacion ? <input type="number" min="0" className="num-input" value={b.dosis_llevadas ?? ''} onChange={setBio(i, 'dosis_llevadas')} aria-label={`${b.nombre} llevadas`} /> : b.dosis_llevadas ?? '—'}</td>
+              {/* Las calculadas van cabales y no se cambian; solo una vacuna agregada a mano lleva cantidad */}
+              <td className="celda-num"><strong className="llevar-num">{editaPreparacion && !b.dosis_estimadas
+                ? <input type="number" min="0" className="num-input" value={b.dosis_llevadas ?? ''} onChange={setBio(i, 'dosis_llevadas')} aria-label={`${b.nombre} a llevar`} />
+                : b.dosis_llevadas ?? '—'}</strong></td>
+              {preparacion && (
+                <td className="celda-llevada">
+                  <button type="button" className={`btn-llevada ${b.llevada ? 'si' : ''}`} disabled={!delPersonal || sinRed || !b.dosis_llevadas}
+                    aria-pressed={b.llevada} onClick={() => marcarLlevada(b)}>
+                    <Check size={18} />{b.llevada ? 'Llevada' : 'Marcar'}
+                  </button>
+                </td>
+              )}
               {alCierre && (
                 <>
                   <td className="celda-num">{b.aplicadas}</td>
@@ -408,7 +431,7 @@ export function JornadaDetalle() {
               )}
             </tr>
           ))}
-          {biologicos.length === 0 && <tr><td colSpan={alCierre ? 5 : 3} className="tenue">Sin vacunas calculadas.</td></tr>}
+          {biologicos.length === 0 && <tr><td colSpan={alCierre ? 4 : 3} className="tenue">Sin vacunas calculadas.</td></tr>}
         </tbody>
       </Tabla>
     </Tarjeta>
