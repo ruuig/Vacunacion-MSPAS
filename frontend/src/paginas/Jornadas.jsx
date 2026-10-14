@@ -36,6 +36,13 @@ export function ListaJornadas() {
   useEffect(() => { api('/jornadas').then(setJornadas).catch((e) => setError(e.message)); }, []);
   const esEnfermera = puede(usuario.rol, 'enfermera');
   const porCerrar = (jornadas || []).filter((j) => estadoJornada(j) === 'por_cerrar').length;
+  const [filtro, setFiltro] = useState('');
+  // Primero lo que está pasando hoy, luego lo que falta cerrar, lo que viene y al final lo ya hecho
+  const ORDEN = { en_curso: 0, por_cerrar: 1, planificada: 2, cerrada: 3, cancelada: 4 };
+  const lista = (jornadas || []).map((j) => ({ ...j, est: estadoJornada(j) }))
+    .sort((a, b) => ORDEN[a.est] - ORDEN[b.est] || (a.est === 'planificada' ? a.fecha.localeCompare(b.fecha) : b.fecha.localeCompare(a.fecha)));
+  const cuenta = (e) => lista.filter((j) => j.est === e).length;
+  const visibles = lista.filter((j) => !filtro || j.est === filtro);
 
   return (
     <>
@@ -56,20 +63,28 @@ export function ListaJornadas() {
           </Vacio>
         </div>
       ) : (
+        <>
+        <div className="chips-filtro">
+          {[['', 'Todas', lista.length], ['en_curso', 'En curso'], ['por_cerrar', 'Por cerrar'], ['planificada', 'Planificadas'], ['cerrada', 'Realizadas'], ['cancelada', 'Canceladas']]
+            .map(([k, t, n = cuenta(k)]) => (k && !n ? null : (
+              <button key={k} className={`chip-filtro ${filtro === k ? 'activa' : ''} ${k === 'en_curso' ? 'chip-en-curso' : ''}`} onClick={() => setFiltro(k)}>{t} ({n})</button>
+            )))}
+        </div>
         <Tabla>
           <thead><tr><th>Fecha</th><th>Comunidades</th><th>Equipo</th><th>Vacunados de la lista</th><th>Estado</th></tr></thead>
           <tbody>
-            {jornadas.map((j) => (
-              <tr key={j.id} className="clicable" onClick={() => ir(`/jornadas/${j.id}`)}>
+            {visibles.map((j) => (
+              <tr key={j.id} className={`clicable ${j.est === 'en_curso' ? 'fila-en-curso' : ''}`} onClick={() => ir(`/jornadas/${j.id}`)}>
                 <td><Link className="nombre-link" to={`/jornadas/${j.id}`}>{fecha(j.fecha)}</Link></td>
                 <td>{j.comunidades}</td>
                 <td>{j.equipo || j.responsable}</td>
                 <td>{j.estado === 'cancelada' ? <span className="tenue">—</span> : <Avance hechos={j.vacunados} total={j.convocados} />}</td>
-                <td><Estado de={estadoJornada(j)} /></td>
+                <td><Estado de={j.est} grande={j.est === 'en_curso'} /></td>
               </tr>
             ))}
           </tbody>
         </Tabla>
+        </>
       )}
     </>
   );
@@ -90,6 +105,7 @@ export function NuevaJornada() {
   const [personal, setPersonal] = useState([]);
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
+  const [viendoResumen, setViendoResumen] = useState(false);
 
   useEffect(() => {
     api('/comunidades/tablero').then(setTablero).catch(() => setTablero([]));
@@ -110,7 +126,8 @@ export function NuevaJornada() {
     if (elegidas !== null || !previa || !tablero) return;
     setElegidas(tablero.filter((c) => nivelComunidad(c, maximo) === 'critica' && previa[c.id]?.ninos).map((c) => c.id));
   }, [previa, tablero, elegidas, maximo]);
-  const marcadas = elegidas || [];
+  // Una comunidad sin nadie con vacunas ese día no se puede elegir (no hay a quién vacunar)
+  const marcadas = (elegidas || []).filter((id) => !previa || previa[id]);
   const alternar = (id) => setElegidas(marcadas.includes(id) ? marcadas.filter((x) => x !== id) : [...marcadas, id]);
 
   // Resumen en vivo de lo elegido: niños, dosis y biológicos a llevar (con reserva)
@@ -129,7 +146,9 @@ export function NuevaJornada() {
   const reserva = Number(f.porcentaje_reserva) || 0;
 
   async function crear(e) {
-    e.preventDefault();
+    e?.preventDefault();
+    // Primero se ve el resumen; desde ahí se confirma
+    if (!viendoResumen) { setViendoResumen(true); return; }
     setError('');
     setGuardando(true);
     try {
@@ -137,8 +156,10 @@ export function NuevaJornada() {
         ...f, porcentaje_reserva: reserva, responsable_id: Number(f.responsable_id), comunidad_ids: marcadas, equipo_ids: [...equipo],
       } });
       ir('/jornadas/' + j.id);
-    } catch (err) { setError(err.message); setGuardando(false); }
+    } catch (err) { setError(err.message); setGuardando(false); setViendoResumen(false); }
   }
+  const nombrePersona = (id) => personal.find((p) => String(p.id) === String(id))?.nombre || (String(id) === String(usuario.id) ? usuario.nombre : '');
+  const fechaLarga = new Date(`${f.fecha}T12:00:00Z`).toLocaleDateString('es-GT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 
   return (
     <form onSubmit={crear}>
@@ -178,7 +199,7 @@ export function NuevaJornada() {
             const nivel = t ? nivelComunidad(t, maximo) : 'al_dia';
             return (
               <label key={c.id} className={`casilla ${marcadas.includes(c.id) ? 'marcada' : ''} ${p ? '' : 'sin-ninos'}`}>
-                <input type="checkbox" checked={marcadas.includes(c.id)} onChange={() => alternar(c.id)} />
+                <input type="checkbox" checked={marcadas.includes(c.id)} onChange={() => alternar(c.id)} disabled={previa !== null && !p} />
                 <span className="casilla-texto">
                   <span className="casilla-nombre">{c.nombre}</span>
                   <span className="sub">
@@ -211,11 +232,39 @@ export function NuevaJornada() {
         )}
         <div className="acciones">
           <button type="button" className="btn" onClick={() => ir(-1)}>Cancelar</button>
-          <button className="btn btn-primario" disabled={guardando || !marcadas.length}>
-            <Truck size={18} />{guardando ? 'Calculando listado…' : `Crear jornada${resumen.ninos ? ` con ${plural(resumen.ninos, 'niño', 'niños')}` : ''}`}
+          <button className="btn btn-primario" disabled={!marcadas.length}>
+            <ClipboardList size={18} />Ver resumen de la jornada
           </button>
         </div>
       </section>
+
+      {viendoResumen && (
+        <Modal titulo="Resumen de la jornada" onCerrar={() => setViendoResumen(false)}
+          pie={<>
+            <button type="button" className="btn" onClick={() => setViendoResumen(false)}>Volver a editar</button>
+            <button type="button" className="btn btn-verde" disabled={guardando} onClick={() => crear()}>
+              <Check size={18} />{guardando ? 'Creando…' : 'Crear jornada'}
+            </button>
+          </>}>
+          <dl className="resumen-confirmar">
+            <div><dt>Fecha</dt><dd>{fechaLarga.replace(/^\w/, (x) => x.toUpperCase())}</dd></div>
+            <div><dt>Responsable</dt><dd>{nombrePersona(f.responsable_id)}</dd></div>
+            {equipo.size > 0 && <div><dt>Equipo</dt><dd>{[...equipo].map(nombrePersona).join(', ')}</dd></div>}
+            <div><dt>Comunidades</dt><dd>
+              <ul className="rc-lista">
+                {marcadas.map((id) => <li key={id}><span>{comunidades.find((c) => c.id === id)?.nombre}</span><b>{plural(previa?.[id]?.ninos || 0, 'niño', 'niños')}</b></li>)}
+              </ul>
+            </dd></div>
+            <div><dt>Vacunas a llevar</dt><dd>
+              <ul className="rc-lista">
+                {Object.entries(resumen.productos).sort((a, b) => b[1] - a[1]).map(([p, n]) => <li key={p}><span>{nombreProducto(p)}</span><b>{n}</b></li>)}
+              </ul>
+            </dd></div>
+            {f.observaciones && <div><dt>Observaciones</dt><dd>{f.observaciones}</dd></div>}
+          </dl>
+          <div className="rc-total"><strong>{plural(resumen.ninos, 'niño', 'niños')}</strong> · {Object.values(resumen.productos).reduce((t, n) => t + n, 0)} vacunas a poner</div>
+        </Modal>
+      )}
     </form>
   );
 }
@@ -351,9 +400,6 @@ export function JornadaDetalle() {
     }
   };
   async function iniciar() {
-    const faltan = j.biologicos.filter((b) => b.dosis_llevadas > 0 && !b.llevada);
-    if (faltan.length && !await confirmar({ titulo: '¿Ya lleva todas las vacunas?',
-      mensaje: `Falta marcar: ${faltan.map((b) => b.nombre).join(', ')}.`, aceptar: 'Sí, ya las llevo' })) return;
     try {
       await api(`/jornadas/${id}/iniciar`, { method: 'POST' });
       avisar('Jornada iniciada: ya puede vacunar.');
@@ -378,12 +424,22 @@ export function JornadaDetalle() {
     const llevada = !b.llevada;
     setBiologicos((l) => l.map((x) => (x.producto_id === b.producto_id ? { ...x, llevada } : x)));
     try {
-      await api(`/jornadas/${id}/biologicos/${b.producto_id}/llevada`, { method: 'PUT', body: { llevada } });
-      setJ((x) => ({ ...x, biologicos: x.biologicos.map((y) => (y.producto_id === b.producto_id ? { ...y, llevada } : y)) }));
+      await api(`/jornadas/${id}/biologicos/${b.producto_id}/llevada`, { method: 'PUT', body: { llevada, dosis_llevadas: b.dosis_llevadas } });
+      // Queda guardada (con su cantidad si era agregada): ya no cuenta como cambio pendiente
+      const guardada = { ...b, llevada, dosis_llevadas: b.dosis_llevadas === '' ? null : Number(b.dosis_llevadas) };
+      setBiologicos((l) => l.map((x) => (x.producto_id === b.producto_id ? guardada : x)));
+      setJ((x) => ({ ...x, biologicos: x.biologicos.some((y) => y.producto_id === b.producto_id)
+        ? x.biologicos.map((y) => (y.producto_id === b.producto_id ? guardada : y)) : [...x.biologicos, guardada] }));
     }
     catch (e) { avisar(e.message, 'error'); setBiologicos(j.biologicos); }
   };
   const listas = biologicos.filter((b) => b.llevada).length;
+  // Para iniciar, cada vacuna se marca a conciencia como llevada (sin señal no se exige: no se puede guardar la marca)
+  const porMarcar = sinRed ? 0 : biologicos.filter((b) => b.dosis_llevadas > 0 && !b.llevada).length;
+  const irAVacunas = () => {
+    if (esCelular) setPestana('vacunas');
+    setTimeout(() => document.querySelector('.tabla-biologicos')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+  };
   const setBio = (i, k) => (e) => setBiologicos(biologicos.map((b, x) => (x === i ? { ...b, [k]: e.target.value } : b)));
   const agregarVacuna = (productoId) => {
     const p = productos.find((x) => String(x.id) === String(productoId));
@@ -541,12 +597,14 @@ export function JornadaDetalle() {
         <div className={`etapa-jornada no-imprimir ${yaPaso ? 'lista' : ''}`}>
           <span className="ic"><PlayCircle size={24} /></span>
           <span className="texto">
-            <strong>{yaPaso ? 'Inicie la jornada para comenzar a vacunar' : `Preparación · se inicia el ${fecha(j.fecha)}`}</strong>
+            <strong>{yaPaso ? (porMarcar ? 'Antes de salir, marque cada vacuna que lleva' : 'Inicie la jornada para comenzar a vacunar') : `Preparación · se inicia el ${fecha(j.fecha)}`}</strong>
             <span>{yaPaso
               ? 'Al iniciarla, las vacunas llevadas quedan fijas y se habilita vacunar y marcar a los que no llegan.'
               : 'Revise las vacunas a llevar y el equipo. El día de la jornada aparecerá aquí el botón para iniciarla.'}</span>
           </span>
-          {yaPaso && <button className="btn btn-verde btn-grande" onClick={iniciar}><PlayCircle size={20} />Iniciar jornada</button>}
+          {yaPaso && (porMarcar > 0
+            ? <button className="btn btn-grande" onClick={irAVacunas}><Package size={20} />Marque las vacunas que lleva · faltan {porMarcar}</button>
+            : <button className="btn btn-verde btn-grande" onClick={iniciar}><PlayCircle size={20} />Iniciar jornada</button>)}
         </div>
       )}
       {estado === 'por_cerrar' && puede(usuario.rol, 'enfermera') && (

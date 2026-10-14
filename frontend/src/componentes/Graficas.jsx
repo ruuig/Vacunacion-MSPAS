@@ -16,7 +16,7 @@ const EJE = { fontSize: 12, fill: '#5b6680' };
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
 /** Contenedor de gráfica con botón "Ver tabla". */
-export function ConTabla({ tabla, children, alta, baja }) {
+export function ConTabla({ tabla, children, alta, baja, libre }) {
   const [verTabla, setVerTabla] = useState(false);
   return (
     <>
@@ -25,7 +25,7 @@ export function ConTabla({ tabla, children, alta, baja }) {
           <Table2 size={15} />{verTabla ? 'Ver gráfica' : 'Ver tabla'}
         </button>
       </div>
-      {verTabla ? tabla : <div className={`grafica ${alta ? 'alta' : ''} ${baja ? 'baja' : ''}`}>{children}</div>}
+      {verTabla ? tabla : <div className={`grafica ${alta ? 'alta' : ''} ${baja ? 'baja' : ''} ${libre ? 'libre' : ''}`}>{children}</div>}
     </>
   );
 }
@@ -106,8 +106,9 @@ export function GraficaBarras({ datos, campo, etiqueta, unidad = '', onClic, col
     </table></div>
   );
   return (
-    <ConTabla tabla={tabla}>
-      <div style={{ height: alto, maxHeight: 420 }}>
+    // La altura la da el número de barras (no la fija de las demás gráficas)
+    <ConTabla tabla={tabla} libre>
+      <div style={{ height: alto }}>
         <ResponsiveContainer>
           <BarChart data={datos} layout="vertical" margin={{ top: 0, right: 40, bottom: 0, left: 8 }} barCategoryGap={6}>
             <XAxis type="number" hide />

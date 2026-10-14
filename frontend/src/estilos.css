@@ -1918,3 +1918,23 @@ label.btn.deshabilitado { opacity: .55; pointer-events: none; }
 .carne-completas.lejanas small { color: var(--suave); font-size: .82rem; }
 .carne-completas.lejanas .cc-ver { flex: none; display: inline-flex; align-items: center; gap: .25rem; padding: .3rem .7rem; border-radius: 999px;
   background: #fff; color: var(--celeste-2, #1f6fb2); font-weight: 800; font-size: .82rem; border: 1.5px solid #b9d9f2; }
+.grafica.libre, .grafica.libre.alta, .grafica.libre.baja { height: auto !important; }
+/* Jornadas: la que está en curso resalta (verde vivo) */
+tr.fila-en-curso td { background: #e9f8ef; }
+tr.fila-en-curso td:first-child { box-shadow: inset 5px 0 0 #1a8f57; }
+tr.fila-en-curso:hover td { background: #dcf3e5; }
+tr.fila-en-curso .estado.grande { background: #1a8f57; border-color: #1a8f57; color: #fff; }
+tr.fila-en-curso .estado.grande .ic { background: rgba(255,255,255,.2); color: #fff; }
+.chip-filtro.chip-en-curso { border-color: #9fdcb9; color: #12683f; }
+.chip-filtro.chip-en-curso.activa { background: #1a8f57; border-color: #1a8f57; color: #fff; }
+.casilla.sin-ninos { cursor: not-allowed; } .casilla.sin-ninos input { cursor: not-allowed; }
+/* Resumen antes de crear la jornada */
+.resumen-confirmar { display: grid; gap: .8rem; margin: 0; }
+.resumen-confirmar > div { display: grid; grid-template-columns: 130px 1fr; gap: .6rem; align-items: start; }
+.resumen-confirmar dt { font-weight: 800; color: var(--suave); font-size: .85rem; padding-top: .1rem; }
+.resumen-confirmar dd { margin: 0; font-weight: 700; }
+.rc-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: .25rem; }
+.rc-lista li { display: flex; justify-content: space-between; gap: 1rem; padding: .35rem .6rem; border-radius: 10px; background: var(--superficie-2, #f3f5f9); font-weight: 600; }
+.rc-lista b { font-weight: 900; white-space: nowrap; }
+.rc-total { margin-top: 1rem; padding: .8rem 1rem; border-radius: 14px; background: var(--verde-bg, #e9f8ef); color: #12683f; text-align: center; font-weight: 700; }
+@media (max-width: 600px) { .resumen-confirmar > div { grid-template-columns: 1fr; gap: .2rem; } }

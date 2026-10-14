@@ -92,9 +92,15 @@ router.get('/', permitir(...TODOS), async (req, res) => {
 
 // Planificar: listado nominal y biológicos calculados a la fecha de la jornada (no a hoy)
 router.post('/', permitir('enfermera'), async (req, res) => {
-  const { fecha, comunidad_ids = [], porcentaje_reserva, observaciones, responsable_id, equipo_ids = [] } = req.body || {};
+  const { fecha, porcentaje_reserva, observaciones, responsable_id, equipo_ids = [] } = req.body || {};
+  let { comunidad_ids = [] } = req.body || {};
   if (!fecha || !comunidad_ids.length) return res.status(400).json({ error: 'Indique fecha y al menos una comunidad.' });
   if (fecha < hoy()) return res.status(400).json({ error: 'La jornada debe ser hoy o en una fecha futura.' });
+  // Solo comunidades donde alguien tiene vacunas ese día
+  const conNinos = new Set((await convocables(pool, fecha, comunidad_ids.map(Number),
+    { catalogo: await esq.cargarCatalogo(pool), params: await esq.cargarParametros(pool) })).map((x) => x.nino.comunidad_id));
+  comunidad_ids = comunidad_ids.map(Number).filter((id) => conNinos.has(id));
+  if (!comunidad_ids.length) return res.status(400).json({ error: 'En esas comunidades nadie tiene vacunas ese día.' });
 
   const j = await transaccion(async (c) => {
     const params = await esq.cargarParametros(c);
@@ -223,11 +229,15 @@ router.put('/:id/biologicos', permitir(...OPERATIVOS), soloEquipo, async (req, r
 
 // Marcar una vacuna como guardada en el termo (lista para salir)
 router.put('/:id/biologicos/:productoId/llevada', permitir(...OPERATIVOS), soloEquipo, async (req, res) => {
-  const { rowCount } = await pool.query(
-    `UPDATE jornada_biologico jb SET llevada = $3 FROM jornada j
-     WHERE j.id = jb.jornada_id AND j.estado IN ('planificada', 'en_curso') AND jb.jornada_id = $1 AND jb.producto_id = $2`,
-    [req.params.id, req.params.productoId, Boolean(req.body?.llevada)]);
-  rowCount ? res.json({ ok: true }) : res.status(409).json({ error: 'La jornada ya se cerró.' });
+  const { rows: [j] } = await pool.query('SELECT estado FROM jornada WHERE id = $1', [req.params.id]);
+  if (!['planificada', 'en_curso'].includes(j?.estado)) return res.status(409).json({ error: 'La jornada ya se cerró.' });
+  // Una vacuna agregada a mano y aún sin guardar se guarda aquí con su cantidad
+  const cantidad = Number(req.body?.dosis_llevadas);
+  await pool.query(`INSERT INTO jornada_biologico (jornada_id, producto_id, dosis_llevadas, llevada) VALUES ($1,$2,$3,$4)
+    ON CONFLICT (jornada_id, producto_id) DO UPDATE SET llevada = $4,
+      dosis_llevadas = CASE WHEN jornada_biologico.dosis_estimadas > 0 OR $3::int IS NULL THEN jornada_biologico.dosis_llevadas ELSE $3 END`,
+  [req.params.id, req.params.productoId, cantidad > 0 && j.estado === 'planificada' ? cantidad : null, Boolean(req.body?.llevada)]);
+  res.json({ ok: true });
 });
 
 // Cerrar: quien no recibió dosis queda como inasistencia y genera alerta
