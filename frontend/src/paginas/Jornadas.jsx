@@ -558,7 +558,7 @@ export function JornadaDetalle() {
       {/* Hoja impresa: la lista completa con espacio para anotar a mano */}
       <div className="solo-imprimir">
         <table className="hoja-jornada">
-          <thead><tr><th>Niña o niño</th><th>Comunidad</th><th>Responsable</th><th>Le toca</th><th>Fecha y lote</th></tr></thead>
+          <thead><tr><th>Niña o niño</th><th>Comunidad</th><th>Responsable</th><th>Le toca</th><th>Vacunado (fecha)</th></tr></thead>
           <tbody>
             {j.ninos.map((n) => (
               <tr key={n.nino_id}>

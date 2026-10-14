@@ -147,17 +147,17 @@ function Nominal({ filas, periodo }) {
   return (
     <Tarjeta titulo={`Listado nominal · ${periodo}`} icono={ClipboardList} sub={`${filas.length} aplicaciones · Uso interno: contiene datos personales`} cuerpo={false}>
       <Tabla>
-        <thead><tr><th>Niña o niño</th><th>Fecha</th><th>CUI</th><th>Sexo</th><th>Vacuna</th><th>Dosis</th><th>Lote</th><th>Cuaderno</th><th>Comunidad</th></tr></thead>
+        <thead><tr><th>Niña o niño</th><th>Fecha</th><th>CUI</th><th>Sexo</th><th>Vacuna</th><th>Dosis</th><th>Cuaderno</th><th>Comunidad</th></tr></thead>
         <tbody>
           {filas.map((r) => (
             <tr key={r.id}>
               <td className="fuerte">{r.nombre_completo}</td><td>{fecha(r.fecha_aplicacion)}</td><td>{r.cui || '—'}</td><td>{r.sexo}</td>
               <td>{r.producto}{r.formulacion && ` (${r.formulacion})`}</td>
               <td>{r.dosis}{r.es_recuperacion && <span className="etiqueta">Recup.</span>}</td>
-              <td>{r.lote || '—'}</td><td>{cuadernoFila(r)}</td><td>{r.comunidad}</td>
+              <td>{cuadernoFila(r)}</td><td>{r.comunidad}</td>
             </tr>
           ))}
-          {filas.length === 0 && <tr><td colSpan={9} className="tenue">Sin aplicaciones en este periodo.</td></tr>}
+          {filas.length === 0 && <tr><td colSpan={8} className="tenue">Sin aplicaciones en este periodo.</td></tr>}
         </tbody>
       </Tabla>
     </Tarjeta>
@@ -176,7 +176,7 @@ function exportar(vista, datos, f) {
     descargarCSV(`listado-nominal-${sufijo}`, [
       { titulo: 'Fecha', valor: (r) => fecha(r.fecha_aplicacion) }, { titulo: 'Nombre', valor: 'nombre_completo' }, { titulo: 'CUI', valor: 'cui' },
       { titulo: 'Sexo', valor: 'sexo' }, { titulo: 'Nacimiento', valor: (r) => fecha(r.fecha_nacimiento) }, { titulo: 'Vacuna', valor: 'producto' },
-      { titulo: 'Dosis', valor: 'dosis' }, { titulo: 'Lote', valor: 'lote' }, { titulo: 'Formulación', valor: 'formulacion' },
+      { titulo: 'Dosis', valor: 'dosis' }, { titulo: 'Formulación', valor: 'formulacion' },
       { titulo: 'Recuperación', valor: (r) => (r.es_recuperacion ? 'Sí' : '') }, { titulo: 'Cuaderno', valor: (r) => (r.cuaderno_numero ? `${r.cuaderno_numero}/${r.cuaderno_anio}` : '') },
       { titulo: 'Fila', valor: 'fila' }, { titulo: 'Comunidad', valor: 'comunidad' },
     ], datos);

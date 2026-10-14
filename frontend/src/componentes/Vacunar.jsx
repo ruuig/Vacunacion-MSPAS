@@ -12,9 +12,6 @@ import { Modal, Mensaje } from './ui.jsx';
 import { catalogoGuardado, encolar } from './fueraDeLinea.js';
 import { fecha, hoy } from '../util.js';
 
-// Fecha corta para el lote (31/03/27): el texto completo no cabía en el celular
-const fechaCorta = (f) => fecha(f).replace(/\/(\d{2})(\d{2})$/, '/$2');
-const MANUAL = 'manual';
 
 /** Hoja pequeña con la próxima cita para entregar a la mamá (por si pierde o no trae el carné). */
 function imprimirCita(nombre, cita, vacunas) {
@@ -81,10 +78,6 @@ export default function Vacunar({ ninoId, nombre, esquema, jornadaId, fechaDefec
   const [paso, setPaso] = useState(1);
   // Vacunas que la persona tocó. Normalmente tocar = quitar; si vino sin vacunarse, tocar = sí se la puso.
   const [tocadas, setTocadas] = useState(() => new Set());
-  // Lote elegido por vacuna: 'id:<n>' (lote registrado) o texto escrito a mano si no hay lotes registrados
-  const [lotes, setLotes] = useState({});
-  const [lotesRegistrados, setLotesRegistrados] = useState([]);
-  useEffect(() => { api('/lotes').then(setLotesRegistrados).catch(() => setLotesRegistrados(catalogoGuardado('lotes'))); }, []);
   const [motivos, setMotivos] = useState({});
   const [guardando, setGuardando] = useState(false);
   const [resultado, setResultado] = useState(null);
@@ -100,15 +93,6 @@ export default function Vacunar({ ninoId, nombre, esquema, jornadaId, fechaDefec
   const aplicar = tarjetas.filter((t) => !estaQuitada(t));
   const noAplicar = tarjetas.filter(estaQuitada);
   const faltaMotivo = noAplicar.some((t) => !motivos[t.clave]);
-  // Lotes vigentes de la vacuna el día de la aplicación; el primero es el que vence antes
-  const lotesDe = (t) => lotesRegistrados.filter((l) => l.producto_id === t.producto.id && l.fecha_vencimiento >= fechaAplicacion);
-  const loteElegido = (t) => lotes[t.clave] ?? (lotesDe(t)[0] ? `id:${lotesDe(t)[0].id}` : '');
-  const [escritos, setEscritos] = useState({});
-  const datosLote = (t) => {
-    const v = loteElegido(t);
-    if (v.startsWith('id:')) return { lote_id: Number(v.slice(3)) };
-    return { lote: v === MANUAL || !lotesDe(t).length ? (escritos[t.clave] || '').trim() : '' };
-  };
 
   async function guardar() {
     setGuardando(true);
@@ -121,7 +105,7 @@ export default function Vacunar({ ninoId, nombre, esquema, jornadaId, fechaDefec
     };
     for (const t of aplicar) {
       const body = {
-        producto_id: t.producto.id, fecha_aplicacion: fechaAplicacion, ...datosLote(t), establecimiento_id: establecimientoId,
+        producto_id: t.producto.id, fecha_aplicacion: fechaAplicacion, establecimiento_id: establecimientoId,
         modo: 'atencion', jornada_id: jornadaId || null,
       };
       try {
@@ -263,21 +247,6 @@ export default function Vacunar({ ninoId, nombre, esquema, jornadaId, fechaDefec
                 <span className={`det ${atrasada ? 'rojo' : ''}`}>
                   {t.dosis.map((d) => d.etiqueta).join(' + ')}{atrasada && ` · atrasada ${Math.max(...t.dosis.map((d) => d.diasAtraso || 0))} días`}
                 </span>
-                {marcada && lotesDe(t).length > 0 && (
-                  <select value={loteElegido(t)} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}
-                    onChange={(e) => setLotes({ ...lotes, [t.clave]: e.target.value })} aria-label={`Lote de ${t.producto.nombre}`}>
-                    {lotesDe(t).map((l) => (
-                      <option key={l.id} value={`id:${l.id}`}>{l.codigo} · vence {fechaCorta(l.fecha_vencimiento)}{l.estado === 'por_vencer' ? ' ⚠' : ''}</option>
-                    ))}
-                    <option value={MANUAL}>Escribir otro lote…</option>
-                    <option value="">Sin lote</option>
-                  </select>
-                )}
-                {marcada && (!lotesDe(t).length || loteElegido(t) === MANUAL) && (
-                  <input placeholder="Número de lote (opcional)" value={escritos[t.clave] || ''} onClick={(e) => e.stopPropagation()}
-                    onKeyDown={(e) => e.stopPropagation()} autoFocus={loteElegido(t) === MANUAL}
-                    onChange={(e) => setEscritos({ ...escritos, [t.clave]: e.target.value })} aria-label={`Número de lote de ${t.producto.nombre}`} />
-                )}
               </div>
             );
           })}

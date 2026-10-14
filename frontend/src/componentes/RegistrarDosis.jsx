@@ -59,7 +59,7 @@ export default function RegistrarDosis({ ninoId, esquema, columna, serieSugerida
     setGuardando(true);
     try {
       const r = await api(`/ninos/${ninoId}/aplicaciones`, { method: 'POST', body: {
-        producto_id: producto.id, fecha_aplicacion: form.fecha_aplicacion, lote: form.lote, observacion: form.observacion,
+        producto_id: producto.id, fecha_aplicacion: form.fecha_aplicacion, observacion: form.observacion,
         establecimiento_id: establecimientoId ? Number(establecimientoId) : null, modo, jornada_id: jornadaId || null,
         formulacion: producto.estacional ? formulacion : null,
         ...(usarColumna && { esquema_dosis_ids: [columna.esquema_dosis_id] }),
@@ -92,7 +92,6 @@ export default function RegistrarDosis({ ninoId, esquema, columna, serieSugerida
         <Campo etiqueta="¿Cuándo se la pusieron?" requerido>
           <input type="date" required max={hoy()} value={form.fecha_aplicacion} onChange={set('fecha_aplicacion')} />
         </Campo>
-        <Campo etiqueta="Lote"><input value={form.lote} onChange={set('lote')} placeholder="Ej. A12B34" /></Campo>
         {producto?.estacional && (
           <Campo etiqueta="Formulación" requerido>
             <select required value={formulacion} onChange={set('formulacion')}>

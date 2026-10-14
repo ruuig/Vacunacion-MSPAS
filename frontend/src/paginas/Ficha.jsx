@@ -211,7 +211,7 @@ export default function Ficha() {
                   <span key={a.id} className={`lv-vacuna ${a.anulada ? 'anulada' : ''}`} title={a.dosis.join(', ')}>
                     <span>
                       {a.producto}
-                      <small>{a.dosis.join(', ')}{a.lote && ` · lote ${a.lote}`}{a.es_recuperacion && ' · recuperación'}{!a.fuente_primaria && ' · del carné'}</small>
+                      <small>{a.dosis.join(', ')}{a.es_recuperacion && ' · recuperación'}{!a.fuente_primaria && ' · del carné'}</small>
                       {a.anulada && <small className="rojo">Anulada: {a.motivo_anulacion}</small>}
                     </span>
                     {puede(usuario.rol, 'enfermera') && !a.anulada && (

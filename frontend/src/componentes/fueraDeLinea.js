@@ -14,18 +14,18 @@ const avisarCambio = () => window.dispatchEvent(new Event('cola-cambio'));
 /** Descarga todo lo necesario para trabajar la jornada sin internet. */
 export async function descargarJornada(id) {
   const jornada = await api(`/jornadas/${id}`);
-  const [productos, establecimientos, lotes] = await Promise.all([
-    api('/catalogos/productos'), api('/catalogos/establecimientos'), api('/lotes').catch(() => []),
+  const [productos, establecimientos] = await Promise.all([
+    api('/catalogos/productos'), api('/catalogos/establecimientos'),
   ]);
   const esquemas = {};
   for (const n of jornada.ninos) esquemas[n.nino_id] = await api(`/ninos/${n.nino_id}/esquema?fecha=${jornada.fecha.slice(0, 10)}`);
-  const copia = { jornada, esquemas, productos, establecimientos, lotes, descargada: new Date().toISOString() };
+  const copia = { jornada, esquemas, productos, establecimientos, descargada: new Date().toISOString() };
   if (!escribir(claveJornada(id), copia)) throw new Error('El teléfono no tiene espacio para guardar la jornada.');
   return copia;
 }
 export const jornadaGuardada = (id) => leer(claveJornada(id), null);
 export const borrarJornada = (id) => { try { localStorage.removeItem(claveJornada(id)); } catch { /* sin almacenamiento */ } };
-/** Catálogos y lotes de cualquier jornada descargada: los usa la ventana de vacunar cuando no hay red. */
+/** Catálogos de cualquier jornada descargada: los usa la ventana de vacunar cuando no hay red. */
 export function catalogoGuardado(nombre) {
   try {
     for (let i = 0; i < localStorage.length; i++) {
