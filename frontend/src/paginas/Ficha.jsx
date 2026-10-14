@@ -51,7 +51,7 @@ export default function Ficha() {
   const [esquema, setEsquema] = useState(null);
   const [contactos, setContactos] = useState([]);
   const [modal, setModal] = useState(null); // null | { serie?, fecha? }
-  const [vacunar, setVacunar] = useState(null); // null | 'normal' | 'sin' (no se pudo vacunar hoy)
+  const [vacunar, setVacunar] = useState(null); // null | 'normal'
   const [resultado, setResultado] = useState(null);
   const [pestana, setPestana] = useState('carne');
   const [verDatos, setVerDatos] = useState(false);
@@ -184,7 +184,6 @@ export default function Ficha() {
           </div>
           {operativo && tocaHoy.length > 0 && (
             <div className="botones no-imprimir">
-              <button className="btn btn-grande" onClick={() => setVacunar('sin')}>No se pudo vacunar hoy</button>
               <button className="btn btn-verde btn-grande" onClick={() => setVacunar('normal')}><Syringe size={20} />Vacunar</button>
             </div>
           )}
@@ -289,7 +288,7 @@ export default function Ficha() {
         </>
       )}
 
-      {vacunar && <Vacunar ninoId={id} nombre={nino.nombre_completo} esquema={esquema} sinVacunar={vacunar === 'sin'}
+      {vacunar && <Vacunar ninoId={id} nombre={nino.nombre_completo} esquema={esquema}
         onCerrar={() => setVacunar(null)}
         onTerminado={(r) => { setVacunar(null); if (r.hechas.length) avisar(r.hechas.length === 1 ? 'Vacuna guardada.' : 'Vacunas guardadas.'); cargar(); refrescarAlertas(); }} />}
       {modal && <RegistrarDosis ninoId={id} esquema={esquema} serieSugerida={modal.serie}
