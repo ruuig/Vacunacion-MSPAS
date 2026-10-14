@@ -84,7 +84,8 @@ export default function Vacunar({ ninoId, nombre, esquema, jornadaId, fechaDefec
 
   const fechaAplicacion = fechaDefecto && fechaDefecto < hoy() ? fechaDefecto : hoy();
   const establecimientoId = establecimientos.find((e) => e.es_local)?.id || establecimientos[0]?.id || null;
-  const estaQuitada = (t) => (sinVacunar ? !tocadas.has(t.clave) : tocadas.has(t.clave));
+  // Ninguna viene marcada: se toca a conciencia cada vacuna que sí se puso
+  const estaQuitada = (t) => !tocadas.has(t.clave);
   const alternar = (t) => setTocadas((s) => {
     const n = new Set(s);
     if (n.has(t.clave)) n.delete(t.clave); else n.add(t.clave);
@@ -221,8 +222,8 @@ export default function Vacunar({ ninoId, nombre, esquema, jornadaId, fechaDefec
       pie={(
         <>
           <button className="btn btn-grande" onClick={onCerrar}>Cancelar</button>
-          <button className={`btn btn-grande ${aplicar.length ? 'btn-verde' : 'btn-primario'}`} style={{ flex: 1 }} disabled={!tarjetas.length || guardando} onClick={siguiente}>
-            {guardando ? 'Guardando…' : noAplicar.length ? 'Siguiente' : <><Check size={20} />Guardar {aplicar.length === 1 ? '1 vacuna' : `${aplicar.length} vacunas`}</>}
+          <button className={`btn btn-grande ${aplicar.length ? 'btn-verde' : 'btn-primario'}`} style={{ flex: 1 }} disabled={!tarjetas.length || guardando || (!sinVacunar && !aplicar.length)} onClick={siguiente}>
+            {guardando ? 'Guardando…' : !sinVacunar && !aplicar.length ? 'Toque las vacunas que le puso' : noAplicar.length ? 'Siguiente' : <><Check size={20} />Guardar {aplicar.length === 1 ? '1 vacuna' : `${aplicar.length} vacunas`}</>}
           </button>
         </>
       )}>
@@ -230,7 +231,7 @@ export default function Vacunar({ ninoId, nombre, esquema, jornadaId, fechaDefec
       <div className="paso-titulo">Paso 1 de {pasos}</div>
       <p className="paso-pregunta">{sinVacunar ? '¿Se le puso alguna vacuna?' : '¿Qué vacunas le puso hoy?'}</p>
       <p className="suave" style={{ marginTop: '-.5rem', marginBottom: '1rem', fontSize: '.88rem' }}>
-        {sinVacunar ? 'Toque las que sí se puso. Las demás quedan como no aplicadas.' : 'Están marcadas las que le tocan. Toque una para quitarla si no se la puso.'}
+        {sinVacunar ? 'Toque las que sí se puso. Las demás quedan como no aplicadas.' : 'Toque cada vacuna que le puso.'}
       </p>
       {!tarjetas.length ? (
         <Mensaje tipo="info">Hoy no le toca ninguna vacuna.</Mensaje>
