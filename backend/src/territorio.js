@@ -19,13 +19,19 @@ async function alcanceDe(db, usuario) {
   return t.length ? t : null;
 }
 
-/** ¿Puede este usuario ver al niño? Quien tiene sector, solo los de su sector. */
+/** ¿Puede este usuario ver al niño? Quien tiene sector, solo los de su sector o los de una jornada suya abierta. */
 async function puedeVerNino(db, usuario, ninoId) {
   const alcance = await alcanceDe(db, usuario);
   if (!alcance) return true;
-  const { rows: [n] } = await db.query(
-    'SELECT n.comunidad_id, ca.usuario_id AS asignado FROM nino n LEFT JOIN caso_asignacion ca ON ca.nino_id = n.id WHERE n.id = $1', [ninoId]);
-  return !n || alcance.includes(n.comunidad_id);
+  // También los niños de una jornada abierta en la que esta persona va en el equipo (sale a vacunar a otro puesto)
+  const { rows: [n] } = await db.query(`
+    SELECT n.comunidad_id, EXISTS (
+      SELECT 1 FROM jornada_nino jn JOIN jornada j ON j.id = jn.jornada_id
+      WHERE jn.nino_id = n.id AND j.estado IN ('planificada', 'en_curso')
+        AND (j.responsable_id = $2 OR EXISTS (SELECT 1 FROM jornada_equipo je WHERE je.jornada_id = j.id AND je.usuario_id = $2))
+    ) AS en_su_jornada
+    FROM nino n WHERE n.id = $1`, [ninoId, usuario.id]);
+  return !n || alcance.includes(n.comunidad_id) || n.en_su_jornada;
 }
 
 /** Middleware para rutas con :id de niño: bloquea niños de otros puestos. */
