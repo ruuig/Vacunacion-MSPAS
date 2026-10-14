@@ -242,7 +242,9 @@ function PedidoVacunas() {
   const [col, setCol] = useState(2);
   const [conAtrasados, setConAtrasados] = useState(false);
   const [verNinos, setVerNinos] = useState(false);
-  const [imprimirLista, setImprimirLista] = useState(true);
+  const [impreso, setImpreso] = useState('pedido');
+  // Se elige qué documento sale y luego se abre la impresión
+  const imprimir = (cual) => { setImpreso(cual); setTimeout(() => window.print(), 50); };
   useEffect(() => { api('/seguimiento/proyeccion').then(setDatos).catch((e) => setError(e.message)); }, []);
   if (error) return <Mensaje tipo="error">{error}</Mensaje>;
   if (!datos) return <Cargando />;
@@ -259,6 +261,10 @@ function PedidoVacunas() {
   const ninos = conAtrasados ? [...c.ninos, ...atr.ninos.map((n) => ({ ...n, atrasado: true }))] : c.ninos;
   const porComunidad = Object.values(ninos.reduce((m, n) => { (m[n.comunidad_id] ||= { nombre: n.comunidad, ninos: [] }).ninos.push(n); return m; }, {}))
     .sort((x, y) => x.nombre.localeCompare(y.nombre));
+  // Listado por lugar de vacunación, y dentro por fecha
+  const porLugar = Object.values(ninos.reduce((m, n) => { const l = n.lugar || n.comunidad; (m[l] ||= { nombre: l, ninos: [] }).ninos.push(n); return m; }, {}))
+    .sort((x, y) => x.nombre.localeCompare(y.nombre))
+    .map((g) => ({ ...g, ninos: [...g.ninos].sort((x, y) => (x.atrasado ? '' : x.fecha).localeCompare(y.atrasado ? '' : y.fecha) || x.nombre_completo.localeCompare(y.nombre_completo)) }));
   const total = vacunas.reduce((t, v) => t + reserva(v.n), 0);
 
   return (
@@ -275,7 +281,10 @@ function PedidoVacunas() {
             <input type="checkbox" checked={conAtrasados} onChange={(e) => setConAtrasados(e.target.checked)} hidden />
             {conAtrasados ? <Check size={15} /> : <Plus size={15} />} Sumar {atr.ninos.length} atrasados
           </label>
-          <button className="btn" onClick={() => window.print()} style={{ marginLeft: 'auto' }}><Printer size={16} />Imprimir solicitud</button>
+          <div className="pedido-imprimir">
+            <button className="btn" onClick={() => imprimir('pedido')} disabled={!vacunas.length}><Printer size={16} />Imprimir pedido</button>
+            <button className="btn" onClick={() => imprimir('listado')} disabled={!ninos.length}><Printer size={16} />Imprimir listado de niños</button>
+          </div>
         </div>
 
         <div className="pedido-resumen">
@@ -315,34 +324,34 @@ function PedidoVacunas() {
                 </div>
               </section>
             ))}
-            <label className="interruptor" style={{ marginTop: '.5rem' }}>
-              <input type="checkbox" checked={imprimirLista} onChange={(e) => setImprimirLista(e.target.checked)} />Imprimir también la lista de niños
-            </label>
           </>
         )}
       </div>
 
-      <Documento titulo={`Solicitud de vacunas · ${nombreMes(c)}`} periodo={`${nombreMes(c)}${conAtrasados ? ' (incluye atrasados)' : ''}`} detalle="Todo el municipio">
+      {impreso === 'pedido' ? <Documento titulo={`Pedido de vacunas · ${nombreMes(c)}`} periodo={`${nombreMes(c)}${conAtrasados ? ' (incluye atrasados)' : ''}`} detalle="Todo el municipio">
         <TablaDoc columnas={[
           { titulo: 'Vacuna', valor: 'nombre' },
-          { titulo: 'Niños del mes', valor: 'mes', num: true },
-          ...(conAtrasados ? [{ titulo: 'Atrasados', valor: 'atrasados', num: true }] : []),
+          ...(conAtrasados ? [{ titulo: 'Del mes', valor: 'mes', num: true }, { titulo: 'Atrasados', valor: 'atrasados', num: true }] : []),
           ...(datos.reserva ? [{ titulo: `Reserva ${datos.reserva} %`, valor: (v) => reserva(v.n) - v.n, num: true }] : []),
           { titulo: 'Dosis a pedir', valor: (v) => <strong>{reserva(v.n)}</strong>, num: true },
-        ]} filas={vacunas} />
+        ]} filas={vacunas} total={['Total', ...(conAtrasados ? ['', ''] : []), total]} />
         <p className="doc-nota">Cálculo según el esquema de vacunación de cada niño registrado. Total: {total} dosis para {ninos.length} niños.</p>
-        {imprimirLista && ninos.length > 0 && (
-          <>
-            <h2 className="doc-seccion">Anexo: niños que se vacunan</h2>
-            <TablaDoc columnas={[
-              { titulo: 'Comunidad', valor: 'comunidad', ancho: '18%' },
-              { titulo: 'Niña o niño', valor: 'nombre_completo' },
-              { titulo: 'Vacunas', valor: (n) => n.dosis.join(', ') },
-              { titulo: 'Fecha', valor: (n) => (n.atrasado ? 'Atrasado' : fecha(n.fecha)), num: true },
-            ]} filas={porComunidad.flatMap((g) => g.ninos)} />
-          </>
-        )}
-      </Documento>
+      </Documento> : (
+        <Documento titulo={`Niños que se vacunan · ${nombreMes(c)}`} periodo={`${nombreMes(c)}${conAtrasados ? ' (incluye atrasados)' : ''}`}
+          detalle={`${ninos.length} niños · ${porLugar.length} ${porLugar.length === 1 ? 'lugar' : 'lugares'}`}>
+          {porLugar.map((g) => (
+            <section key={g.nombre}>
+              <h2 className="doc-seccion">{g.nombre} · {g.ninos.length}</h2>
+              <TablaDoc columnas={[
+                { titulo: 'Fecha', valor: (n) => (n.atrasado ? 'Atrasado' : fecha(n.fecha)), ancho: '11%' },
+                { titulo: 'Niña o niño', valor: 'nombre_completo', ancho: '34%' },
+                { titulo: 'Comunidad', valor: 'comunidad', ancho: '20%' },
+                { titulo: 'Vacunas', valor: (n) => n.dosis.join(', ') },
+              ]} filas={g.ninos} />
+            </section>
+          ))}
+        </Documento>
+      )}
     </>
   );
 }

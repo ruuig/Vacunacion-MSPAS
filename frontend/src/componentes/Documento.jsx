@@ -1,10 +1,10 @@
 // Documento para imprimir: no es una captura de la pantalla, es una hoja formal con encabezado institucional,
-// tablas ordenadas y espacio para firmas. En pantalla no se ve; al imprimir es lo único que sale.
+// tablas ordenadas, sin firmas: es información a la mano. En pantalla no se ve; al imprimir es lo único que sale.
 import Logo from './Logo.jsx';
 import { useSesion } from '../App.jsx';
 import { fecha, hoy } from '../util.js';
 
-export default function Documento({ titulo, periodo, detalle, firmas = ['Elaboró', 'Vo. Bo. Enfermera jefe'], children }) {
+export default function Documento({ titulo, periodo, detalle, children }) {
   const { usuario } = useSesion();
   return (
     <article className="documento solo-imprimir">
@@ -24,17 +24,12 @@ export default function Documento({ titulo, periodo, detalle, firmas = ['Elabor�
         <div><dt>Por</dt><dd>{usuario?.nombre}</dd></div>
       </dl>
       {children}
-      {firmas.length > 0 && (
-        <footer className="doc-firmas">
-          {firmas.map((f) => <div key={f}><span className="doc-linea" />{f}</div>)}
-        </footer>
-      )}
     </article>
   );
 }
 
 /** Tabla del documento: encabezado que se repite en cada hoja y filas que no se parten. */
-export function TablaDoc({ columnas, filas, vacio = 'Sin registros.' }) {
+export function TablaDoc({ columnas, filas, total, vacio = 'Sin registros.' }) {
   return (
     <table className="doc-tabla">
       <thead><tr>{columnas.map((c) => <th key={c.titulo} className={c.num ? 'num' : ''} style={c.ancho ? { width: c.ancho } : undefined}>{c.titulo}</th>)}</tr></thead>
@@ -42,6 +37,7 @@ export function TablaDoc({ columnas, filas, vacio = 'Sin registros.' }) {
         {filas.length === 0 ? <tr><td colSpan={columnas.length}>{vacio}</td></tr> : filas.map((f, i) => (
           <tr key={i}>{columnas.map((c) => <td key={c.titulo} className={c.num ? 'num' : ''}>{typeof c.valor === 'function' ? c.valor(f) : f[c.valor]}</td>)}</tr>
         ))}
+        {total && <tr className="doc-total">{total.map((t, i) => <td key={i} className={i ? 'num' : ''}>{t}</td>)}</tr>}
       </tbody>
     </table>
   );

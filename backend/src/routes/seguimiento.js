@@ -33,9 +33,9 @@ async function filtroTerritorio(db, { comunidad, puesto } = {}) {
 /** Niños activos con sus aplicaciones vigentes, responsable principal, asignación y último contacto. */
 async function cargarNinos(db, comunidad) {
   const { rows: ninos } = await db.query(`
-    SELECT n.id, n.nombre_completo, n.fecha_nacimiento, n.sexo, n.comunidad_id, c.nombre AS comunidad,
+    SELECT n.id, n.nombre_completo, n.fecha_nacimiento, n.sexo, n.comunidad_id, c.nombre AS comunidad, COALESCE(p.nombre, c.nombre) AS lugar,
            r.nombre_completo AS responsable, r.telefono, r.idioma_preferente, r.numero_casa, ua.nombre AS asignado_nombre, ca.usuario_id AS asignado_id
-    FROM nino n JOIN comunidad c ON c.id = n.comunidad_id
+    FROM nino n JOIN comunidad c ON c.id = n.comunidad_id LEFT JOIN comunidad p ON p.id = c.comunidad_padre_id
     LEFT JOIN nino_responsable nr ON nr.nino_id = n.id AND nr.es_principal LEFT JOIN responsable r ON r.id = nr.responsable_id
     LEFT JOIN caso_asignacion ca ON ca.nino_id = n.id LEFT JOIN usuario ua ON ua.id = ca.usuario_id
     WHERE n.estado = 'activo' AND ($1::int[] IS NULL OR n.comunidad_id = ANY($1))`, [comunidad]);
@@ -158,7 +158,7 @@ router.get('/proyeccion', permitir(...TODOS), async (req, res) => {
       if (!dosis.length) continue;
       sumar(col.clave, dosis);
       quienes[col.clave].push({ id: n.id, nombre_completo: n.nombre_completo, fecha_nacimiento: n.fecha_nacimiento, comunidad_id: n.comunidad_id,
-        comunidad: n.comunidad, responsable: n.responsable, telefono: n.telefono,
+        comunidad: n.comunidad, lugar: n.lugar, responsable: n.responsable, telefono: n.telefono,
         dosis: dosis.map((d) => d.etiqueta), fecha: aFecha(Math.max(aDia(i < 2 ? hoy() : inicioDeMes(col.anio, col.mes)), aDia(d0(dosis)))) });
       const inicio = i < 2 ? hoy() : inicioDeMes(col.anio, col.mes);
       for (const d of dosis) apps.push({ esquemaDosisId: d.esquemaDosisId, fecha: aFecha(Math.max(aDia(inicio), aDia(d.fechaProgramada))) });

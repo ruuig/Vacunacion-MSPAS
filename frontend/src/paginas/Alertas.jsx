@@ -213,7 +213,7 @@ export default function Alertas() {
       ) : (
         <>
           <Documento titulo="Niños a buscar" periodo={enSemana ? `Semana al ${fecha(finSemana)}` : titulo}
-            detalle={`${lugar.nombre}${lugar.responsable ? ` · Responsable: ${lugar.responsable}` : ''}`} firmas={['Responsable']}>
+            detalle={`${lugar.nombre}${lugar.responsable ? ` · Responsable: ${lugar.responsable}` : ''}`}>
             {porComunidad.map((g) => (
               <section key={g.id}>
                 <h2 className="doc-seccion">{g.nombre} · {g.ninos.length}</h2>
@@ -407,7 +407,7 @@ function Suplementos({ anio, mes, puesto, comunidad, hastaSemana, periodo, lugar
   }, {}));
   return (
     <>
-      <Documento titulo="Suplementación: a quién le toca" periodo={periodo} detalle={lugar.nombre} firmas={['Entregó']}>
+      <Documento titulo="Suplementación: a quién le toca" periodo={periodo} detalle={lugar.nombre}>
         {porComunidad.map((g) => (
           <section key={g.id}>
             <h2 className="doc-seccion">{g.nombre} · {g.ninos.length}</h2>

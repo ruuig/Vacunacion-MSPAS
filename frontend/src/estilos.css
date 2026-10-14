@@ -1852,3 +1852,5 @@ label.btn.deshabilitado { opacity: .55; pointer-events: none; }
 .pedido-resumen span { font-size: .82rem; font-weight: 700; opacity: .85; }
 .pedido-resumen > div:nth-child(2) { background: #1a8f57; border-bottom-color: var(--verde-hondo); }
 @media (max-width: 700px) { .pedido-resumen { grid-template-columns: 1fr 1fr; } .pedido-resumen > div:last-child { grid-column: 1 / -1; } }
+
+.pedido-imprimir { display: flex; gap: .5rem; flex-wrap: wrap; margin-left: auto; }
