@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-  BookOpen, CalendarX, ChevronDown, CheckCircle2, ClipboardList, Clock, MapPin, MessageCircle, Pencil, Phone, Plus, Printer, Syringe, Trash2, X,
+  BookOpen, CalendarX, ChevronDown, CheckCircle2, ClipboardList, Clock, MapPin, MessageCircle, Pencil, Phone, Plus, Printer, RefreshCw, Syringe, Trash2, X,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { useSesion } from '../App.jsx';
@@ -127,6 +127,11 @@ export default function Ficha() {
           <div className="ficha-nombre">
             <h1>{nino.nombre_completo}</h1>
             <Estado de={estadoVisible} grande />
+            {activo && esquema.recuperacion?.length > 0 && (
+              <span className="chip-recuperacion" title="Las dosis que faltan de estas vacunas van con el intervalo mínimo para ponerse al día">
+                <RefreshCw size={15} />Esquema de recuperación · {esquema.recuperacion.join(', ')}
+              </span>
+            )}
           </div>
           <p className="ficha-resumen"><b>{edad(nino.fecha_nacimiento)}</b> · {nino.sexo === 'M' ? 'niña' : 'niño'} · <MapPin size={14} /> {nino.comunidad}</p>
           {resp && (

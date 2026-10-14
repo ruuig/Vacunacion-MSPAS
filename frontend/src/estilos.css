@@ -1938,3 +1938,7 @@ tr.fila-en-curso .estado.grande .ic { background: rgba(255,255,255,.2); color: #
 .rc-lista b { font-weight: 900; white-space: nowrap; }
 .rc-total { margin-top: 1rem; padding: .8rem 1rem; border-radius: 14px; background: var(--verde-bg, #e9f8ef); color: #12683f; text-align: center; font-weight: 700; }
 @media (max-width: 600px) { .resumen-confirmar > div { grid-template-columns: 1fr; gap: .2rem; } }
+/* Esquema de recuperación: aviso en el perfil y en cada dosis acelerada */
+.chip-recuperacion { display: inline-flex; align-items: center; gap: .4rem; padding: .3rem .75rem; border-radius: 10px; font-size: .85rem; font-weight: 800;
+  background: #fff4e5; color: #9a4b00; border: 1px solid #f5c58a; }
+.dc-extra.dc-recup { color: #9a4b00; font-weight: 800; }

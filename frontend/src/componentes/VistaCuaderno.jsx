@@ -50,6 +50,7 @@ function Dosis({ d, etiqueta, estado, fechaDosis, hexa, onTocar }) {
         </>
       )}
       {estado === 'atrasada' && d?.diasAtraso > 0 && <span className="dc-extra">hace {d.diasAtraso} días</span>}
+      {d?.acelerada && !['aplicada', 'no_aplicable'].includes(estado) && <span className="dc-extra dc-recup">Recuperación</span>}
       {desde && <span className="dc-extra">{desde <= hoy() ? 'Ya se puede adelantar' : `Se puede desde el ${corta(desde)}`}</span>}
     </Contenedor>
   );

@@ -220,3 +220,14 @@ test('SPR antes de los 12 meses cae en dosis cero y no reemplaza SPR 1', () => {
   assert.equal(estadoDe(r, 'SPR_CERO', 1), 'aplicada');
   assert.ok(!r.alertas.some((a) => a.esquemaDosisId === id('SPR_CERO', 1)));
 });
+
+test('Recuperación: al día no se marca; atrasado sí, y las dosis siguientes van aceleradas', () => {
+  const alDia = calcularEsquema({ fechaNacimiento: NAC, catalogo, fechaRef: mas(150), aplicaciones: [...alNacer, ...de2Meses(), ...de4Meses()] });
+  assert.deepEqual(alDia.recuperacion, []);
+  // Penta 1a puesta a los 5 meses (tarde): la 2a va con el intervalo mínimo (4 semanas), no a los 4 meses de edad
+  const tarde = calcularEsquema({ fechaNacimiento: NAC, catalogo, fechaRef: mas(160), aplicaciones: [...alNacer, ap('DPT_HIB_HB', 1, mas(150))] });
+  assert.ok(tarde.recuperacion.includes('Pentavalente'));
+  const p2 = tarde.dosis.find((d) => d.esquemaDosisId === id('DPT_HIB_HB', 2));
+  assert.equal(p2.acelerada, true);
+  assert.equal(p2.fechaProgramada, mas(150 + 28));
+});

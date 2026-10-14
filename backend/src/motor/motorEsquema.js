@@ -57,6 +57,9 @@ function esRecuperacion(dosis, fechaNacimiento, fecha) {
   return false;
 }
 
+// Nombre corto de cada serie para avisar en qué vacunas va con esquema de recuperación
+const NOMBRE_SERIE = { HB_RN: 'Hepatitis B', BCG: 'BCG', POLIO: 'Polio', DPT_HIB_HB: 'Pentavalente', ROTA: 'Rotavirus', NEUMO: 'Neumococo', SPR: 'SPR', VARICELA: 'Varicela' };
+
 const tipo = (d) => (d.estacional ? 'estacional' : d.informativa ? 'informativa' : 'regular');
 const vigentes = (aplicaciones) => aplicaciones.filter((a) => !a.anulada);
 
@@ -204,6 +207,7 @@ function calcularEsquema({ fechaNacimiento, aplicaciones = [], catalogo, fechaRe
     r.fechaProgramada = aFecha(programada);
     r.fechaLimite = limite != null ? aFecha(limite) : null;
     r.estado = estadoEn(F, programada, limite, P);
+    r.acelerada = previaTarde;
     if (r.estado === 'atrasada') r.diasAtraso = F - programada;
   }
   if (estacional.length) dosis.push(...calcularInfluenza(estacional, nac, F, aplicaciones, catalogo, P));
@@ -239,7 +243,13 @@ function calcularEsquema({ fechaNacimiento, aplicaciones = [], catalogo, fechaRe
 
   const leTocaHoy = dosis.filter((r) => ['le_toca', 'atrasada'].includes(r.estado) && aDia(r.fechaMinima) <= F);
 
-  return { fechaRef: aFecha(F), estadoNino, dosis, alertas, proximaCita, proximaCitaVacunas, leTocaHoy };
+  // Esquema de recuperación: vacunas con una dosis puesta tarde o atrasada ahora (las que siguen van aceleradas)
+  const enRecuperacion = new Set(seriesEnRecuperacion);
+  for (const r of regulares) if (r.estado === 'atrasada') enRecuperacion.add(r.serieCodigo);
+  const pendientes = new Set(regulares.filter((r) => !['aplicada', 'no_aplicable'].includes(r.estado)).map((r) => r.serieCodigo));
+  const recuperacion = [...enRecuperacion].filter((s) => pendientes.has(s)).map((s) => NOMBRE_SERIE[s] || s);
+
+  return { fechaRef: aFecha(F), estadoNino, dosis, alertas, proximaCita, proximaCitaVacunas, leTocaHoy, recuperacion };
 }
 
 /** Valida registrar una dosis del esquema en una fecha. Devuelve { ok, error }. */
