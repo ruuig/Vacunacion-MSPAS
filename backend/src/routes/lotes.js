@@ -108,4 +108,46 @@ router.get('/consumo', permitir(...GESTION), async (req, res) => {
   res.json({ desde, hasta, vacunas, lotes });
 });
 
+// ---- Pedido guardado: se guarda al imprimir la solicitud, para compararlo después con lo aplicado ----
+router.post('/pedido', permitir('enfermera', 'encargado'), async (req, res) => {
+  const { anio, mes, incluye_atrasados = false, detalle = [] } = req.body || {};
+  if (!anio || !mes || mes < 1 || mes > 12 || !detalle.length) return res.status(400).json({ error: 'Pedido incompleto.' });
+  const p = await transaccion(async (c) => {
+    const { rows: [p] } = await c.query(`INSERT INTO pedido (anio, mes, incluye_atrasados, creado_por) VALUES ($1,$2,$3,$4)
+      ON CONFLICT (anio, mes) DO UPDATE SET incluye_atrasados = $3, creado_por = $4, creado_en = now() RETURNING *`,
+      [anio, mes, Boolean(incluye_atrasados), req.usuario.id]);
+    await c.query('DELETE FROM pedido_detalle WHERE pedido_id = $1', [p.id]);
+    for (const d of detalle) {
+      await c.query(`INSERT INTO pedido_detalle (pedido_id, producto_id, cantidad)
+        SELECT $1, id, $3 FROM producto WHERE codigo = $2`, [p.id, d.codigo, Math.max(0, Number(d.cantidad) || 0)]);
+    }
+    await registrarBitacora(c, req, 'crear', 'pedido', p.id, null, { anio, mes, detalle });
+    return p;
+  });
+  res.status(201).json(p);
+});
+
+// Pedido vs. aplicado de un mes: lo que se pidió (si se guardó) contra lo que se puso en el servicio y en jornadas
+router.get('/pedido-vs-aplicado', permitir(...GESTION), async (req, res) => {
+  const anio = Number(req.query.anio), mes = Number(req.query.mes);
+  if (!anio || !mes || mes < 1 || mes > 12) return res.status(400).json({ error: 'Indique el año y el mes.' });
+  const desde = `${anio}-${String(mes).padStart(2, '0')}-01`;
+  const hasta = new Date(Date.UTC(anio, mes, 0)).toISOString().slice(0, 10);
+  const { rows: [pedido] } = await pool.query(`SELECT p.*, u.nombre AS creado_por_nombre FROM pedido p LEFT JOIN usuario u ON u.id = p.creado_por
+    WHERE anio = $1 AND mes = $2`, [anio, mes]);
+  const { rows: vacunas } = await pool.query(`
+    WITH ap AS (
+      SELECT a.producto_id, count(*) FILTER (WHERE a.jornada_id IS NULL)::int AS en_servicio,
+             count(*) FILTER (WHERE a.jornada_id IS NOT NULL)::int AS en_jornadas
+      FROM aplicacion a WHERE NOT a.anulada AND a.fuente_primaria AND a.fecha_aplicacion BETWEEN $1 AND $2 GROUP BY 1),
+    pe AS (SELECT producto_id, cantidad FROM pedido_detalle WHERE pedido_id = $3)
+    SELECT p.id AS producto_id, p.nombre, pe.cantidad AS pedidas,
+           coalesce(ap.en_servicio, 0) AS en_servicio, coalesce(ap.en_jornadas, 0) AS en_jornadas,
+           coalesce(ap.en_servicio, 0) + coalesce(ap.en_jornadas, 0) AS aplicadas
+    FROM producto p LEFT JOIN ap ON ap.producto_id = p.id LEFT JOIN pe ON pe.producto_id = p.id
+    WHERE ap.producto_id IS NOT NULL OR pe.producto_id IS NOT NULL
+    ORDER BY coalesce(pe.cantidad, 0) DESC, p.nombre`, [desde, hasta, pedido?.id || null]);
+  res.json({ anio, mes, pedido: pedido || null, vacunas });
+});
+
 module.exports = router;

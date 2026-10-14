@@ -24,8 +24,14 @@ router.get('/productos', permitir(...TODOS), async (_req, res) => {
   res.json(rows);
 });
 
-router.get('/establecimientos', permitir(...TODOS), async (_req, res) => {
-  const { rows } = await pool.query('SELECT id, nombre, tipo, es_local FROM establecimiento ORDER BY es_local DESC, nombre');
+router.get('/establecimientos', permitir(...TODOS), async (req, res) => {
+  const { rows } = await pool.query(`SELECT id, nombre, tipo, es_local, activo FROM establecimiento
+    WHERE activo OR $1 ORDER BY es_local DESC, nombre`, [req.query.todos === '1']);
+  res.json(rows);
+});
+
+router.get('/cargos', permitir(...TODOS), async (req, res) => {
+  const { rows } = await pool.query('SELECT id, nombre, activo FROM cargo WHERE activo OR $1 ORDER BY nombre', [req.query.todos === '1']);
   res.json(rows);
 });
 

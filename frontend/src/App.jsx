@@ -49,7 +49,11 @@ export default function App() {
   const refrescarAlertas = useCallback(() => {
     if (!sesion) return;
     api('/alertas/resumen').then(setResumen).catch(() => {});
-    api('/casos/conteo').then(setPendientes).catch(() => {});
+    // Mismo cálculo que Inicio y Control del mes: niños con vacunas retrasadas (de su sector, si tiene uno)
+    api('/seguimiento/mes').then((d) => {
+      const n = d.pendientes.filter((p) => p.situacion !== 'por_venir').length;
+      setPendientes({ total: n, mios: n });
+    }).catch(() => {});
   }, [sesion]);
   useEffect(refrescarAlertas, [refrescarAlertas]);
 
@@ -65,7 +69,7 @@ export default function App() {
   }
 
   const { rol, nombre } = sesion.usuario;
-  // El número del menú es de niños por contactar (no de alertas): lo que el personal tiene que hacer
+  // El número del menú es de niños con vacunas retrasadas: lo que el personal tiene que atender
   const totalAlertas = pendientes.total;
   const verInformes = ['enfermera', 'administrador', 'encargado'].includes(rol);
   const contador = totalAlertas > 0 && <b className="contador-menu">{totalAlertas > 99 ? '99+' : totalAlertas}</b>;

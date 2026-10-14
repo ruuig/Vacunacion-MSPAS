@@ -207,7 +207,7 @@ export default function Alertas() {
         <Vacunados datos={datos} periodo={titulo} lugar={lugar} />
       ) : (
         <>
-          <Documento titulo="Niños a buscar" periodo={enSemana ? `Semana al ${fecha(finSemana)}` : titulo}
+          <Documento titulo="Niños con vacunas retrasadas" periodo={enSemana ? `Semana al ${fecha(finSemana)}` : titulo}
             detalle={`${lugar.nombre}${lugar.responsable ? ` · Responsable: ${lugar.responsable}` : ''}`}>
             {porComunidad.map((g) => (
               <section key={g.id}>

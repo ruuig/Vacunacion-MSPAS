@@ -1,223 +1,319 @@
+// Inicio: lo urgente primero, distinto para cada rol. No es un menú: cada tarjeta lleva a donde se actúa.
+//  · Personal de vacunación: su sector (vacunas retrasadas, sus jornadas, les toca esta semana, familias que prometieron venir).
+//  · Enfermera: el municipio por puesto, jornadas próximas y por cerrar, cobertura del mes y el pedido.
+//  · Encargada: el pedido del próximo mes y cuánto se pidió contra lo aplicado.
+//  · Administrador: lo de la enfermera más el estado del sistema (usuarios sin lugar, comunidades sin responsable, respaldos).
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  ArrowRight, Bell, CalendarDays, ChevronRight, FileText, LayoutDashboard, Lock, Package, MapPinned, Phone, Search, Settings, Syringe, Truck, UserPlus,
+  AlertOctagon, ArrowRight, CalendarDays, CheckCircle2, ChevronRight, DatabaseBackup, FileText, Lock, MapPin, Package, Phone, Search, Settings,
+  Syringe, Truck, UserPlus, Users,
 } from 'lucide-react';
 import { api, qs } from '../api.js';
 import { useSesion } from '../App.jsx';
-import { Mensaje, Tarjeta, Vacio } from '../componentes/ui.jsx';
-import { Cuenta, Estado, NIVELES, nivelComunidad, plural, puntaje } from '../componentes/Estado.jsx';
-import { edad, fecha, hoy, puede, sumarDias } from '../util.js';
+import { useCatalogo } from '../componentes/useCatalogo.js';
+import { Tarjeta } from '../componentes/ui.jsx';
+import { plural } from '../componentes/Estado.jsx';
+import { MESES, fecha, hoy, puede, sumarDias } from '../util.js';
 
 function saludo() {
   const h = new Date().getHours();
   return h < 12 ? 'Buenos días' : h < 18 ? 'Buenas tardes' : 'Buenas noches';
 }
-
 const finDeSemana = () => sumarDias(hoy(), (7 - new Date(`${hoy()}T12:00:00Z`).getUTCDay()) % 7 || 7);
+const enDias = (n) => sumarDias(hoy(), n);
+const diaJornada = (f) => (f.slice(0, 10) === hoy() ? 'Hoy' : f.slice(0, 10) === enDias(1) ? 'Mañana'
+  : new Date(`${f.slice(0, 10)}T12:00:00Z`).toLocaleDateString('es-GT', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' }));
 
-function Mosaico({ to, icono: Ic, titulo, texto, color = '', contador, contadorNeutro = false, className = '' }) {
+export default function Inicio() {
+  const { usuario, refrescarAlertas } = useSesion();
+  const rol = usuario.rol;
+  const operativo = rol === 'vacunador';
+  const jefa = puede(rol, 'enfermera');
+  const [mes, setMes] = useState(null);
+  const [jornadas, setJornadas] = useState(null);
+
+  useEffect(refrescarAlertas, [refrescarAlertas]);
+  useEffect(() => {
+    if (rol !== 'encargado') api('/seguimiento/mes').then(setMes).catch(() => setMes({ pendientes: [], resumen: {} }));
+    api('/jornadas').then(setJornadas).catch(() => setJornadas([]));
+  }, [rol]);
+
   return (
-    <Link to={to} className={`mosaico ${color} ${className}`}>
-      <span className="ic"><Ic size={26} /></span>
-      {contador > 0 && <b className={`contador-mosaico ${contadorNeutro ? 'neutro' : ''}`}>{contador > 99 ? '99+' : contador}</b>}
-      <div><strong>{titulo}</strong><span>{texto}</span></div>
+    <>
+      <Saludo usuario={usuario} buscar={rol !== 'encargado'} />
+      {rol === 'encargado' ? <InicioEncargada /> : (
+        <>
+          <Retrasadas mes={mes} porPuesto={jefa} />
+          <div className="inicio-rejilla">
+            <Jornadas jornadas={jornadas} jefa={jefa} />
+            {operativo ? <EstaSemana mes={mes} /> : <MesEnCurso mes={mes} />}
+          </div>
+          {operativo && <Compromisos mes={mes} />}
+          {jefa && <RecordatorioPedido />}
+          {rol === 'administrador' && <EstadoSistema />}
+          {operativo && (
+            <div className="inicio-acciones">
+              <Link to="/ninos" className="btn btn-verde btn-grande"><Syringe size={20} />Vacunar</Link>
+              <Link to="/ninos/nuevo" className="btn btn-grande"><UserPlus size={20} />Niño nuevo</Link>
+            </div>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+function Saludo({ usuario, buscar }) {
+  const ir = useNavigate();
+  const [q, setQ] = useState('');
+  const hoyLargo = new Date().toLocaleDateString('es-GT', { weekday: 'long', day: 'numeric', month: 'long' });
+  return (
+    <section className="inicio-saludo">
+      <div>
+        <h1>{saludo()}, {usuario.nombre.split(' ')[0]}</h1>
+        <span className="tenue">{hoyLargo.replace(/^\w/, (x) => x.toUpperCase())}{usuario.sector ? ' · Su sector' : ''}</span>
+      </div>
+      {buscar && (
+        <form className="inicio-buscar con-icono" role="search" onSubmit={(e) => { e.preventDefault(); ir('/ninos' + (q.trim() ? qs({ q: q.trim() }) : '')); }}>
+          <Search size={18} />
+          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar niño o mamá" aria-label="Buscar niño" />
+        </form>
+      )}
+    </section>
+  );
+}
+
+/** Lo más urgente: niños con vacunas retrasadas (el mismo cálculo que Control del mes). */
+function Retrasadas({ mes, porPuesto }) {
+  const comunidades = useCatalogo('comunidades');
+  if (!mes) return <div className="tarjeta inicio-urgente"><div className="esqueleto" /></div>;
+  const atrasados = mes.pendientes.filter((p) => p.situacion !== 'por_venir');
+  const cuenta = (t) => atrasados.filter((p) => (t === 'atrasada' ? !['dosis_cero', 'abandono'].includes(p.alerta) : p.alerta === t)).length;
+  if (!atrasados.length) {
+    return (
+      <div className="inicio-urgente al-dia">
+        <CheckCircle2 size={34} />
+        <div><strong>{mes.solo_sector ? 'Su sector está al día' : 'Ningún niño con vacunas retrasadas'}</strong><span>No hay a quién buscar por ahora.</span></div>
+      </div>
+    );
+  }
+  // Por puesto: cada comunidad cuenta en el puesto al que pertenece
+  const puestoDe = (id) => { const c = comunidades.find((x) => x.id === id); return c ? (c.comunidad_padre_id || c.id) : id; };
+  const grupos = Object.values(atrasados.reduce((m, p) => {
+    const id = puestoDe(p.comunidad_id);
+    const c = comunidades.find((x) => x.id === id);
+    (m[id] ||= { id, nombre: c ? (c.tipo === 'casco_urbano' ? 'Casco urbano' : c.nombre) : p.comunidad, n: 0 }).n += 1;
+    return m;
+  }, {})).sort((a, b) => b.n - a.n);
+  return (
+    <section className="inicio-urgente">
+      <Link to="/alertas?grupo=atrasados" className="iu-principal">
+        <span className="iu-ic"><AlertOctagon size={30} /></span>
+        <span className="iu-texto">
+          <strong>{atrasados.length}</strong>
+          <span>{plural(atrasados.length, 'niño con vacunas retrasadas', 'niños con vacunas retrasadas')}{mes.solo_sector ? ' en su sector' : ''}</span>
+          <span className="iu-desglose">
+            {cuenta('dosis_cero') > 0 && <b className="rojo">{cuenta('dosis_cero')} dosis cero</b>}
+            {cuenta('abandono') > 0 && <b className="rojo">{cuenta('abandono')} abandono</b>}
+            {cuenta('atrasada') > 0 && <b>{cuenta('atrasada')} con atraso</b>}
+          </span>
+        </span>
+        <span className="btn btn-blanco iu-boton">{porPuesto ? 'Ver lista' : 'Ver y llamar'} <ArrowRight size={17} /></span>
+      </Link>
+      {porPuesto && grupos.length > 1 && (
+        <div className="iu-puestos">
+          {grupos.map((g, i) => (
+            <Link key={g.id} to={`/alertas?grupo=atrasados&puesto=${g.id}`} className={`iu-puesto ${i === 0 ? 'peor' : ''}`}>
+              <MapPin size={14} /><span>{g.nombre}</span><b>{g.n}</b>
+            </Link>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** Jornadas de hoy a 14 días (para planificar con tiempo) y las que ya pasaron sin cerrar. */
+function Jornadas({ jornadas, jefa }) {
+  const abiertas = (jornadas || []).filter((j) => ['planificada', 'en_curso'].includes(j.estado));
+  const proximas = abiertas.filter((j) => j.fecha.slice(0, 10) >= hoy() && j.fecha.slice(0, 10) <= enDias(14)).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const porCerrar = abiertas.filter((j) => j.fecha.slice(0, 10) < hoy());
+  return (
+    <Tarjeta titulo="Próximas jornadas" icono={Truck} sub="Hoy y las próximas dos semanas" cuerpo={false}
+      pie={<Link to="/jornadas" className="btn btn-sm btn-fantasma">Todas las jornadas <ArrowRight size={15} /></Link>}>
+      {jornadas === null ? <div className="tarjeta-cuerpo"><div className="esqueleto" /></div> : (
+        <div className="inicio-lista">
+          {porCerrar.length > 0 && (
+            <Link to="/jornadas" className="il-fila aviso"><Lock size={16} />
+              <span>{plural(porCerrar.length, 'jornada ya pasó y sigue abierta', 'jornadas ya pasaron y siguen abiertas')}{jefa ? ': ciérrelas' : ''}</span><ChevronRight size={18} />
+            </Link>
+          )}
+          {proximas.map((j) => (
+            <Link key={j.id} to={`/jornadas/${j.id}`} className={`il-fila ${j.fecha.slice(0, 10) === hoy() ? 'hoy' : ''}`}>
+              <span className="il-dia">{diaJornada(j.fecha)}</span>
+              <span className="il-cuerpo"><strong>{j.comunidades}</strong><span>{plural(j.convocados, 'niño', 'niños')}{j.estado === 'en_curso' ? ' · en curso' : ''}</span></span>
+              <ChevronRight size={18} />
+            </Link>
+          ))}
+          {!proximas.length && !porCerrar.length && (
+            <div className="il-vacio">
+              <span>Sin jornadas en las próximas dos semanas.</span>
+              {jefa && <Link className="btn btn-sm btn-primario" to="/jornadas/nueva"><Truck size={15} />Planificar</Link>}
+            </div>
+          )}
+        </div>
+      )}
+    </Tarjeta>
+  );
+}
+
+/** Personal: a quién le toca vacuna esta semana en su sector. */
+function EstaSemana({ mes }) {
+  const semana = (mes?.pendientes || []).filter((p) => p.situacion === 'por_venir' && p.dosis.some((d) => d.programada <= finDeSemana()));
+  const vacunas = Object.entries(semana.flatMap((p) => p.dosis.map((d) => d.etiqueta.replace(/ \d+a$| R\d.*$/, ''))).reduce((m, v) => ({ ...m, [v]: (m[v] || 0) + 1 }), {}))
+    .sort((a, b) => b[1] - a[1]).slice(0, 4);
+  return (
+    <Tarjeta titulo="Les toca esta semana" icono={CalendarDays} cuerpo={false}
+      pie={<Link to="/alertas?grupo=por_venir&periodo=semana" className="btn btn-sm btn-fantasma">Ver quiénes <ArrowRight size={15} /></Link>}>
+      <div className="tarjeta-cuerpo inicio-cifra">
+        <strong>{mes ? semana.length : '…'}</strong><span>{semana.length === 1 ? 'niño' : 'niños'} hasta el domingo</span>
+        <div className="fichas-hoy">{vacunas.map(([v, n]) => <span key={v} className="ficha-vacuna le_toca">{v} · {n}</span>)}</div>
+      </div>
+    </Tarjeta>
+  );
+}
+
+/** Enfermera y administrador: cómo va el mes. */
+function MesEnCurso({ mes }) {
+  const [resumen, setResumen] = useState(null);
+  useEffect(() => { api('/tablero/resumen').then(setResumen).catch(() => {}); }, []);
+  const ritmo = resumen?.ideal_al_mes ?? 0;
+  const p3 = resumen?.avance?.p3;
+  return (
+    <Tarjeta titulo={`${MESES[Number(hoy().slice(5, 7)) - 1].replace(/^\w/, (x) => x.toUpperCase())} hasta hoy`} icono={CheckCircle2} cuerpo={false}
+      pie={<Link to="/tablero" className="btn btn-sm btn-fantasma">Ver tablero <ArrowRight size={15} /></Link>}>
+      <div className="tarjeta-cuerpo inicio-dos-cifras">
+        <div><strong>{mes?.resumen?.ninos_vacunados ?? '…'}</strong><span>niños vacunados este mes</span></div>
+        <div className={p3 == null ? '' : p3 >= ritmo ? 'verde' : 'rojo'}>
+          <strong>{p3 != null ? `${p3} %` : '—'}</strong><span>con sus 3 dosis · deberíamos ir en {ritmo} %</span>
+        </div>
+      </div>
+    </Tarjeta>
+  );
+}
+
+/** Personal: familias que dijeron que vendrían y la fecha ya llegó (para volver a llamar). */
+function Compromisos({ mes }) {
+  const lista = (mes?.pendientes || []).filter((p) => p.ultimo_contacto?.fecha_compromiso && p.ultimo_contacto.fecha_compromiso.slice(0, 10) <= enDias(1))
+    .sort((a, b) => a.ultimo_contacto.fecha_compromiso.localeCompare(b.ultimo_contacto.fecha_compromiso));
+  if (!lista.length) return null;
+  return (
+    <Tarjeta titulo="Prometieron venir" icono={Phone} sub="La fecha ya llegó: confirme o vuelva a llamar" cuerpo={false}>
+      <div className="inicio-lista">
+        {lista.slice(0, 6).map((p) => {
+          const f = p.ultimo_contacto.fecha_compromiso.slice(0, 10);
+          return (
+            <Link key={p.id} to={`/alertas?nino=${p.id}`} className={`il-fila ${f < hoy() ? 'aviso' : ''}`}>
+              <span className="il-dia">{f === hoy() ? 'Hoy' : f > hoy() ? 'Mañana' : fecha(f).slice(0, 5)}</span>
+              <span className="il-cuerpo"><strong>{p.nombre_completo}</strong><span>{p.responsable || 'Sin responsable'} · {p.comunidad}</span></span>
+              <ChevronRight size={18} />
+            </Link>
+          );
+        })}
+      </div>
+    </Tarjeta>
+  );
+}
+
+/** Enfermera: recordar hacer el pedido del mes siguiente antes de que empiece. */
+function RecordatorioPedido() {
+  const [a, m] = hoy().split('-').map(Number);
+  const fin = new Date(Date.UTC(a, m, 0)).getUTCDate();
+  const faltan = fin - Number(hoy().slice(8, 10));
+  const siguiente = MESES[m % 12];
+  return (
+    <Link to="/vacunas?vista=pedido" className={`inicio-pedido ${faltan <= 10 ? 'pronto' : ''}`}>
+      <Package size={22} />
+      <span><strong>Pedido de {siguiente}</strong> · {faltan === 0 ? 'hoy termina el mes' : `faltan ${plural(faltan, 'día', 'días')} para fin de mes`}</span>
+      <ArrowRight size={18} />
     </Link>
   );
 }
 
-/** Flecha y diferencia contra el mes anterior: ▼ es buena noticia cuando se cuentan problemas. */
-const tendencia = (actual, anterior) => {
-  if (anterior == null || actual == null) return null;
-  const d = actual - anterior;
-  return `${d > 0 ? '▲' : d < 0 ? '▼' : '='} ${Math.abs(d)} contra el mes pasado`;
-};
-
-export default function Inicio() {
-  const { usuario, pendientes, refrescarAlertas } = useSesion();
-  const ir = useNavigate();
-  const [comunidades, setComunidades] = useState(null);
-  const [jornadas, setJornadas] = useState(null);
-  const [resumen, setResumen] = useState(null);
-  const [misCasos, setMisCasos] = useState(null);
-  const [citas, setCitas] = useState(null);
-  const [buscar, setBuscar] = useState('');
-  const operativo = puede(usuario.rol, 'enfermera', 'vacunador');
-  const gestion = puede(usuario.rol, 'enfermera', 'encargado');
-
-  useEffect(refrescarAlertas, [refrescarAlertas]);
+/** Administrador: lo que hace falta configurar para que cada quien vea lo suyo. */
+function EstadoSistema() {
+  const comunidades = useCatalogo('comunidades');
+  const [usuarios, setUsuarios] = useState([]);
+  const [respaldos, setRespaldos] = useState(null);
   useEffect(() => {
-    api('/comunidades/tablero').then(setComunidades).catch(() => setComunidades([]));
-    api('/jornadas').then(setJornadas).catch(() => setJornadas([]));
-    if (gestion) api('/tablero/resumen').then(setResumen).catch(() => {});
-    if (operativo) api('/ninos/citas' + qs({ desde: hoy(), hasta: finDeSemana() })).then(setCitas).catch(() => setCitas([]));
-    if (usuario.rol === 'vacunador') api('/casos?asignado=yo').then(setMisCasos).catch(() => setMisCasos([]));
-  }, [gestion, operativo, usuario.rol]);
+    api('/admin/usuarios').then(setUsuarios).catch(() => {});
+    api('/admin/respaldos').then((r) => setRespaldos(r.respaldos || [])).catch(() => setRespaldos([]));
+  }, []);
+  const conLugar = new Set(comunidades.map((c) => c.responsable_id).filter(Boolean));
+  const sinLugar = usuarios.filter((u) => u.activo && u.rol === 'vacunador' && !conLugar.has(u.id));
+  const sinResponsable = comunidades.filter((c) => !c.responsable && !c.responsable_puesto && c.tipo !== 'casco_urbano');
+  const ultimo = respaldos?.[0];
+  const diasRespaldo = ultimo ? Math.floor((Date.now() - new Date(ultimo.creado)) / 86400000) : null;
+  const avisos = [
+    sinLugar.length > 0 && { to: '/admin?vista=territorio', icono: Users, texto: `${plural(sinLugar.length, 'persona del personal sin lugar a cargo', 'personas del personal sin lugar a cargo')}: ven todo el municipio`, detalle: sinLugar.map((u) => u.nombre).join(', ') },
+    sinResponsable.length > 0 && { to: '/admin?vista=territorio', icono: MapPin, texto: `${plural(sinResponsable.length, 'comunidad sin responsable', 'comunidades sin responsable')}`, detalle: sinResponsable.map((c) => c.nombre).join(', ') },
+    respaldos !== null && (diasRespaldo == null || diasRespaldo > 7) && { to: '/admin?vista=respaldos', icono: DatabaseBackup, texto: ultimo ? `El último respaldo es de hace ${diasRespaldo} días` : 'Todavía no hay respaldos', detalle: 'Haga uno desde Administración' },
+  ].filter(Boolean);
+  return (
+    <Tarjeta titulo="Estado del sistema" icono={Settings} cuerpo={false}
+      pie={<Link to="/admin" className="btn btn-sm btn-fantasma">Administración <ArrowRight size={15} /></Link>}>
+      <div className="inicio-lista">
+        {avisos.length === 0 ? <div className="il-vacio"><CheckCircle2 size={18} /> Todo configurado: cada persona tiene su lugar y hay respaldo reciente.</div>
+          : avisos.map((a) => (
+            <Link key={a.texto} to={a.to} className="il-fila aviso">
+              <a.icono size={16} />
+              <span className="il-cuerpo"><strong>{a.texto}</strong><span>{a.detalle}</span></span>
+              <ChevronRight size={18} />
+            </Link>
+          ))}
+      </div>
+    </Tarjeta>
+  );
+}
 
-  const hoyLargo = new Date().toLocaleDateString('es-GT', { weekday: 'long', day: 'numeric', month: 'long' });
-  const ordenadas = (comunidades || []).filter((c) => puntaje(c) > 0).sort((a, b) => puntaje(b) - puntaje(a));
-  const maximo = ordenadas.length ? puntaje(ordenadas[0]) : 0;
-  const prioritarias = ordenadas.slice(0, 5);
-  const planificadas = (jornadas || []).filter((j) => ['planificada', 'en_curso'].includes(j.estado));
-  const proximas = planificadas.filter((j) => j.fecha.slice(0, 10) >= hoy()).sort((a, b) => a.fecha.localeCompare(b.fecha)).slice(0, 3);
-  const porCerrar = planificadas.filter((j) => j.fecha.slice(0, 10) < hoy());
-  const jornadaHoy = proximas.find((j) => j.fecha.slice(0, 10) === hoy());
-  // Citas por fecha programada; los atrasados ya están en "Llamar o visitar"
-  const citasSemana = (citas || []).filter((c) => !c.atrasada).length;
-  const k = resumen?.kpis;
-  const ritmo = resumen?.ideal_al_mes ?? 0;
-
-  function enviarBusqueda(e) {
-    e.preventDefault();
-    ir('/ninos' + (buscar.trim() ? qs({ q: buscar.trim() }) : ''));
-  }
-
+/** Encargada: el pedido del próximo mes y cómo se usó el del mes pasado. */
+function InicioEncargada() {
+  const [proy, setProy] = useState(null);
+  const [vsAplicado, setVsAplicado] = useState(null);
+  const [a, m] = hoy().split('-').map(Number);
+  const [pa, pm] = m === 1 ? [a - 1, 12] : [a, m - 1];
+  useEffect(() => {
+    api('/seguimiento/proyeccion').then(setProy).catch(() => {});
+    api('/lotes/pedido-vs-aplicado' + qs({ anio: pa, mes: pm })).then(setVsAplicado).catch(() => {});
+  }, [pa, pm]);
+  const col = 2;
+  const vacunas = (proy?.filas || []).map((f) => ({ nombre: f.nombre, n: f.cantidades[col] })).filter((v) => v.n > 0).sort((x, y) => y.n - x.n);
+  const total = vacunas.reduce((t, v) => t + v.n, 0);
+  const pedidas = (vsAplicado?.vacunas || []).reduce((t, v) => t + (v.pedidas || 0), 0);
+  const aplicadas = (vsAplicado?.vacunas || []).reduce((t, v) => t + v.aplicadas, 0);
   return (
     <>
-      <section className="heroe heroe-inicio">
-        <div className="fecha-hoy">{hoyLargo}</div>
-        <h1 style={{ marginTop: '.35rem' }}>{saludo()}, {usuario.nombre.split(' ')[0]}</h1>
-        {operativo ? (
-          <form className="heroe-buscar" onSubmit={enviarBusqueda} role="search">
-            <Search size={20} />
-            <input type="search" value={buscar} onChange={(e) => setBuscar(e.target.value)} placeholder="Buscar por nombre o CUI"
-              aria-label="Buscar niño" />
-            <button className="btn btn-blanco">Buscar</button>
-          </form>
-        ) : <p>¿Qué quiere hacer?</p>}
-      </section>
-
-      {puede(usuario.rol, 'enfermera') && porCerrar.length > 0 && (
-        <Mensaje tipo="aviso">
-          <strong>{porCerrar.length === 1 ? 'Tiene 1 jornada por cerrar' : `Tiene ${porCerrar.length} jornadas por cerrar`}:</strong>{' '}
-          {porCerrar.map((j, i) => (
-            <span key={j.id}>{i > 0 && ', '}<Link to={`/jornadas/${j.id}`}>{fecha(j.fecha)} · {j.comunidades}</Link></span>
-          ))}
-        </Mensaje>
-      )}
-
-      {jornadaHoy && (
-        <Link to={`/jornadas/${jornadaHoy.id}`} className="aviso-jornada">
-          <span className="ic"><Truck size={22} /></span>
-          <span className="texto"><strong>Hoy hay jornada en {jornadaHoy.comunidades}</strong>
-            <span>{plural(jornadaHoy.convocados, 'niño convocado', 'niños convocados')}</span></span>
-          <ArrowRight size={20} />
-        </Link>
-      )}
-
-      <div className="mosaicos">
-        {operativo && <Mosaico to="/ninos" icono={Syringe} titulo="Vacunar" texto="Buscar al niño" color="destacado" />}
-        {operativo && <Mosaico to="/ninos/nuevo" icono={UserPlus} titulo="Niño nuevo" texto="Primera vez que viene" color="verde" />}
-        {operativo && (
-          <Mosaico to={pendientes.mios ? '/alertas?asignado=yo' : '/alertas'} icono={Phone} titulo="Niños a buscar"
-            texto={pendientes.mios ? (usuario.sector ? 'En su sector' : 'Los que le asignaron') : 'Llamar o visitar'}
-            color="rojo" contador={pendientes.mios || pendientes.total} />
-        )}
-        {operativo && (
-          <Mosaico to="/alertas?periodo=semana&tipo=por_venir" icono={CalendarDays} titulo="Vienen esta semana" color="ambar" contador={citasSemana} contadorNeutro
-            texto={citas !== null && !citasSemana ? 'Nadie tiene cita' : 'Citas de estos días'} />
-        )}
-        {!operativo && gestion && <Mosaico to="/tablero" icono={LayoutDashboard} titulo="Tablero" texto="Cómo vamos" color="destacado" />}
-        {!operativo && <Mosaico to="/ninos" icono={Search} titulo="Buscar niño" texto="Fichas e historial" />}
-        {!operativo && gestion && <Mosaico to="/informes" icono={FileText} titulo="Informes" texto="Informe mensual SIGSA" />}
-        {!operativo && gestion && <Mosaico to="/vacunas?vista=pedido" icono={Package} titulo="Pedido de vacunas" texto="Quiénes se vacunan cada mes" color="verde" />}
-        {usuario.rol === 'administrador' && <Mosaico to="/admin" icono={Settings} titulo="Administración" texto="Usuarios y respaldos" />}
-      </div>
-
-      {usuario.rol === 'vacunador' && misCasos && misCasos.length > 0 && (
-        <Tarjeta titulo="Sus niños a buscar" icono={Phone} cuerpo={false}
-          pie={<Link to="/alertas?asignado=yo" className="btn btn-sm btn-fantasma">Ver todos ({misCasos.length}) <ArrowRight size={15} /></Link>}>
-          <div className="lista-tarjetas" style={{ padding: '1rem' }}>
-            {misCasos.slice(0, 4).map((c) => (
-              <Link key={c.nino_id} to={`/alertas?nino=${c.nino_id}&asignado=yo`} className="tarjeta-nino">
-                <div className="cuerpo"><strong>{c.nombre_completo}</strong><span>{edad(c.fecha_nacimiento)} · {c.comunidad}</span></div>
-                <div className="derecha"><Estado de={c.peor} />{c.dias_atraso > 0 && <span className="tenue">{c.dias_atraso} días</span>}</div>
-              </Link>
-            ))}
+      <Link to="/vacunas?vista=pedido" className="inicio-urgente iu-principal pedido">
+        <span className="iu-ic"><Package size={30} /></span>
+        <span className="iu-texto">
+          <strong>{proy ? total : '…'}</strong>
+          <span>dosis a pedir para {proy?.columnas?.[col]?.nombre || MESES[m % 12]}</span>
+          <span className="iu-desglose">{vacunas.slice(0, 3).map((v) => <b key={v.nombre}>{v.nombre} {v.n}</b>)}</span>
+        </span>
+        <span className="btn btn-blanco iu-boton">Ver e imprimir <ArrowRight size={17} /></span>
+      </Link>
+      <div className="inicio-rejilla">
+        <Tarjeta titulo={`${MESES[pm - 1].replace(/^\w/, (x) => x.toUpperCase())}: pedido y aplicado`} icono={FileText} cuerpo={false}
+          pie={<Link to="/informes?vista=pedido" className="btn btn-sm btn-fantasma">Ver por vacuna <ArrowRight size={15} /></Link>}>
+          <div className="tarjeta-cuerpo inicio-dos-cifras">
+            <div><strong>{vsAplicado?.pedido ? pedidas : '—'}</strong><span>{vsAplicado?.pedido ? 'dosis pedidas' : 'no se guardó el pedido'}</span></div>
+            <div><strong>{vsAplicado ? aplicadas : '…'}</strong><span>dosis aplicadas</span></div>
           </div>
         </Tarjeta>
-      )}
-
-      {gestion && k && (
-        <>
-          <div className="seccion-titulo">Este año</div>
-          <div className="kpis">
-            <Link to="/tablero" className={`kpi activo ${resumen.avance?.p3 >= ritmo ? 'verde' : resumen.avance?.p3 >= ritmo * 0.75 ? 'ambar' : 'rojo'}`}>
-              <span>Niños con sus 3 dosis</span>
-              <strong>{resumen.avance?.p3 ?? '—'}{resumen.avance?.p3 != null && ' %'}</strong>
-              <em className="kpi-pie" style={{ fontStyle: 'normal' }}>Deberíamos ir en {ritmo} %</em>
-            </Link>
-            <Link to="/alertas?tipo=dosis_cero" className="kpi rojo activo">
-              <span>Dosis cero</span>
-              <strong>{k.N1.valor}</strong>
-              <em className="kpi-pie" style={{ fontStyle: 'normal' }}>{tendencia(k.N1.valor, k.N1.anterior) || 'Ver quiénes'} <ChevronRight size={13} /></em>
-            </Link>
-            <Link to="/alertas" className="kpi ambar activo">
-              <span>Niños a buscar</span>
-              <strong>{k.por_contactar.valor}</strong>
-              <em className="kpi-pie" style={{ fontStyle: 'normal' }}>Ver quiénes <ChevronRight size={13} /></em>
-            </Link>
-            <div className="kpi verde">
-              <span>Al día con sus vacunas</span>
-              <strong>{k.N2.valor ?? '—'} %</strong>
-              <em className="kpi-pie" style={{ fontStyle: 'normal' }}>{k.N2.numerador} de {k.N2.denominador}</em>
-            </div>
-          </div>
-        </>
-      )}
-
-      <div className="dos-col">
-        <Tarjeta titulo="Dónde hay más niños a buscar" icono={MapPinned} cuerpo={false}
-          pie={<Link to="/comunidades" className="btn btn-sm btn-fantasma">Ver todas <ArrowRight size={15} /></Link>}>
-          {comunidades === null ? <div className="tarjeta-cuerpo"><div className="esqueleto" /></div> : prioritarias.length === 0 ? (
-            <Vacio icono={MapPinned} titulo="Todas las comunidades al día" />
-          ) : (
-            <div className="ranking">
-              <div className="ranking-cab"><span>#</span><span>Comunidad</span><span>Dosis cero</span><span><b className="solo-pc">Abandono</b><b className="solo-cel">Aban&shy;dono</b></span><span><b className="solo-pc">Atrasados</b><b className="solo-cel">Atra&shy;sados</b></span><span /></div>
-              {prioritarias.map((c, i) => {
-                const nivel = nivelComunidad(c, maximo);
-                return (
-                  <Link key={c.id} to={`/alertas?comunidad=${c.id}`} className={`ranking-fila t-${NIVELES[nivel][1]}`}>
-                    <span className="posicion">{i + 1}</span>
-                    <span className="nombre">
-                      <strong>{c.nombre}</strong>
-                      <span>{plural(c.activos, 'niño activo', 'niños activos')}</span>
-                      <b className={`nivel t-${NIVELES[nivel][1]}`}>{NIVELES[nivel][0]}</b>
-                    </span>
-                    <Cuenta n={c.dosis_cero} tono="critico" />
-                    <Cuenta n={c.abandono} tono="critico" />
-                    <Cuenta n={c.atrasados} tono="atencion" />
-                    <ChevronRight size={18} className="flecha" />
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </Tarjeta>
-
-        <Tarjeta titulo="Próximas jornadas" icono={Truck} cuerpo={false}
-          pie={<Link to="/jornadas" className="btn btn-sm btn-fantasma">Ver todas <ArrowRight size={15} /></Link>}>
-          {jornadas === null ? <div className="tarjeta-cuerpo"><div className="esqueleto" /></div> : proximas.length === 0 ? (
-            <div className="vacio-linea">
-              <span>No hay jornadas planificadas.</span>
-              {puede(usuario.rol, 'enfermera') && <Link className="btn btn-sm btn-primario" to="/jornadas/nueva"><Truck size={15} />Planificar jornada</Link>}
-            </div>
-          ) : (
-            <ul className="lista-items">
-              {proximas.map((j) => (
-                <li key={j.id}>
-                  <div className="crece">
-                    <Link to={`/jornadas/${j.id}`} className="nombre-link">{j.fecha.slice(0, 10) === hoy() ? 'Hoy' : fecha(j.fecha)}</Link>
-                    <div className="tenue">{j.comunidades}</div>
-                  </div>
-                  <span className="chip">{plural(j.convocados, 'niño', 'niños')}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-          {usuario.rol !== 'enfermera' && porCerrar.length > 0 && (
-            <div className="vacio-linea"><Lock size={15} /><span>{plural(porCerrar.length, 'jornada pasada', 'jornadas pasadas')} sin cerrar.</span></div>
-          )}
+        <Tarjeta titulo="Informes" icono={FileText} cuerpo={false}
+          pie={<Link to="/informes" className="btn btn-sm btn-fantasma">Abrir informes <ArrowRight size={15} /></Link>}>
+          <div className="tarjeta-cuerpo"><span className="tenue">Informe mensual SIGSA, listado nominal y pedido contra lo aplicado.</span></div>
         </Tarjeta>
       </div>
     </>

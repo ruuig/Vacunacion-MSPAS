@@ -12,4 +12,13 @@ router.get('/logo', async (req, res) => {
   res.send(a.datos);
 });
 
+// Datos del centro de salud que configura el administrador (nombre, municipio, área de salud)
+router.get('/centro', async (_req, res) => {
+  const { rows } = await pool.query("SELECT clave, valor FROM parametro WHERE clave LIKE 'centro\\_%'");
+  const v = Object.fromEntries(rows.map((r) => [r.clave.replace('centro_', ''), r.valor]));
+  res.set('Cache-Control', 'no-cache');
+  res.json({ nombre: v.nombre || 'Centro de Salud', municipio: v.municipio || '', departamento: v.departamento || '',
+    area_salud: v.area_salud || '', distrito: v.distrito || '' });
+});
+
 module.exports = router;

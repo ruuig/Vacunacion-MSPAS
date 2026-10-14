@@ -1962,3 +1962,74 @@ button.pedido-vacuna.activa { background: #e8f1fb; border-color: #9fc0e6; border
 .pedido-quienes .pq-titulo { display: inline-flex; align-items: center; gap: .4rem; font-size: 1.05rem; color: var(--marino); }
 .pedido-quienes select { flex: 0 1 300px; }
 .pedido-quienes .chip-filtro { margin: 0; }
+
+/* ===== Inicio por rol: lo urgente primero ===== */
+.inicio-saludo { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.1rem; }
+.inicio-saludo h1 { font-size: 1.6rem; font-weight: 900; color: var(--marino); margin: 0; }
+.inicio-saludo .tenue { font-weight: 700; }
+.inicio-buscar { flex: 0 1 380px; }
+.inicio-buscar input { min-height: 46px; border-radius: 14px; }
+.inicio-urgente { margin-bottom: 1rem; }
+.inicio-urgente .esqueleto { height: 110px; }
+.iu-principal { display: flex; align-items: center; gap: 1.1rem; padding: 1.3rem 1.5rem; border-radius: 22px; color: #fff; text-decoration: none;
+  background: linear-gradient(135deg, #b4302a, #d9534a); border-bottom: 6px solid #8c2520; transition: transform .08s; }
+.iu-principal:hover { text-decoration: none; filter: brightness(1.04); }
+.iu-principal:active { transform: translateY(3px); border-bottom-width: 3px; }
+.iu-principal.pedido { background: linear-gradient(135deg, var(--marino), var(--marino-3, #2b4a8c)); border-bottom-color: #0f1a3d; }
+.iu-ic { width: 62px; height: 62px; border-radius: 18px; display: grid; place-items: center; background: rgba(255,255,255,.16); flex: none; }
+.iu-texto { display: grid; gap: .15rem; flex: 1; min-width: 0; }
+.iu-texto > strong { font-size: 2.6rem; font-weight: 900; line-height: 1; }
+.iu-texto > span { font-weight: 700; font-size: 1.02rem; }
+.iu-desglose { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .35rem; }
+.iu-desglose b { font-size: .8rem; font-weight: 800; padding: .2rem .6rem; border-radius: 999px; background: rgba(255,255,255,.18); }
+.iu-desglose b.rojo { background: #fff; color: #b4302a; }
+.iu-boton { flex: none; }
+.iu-puestos { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .7rem; }
+.iu-puesto { display: inline-flex; align-items: center; gap: .4rem; padding: .45rem .8rem; border-radius: 12px; background: #fff; border: 2px solid var(--borde);
+  border-bottom-width: 4px; color: var(--texto); font-weight: 700; font-size: .88rem; text-decoration: none; }
+.iu-puesto:hover { text-decoration: none; border-color: #e3a29a; }
+.iu-puesto b { color: #b4302a; font-weight: 900; }
+.iu-puesto.peor { border-color: #e3a29a; background: #fdecea; }
+.inicio-urgente.al-dia { display: flex; align-items: center; gap: 1rem; padding: 1.2rem 1.4rem; border-radius: 22px; background: #e9f8ef;
+  border: 2px solid #9fdcb9; border-bottom-width: 5px; color: #12683f; }
+.inicio-urgente.al-dia strong { display: block; font-size: 1.2rem; font-weight: 900; }
+.inicio-urgente.al-dia span { color: #2c6e4b; font-weight: 600; }
+.inicio-rejilla { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.inicio-rejilla > .tarjeta { margin: 0; }
+.inicio-lista { display: grid; }
+.il-fila { display: flex; align-items: center; gap: .8rem; padding: .8rem 1.2rem; border-top: 1px solid var(--borde); color: var(--texto); text-decoration: none; }
+.il-fila:first-child { border-top: none; }
+.il-fila:hover { background: var(--superficie-2, #f3f6fa); text-decoration: none; }
+.il-fila.hoy { background: #e9f8ef; }
+.il-fila.aviso { color: #9a4b00; }
+.il-fila.aviso:hover { background: #fff4e5; }
+.il-dia { flex: none; min-width: 92px; font-weight: 800; color: var(--marino); text-transform: capitalize; font-size: .9rem; }
+.il-fila.hoy .il-dia { color: #12683f; }
+.il-cuerpo { flex: 1; display: grid; min-width: 0; }
+.il-cuerpo strong { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.il-cuerpo span { font-size: .84rem; color: var(--suave); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.il-fila > span:not(.il-dia):not(.il-cuerpo) { flex: 1; font-weight: 700; }
+.il-vacio { display: flex; align-items: center; justify-content: space-between; gap: .8rem; padding: 1rem 1.2rem; color: var(--suave); flex-wrap: wrap; }
+.inicio-cifra strong { display: block; font-size: 2.4rem; font-weight: 900; color: var(--marino); line-height: 1; }
+.inicio-cifra > span { color: var(--suave); font-weight: 700; }
+.inicio-cifra .fichas-hoy { margin-top: .7rem; }
+.inicio-dos-cifras { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.inicio-dos-cifras strong { display: block; font-size: 2rem; font-weight: 900; color: var(--marino); line-height: 1.05; }
+.inicio-dos-cifras span { color: var(--suave); font-weight: 600; font-size: .86rem; }
+.inicio-dos-cifras .verde strong { color: #12683f; }
+.inicio-dos-cifras .rojo strong { color: #b4302a; }
+.inicio-pedido { display: flex; align-items: center; gap: .8rem; margin-top: 1rem; padding: .9rem 1.2rem; border-radius: 16px; background: #fff;
+  border: 2px solid var(--borde); border-bottom-width: 4px; color: var(--texto); text-decoration: none; }
+.inicio-pedido span { flex: 1; }
+.inicio-pedido:hover { text-decoration: none; border-color: #9fc0e6; }
+.inicio-pedido.pronto { background: #e8f1fb; border-color: #9fc0e6; }
+.inicio-acciones { display: flex; gap: .8rem; margin-top: 1rem; flex-wrap: wrap; }
+.inicio-acciones .btn { flex: 1 1 200px; justify-content: center; }
+.inicio-rejilla + .tarjeta, .inicio-rejilla + .inicio-pedido { margin-top: 1rem; }
+@media (max-width: 800px) {
+  .inicio-rejilla { grid-template-columns: 1fr; }
+  .iu-principal { flex-wrap: wrap; padding: 1.1rem; }
+  .iu-boton { width: 100%; justify-content: center; }
+  .iu-ic { width: 50px; height: 50px; }
+  .inicio-buscar { flex-basis: 100%; }
+}

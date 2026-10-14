@@ -51,7 +51,8 @@ router.put('/usuarios/:id', async (req, res) => {
 });
 
 router.get('/parametros', async (_req, res) => {
-  const { rows } = await pool.query('SELECT * FROM parametro ORDER BY clave');
+  // Los datos del centro tienen su propia pestaña
+  const { rows } = await pool.query("SELECT * FROM parametro WHERE clave NOT LIKE 'centro\\_%' ORDER BY clave");
   res.json(rows);
 });
 
@@ -69,6 +70,64 @@ router.put('/parametros/:clave', async (req, res) => {
 });
 
 // Esquema como datos: edades e intervalos editables sin tocar el código
+// ---- Datos del centro de salud ----
+const CAMPOS_CENTRO = ['nombre', 'municipio', 'departamento', 'area_salud', 'distrito'];
+router.put('/centro', async (req, res) => {
+  const datos = req.body || {};
+  if (!String(datos.nombre || '').trim()) return res.status(400).json({ error: 'Escriba el nombre del centro de salud.' });
+  await transaccion(async (c) => {
+    for (const k of CAMPOS_CENTRO) {
+      if (datos[k] == null) continue;
+      await c.query(`INSERT INTO parametro (clave, valor) VALUES ($1, $2) ON CONFLICT (clave) DO UPDATE SET valor = $2`, [`centro_${k}`, String(datos[k]).trim()]);
+    }
+    await registrarBitacora(c, req, 'editar', 'parametro', 'centro', null, datos);
+  });
+  res.json({ ok: true });
+});
+
+// ---- Cargos (nombre del puesto de trabajo; los permisos los da el rol) ----
+router.post('/cargos', async (req, res) => {
+  const nombre = String(req.body?.nombre || '').trim();
+  if (!nombre) return res.status(400).json({ error: 'Escriba el nombre del cargo.' });
+  const { rows: [c] } = await pool.query(
+    'INSERT INTO cargo (nombre) VALUES ($1) ON CONFLICT (nombre) DO UPDATE SET activo = true RETURNING *', [nombre]);
+  await registrarBitacora(pool, req, 'crear', 'cargo', c.id, null, c);
+  res.status(201).json(c);
+});
+router.put('/cargos/:id', async (req, res) => {
+  const { nombre, activo } = req.body || {};
+  const { rows: [antes] } = await pool.query('SELECT * FROM cargo WHERE id = $1', [req.params.id]);
+  if (!antes) return res.status(404).json({ error: 'Cargo no encontrado.' });
+  const { rows: [c] } = await pool.query('UPDATE cargo SET nombre = $2, activo = $3 WHERE id = $1 RETURNING *',
+    [antes.id, String(nombre ?? antes.nombre).trim(), activo ?? antes.activo]);
+  // Si cambia el nombre, los usuarios con ese cargo lo siguen teniendo
+  if (c.nombre !== antes.nombre) await pool.query('UPDATE usuario SET cargo = $2 WHERE cargo = $1', [antes.nombre, c.nombre]);
+  await registrarBitacora(pool, req, 'editar', 'cargo', c.id, antes, c);
+  res.json(c);
+});
+
+// ---- Establecimientos (centro, puestos y lugares externos donde se vacuna) ----
+const TIPOS_ESTABLECIMIENTO = ['centro', 'puesto', 'hospital', 'privado', 'otro_municipio'];
+router.post('/establecimientos', async (req, res) => {
+  const { nombre, tipo = 'puesto' } = req.body || {};
+  if (!String(nombre || '').trim()) return res.status(400).json({ error: 'Escriba el nombre.' });
+  if (!TIPOS_ESTABLECIMIENTO.includes(tipo)) return res.status(400).json({ error: 'Tipo no válido.' });
+  const { rows: [e] } = await pool.query('INSERT INTO establecimiento (nombre, tipo, es_local) VALUES ($1,$2,$3) RETURNING *',
+    [String(nombre).trim(), tipo, ['centro', 'puesto'].includes(tipo)]);
+  await registrarBitacora(pool, req, 'crear', 'establecimiento', e.id, null, e);
+  res.status(201).json(e);
+});
+router.put('/establecimientos/:id', async (req, res) => {
+  const { nombre, tipo, activo } = req.body || {};
+  const { rows: [antes] } = await pool.query('SELECT * FROM establecimiento WHERE id = $1', [req.params.id]);
+  if (!antes) return res.status(404).json({ error: 'Establecimiento no encontrado.' });
+  const t = tipo ?? antes.tipo;
+  const { rows: [e] } = await pool.query('UPDATE establecimiento SET nombre = $2, tipo = $3, es_local = $4, activo = $5 WHERE id = $1 RETURNING *',
+    [antes.id, String(nombre ?? antes.nombre).trim(), t, ['centro', 'puesto'].includes(t), activo ?? antes.activo]);
+  await registrarBitacora(pool, req, 'editar', 'establecimiento', e.id, antes, e);
+  res.json(e);
+});
+
 router.get('/esquema', async (_req, res) => {
   const { rows } = await pool.query(`
     SELECT d.*, s.nombre AS serie, s.estacional, s.informativa FROM esquema_dosis d JOIN serie s ON s.id = d.serie_id ORDER BY d.orden`);

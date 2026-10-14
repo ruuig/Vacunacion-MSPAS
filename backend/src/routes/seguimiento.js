@@ -174,7 +174,7 @@ router.get('/proyeccion', permitir(...TODOS), async (req, res) => {
   const filas = productos.map((p) => ({ codigo: p.codigo, nombre: p.nombre, cantidades: columnas.map((c) => cuenta[c.clave][p.codigo] || 0) }))
     .filter((f) => f.cantidades.some(Boolean));
   const orden = (l) => l.sort((a, b) => a.comunidad.localeCompare(b.comunidad) || a.nombre_completo.localeCompare(b.nombre_completo));
-  res.json({ columnas: columnas.map(({ clave, nombre }) => ({ clave, nombre, ninos: orden(quienes[clave]) })), filas, nacimientos_por_mes: porMes,
+  res.json({ columnas: columnas.map(({ clave, nombre, anio, mes }) => ({ clave, nombre, anio: anio || a0, mes: mes || m0, ninos: orden(quienes[clave]) })), filas, nacimientos_por_mes: porMes,
     reserva: Number(ctx.params.porcentaje_reserva_jornada) || 0 });
 });
 

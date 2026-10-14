@@ -10,7 +10,7 @@ import { useSesion } from '../App.jsx';
 import { useDialogos } from '../componentes/Dialogos.jsx';
 import { Calidad } from './Tablero.jsx';
 
-// Niños a buscar y coberturas viven en Control del mes y en el Tablero: aquí solo lo que se entrega
+// Vacunas retrasadas y coberturas viven en Control del mes y en el Tablero: aquí solo lo que se entrega
 const VISTAS = [
   ['mensual', <><FileText size={15} />Informe mensual SIGSA 5a</>],
   ['nominal', <><ClipboardList size={15} />Listado de vacunados</>],

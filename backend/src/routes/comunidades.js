@@ -132,4 +132,71 @@ router.put('/:id', permitir('administrador'), async (req, res) => {
   c ? res.json(c) : res.status(404).json({ error: 'Comunidad no encontrada.' });
 });
 
+// Deja de ser puesto: la aldea del puesto y todas sus comunidades pasan a otro puesto
+router.post('/:id/quitar-puesto', permitir('administrador'), async (req, res) => {
+  const destino = Number(req.body?.destino_id);
+  const r = await transaccion(async (cl) => {
+    const { rows: [p] } = await cl.query('SELECT * FROM comunidad WHERE id = $1 AND es_central', [req.params.id]);
+    if (!p) return { status: 404, error: 'Ese lugar no es un puesto.' };
+    const { rows: [d] } = await cl.query('SELECT id FROM comunidad WHERE id = $1 AND es_central AND activo AND id <> $2', [destino, p.id]);
+    if (!d) return { status: 400, error: 'Elija a qué puesto pasan sus comunidades.' };
+    const { rowCount } = await cl.query('UPDATE comunidad SET comunidad_padre_id = $2 WHERE comunidad_padre_id = $1', [p.id, d.id]);
+    await cl.query('UPDATE comunidad SET es_central = false, comunidad_padre_id = $2 WHERE id = $1', [p.id, d.id]);
+    await registrarBitacora(cl, req, 'editar', 'comunidad', p.id, p, { quitar_puesto: true, destino_id: d.id, movidas: rowCount });
+    return { status: 200, movidas: rowCount };
+  });
+  res.status(r.status).json(r.error ? { error: r.error } : r);
+});
+
+// Cuántos registros dependen de una comunidad (para saber si se puede eliminar)
+async function usoDe(db, id) {
+  const { rows: [u] } = await db.query(`SELECT
+    (SELECT count(*) FROM nino WHERE comunidad_id = $1)::int AS ninos,
+    (SELECT count(*) FROM nino WHERE comunidad_id = $1 AND estado = 'activo')::int AS ninos_activos,
+    (SELECT count(*) FROM responsable WHERE comunidad_id = $1)::int AS responsables,
+    (SELECT count(*) FROM comunidad WHERE comunidad_padre_id = $1 AND activo)::int AS hijas,
+    (SELECT count(*) FROM cuaderno WHERE comunidad_id = $1)::int AS cuadernos,
+    (SELECT count(*) FROM jornada_comunidad WHERE comunidad_id = $1)::int AS jornadas`, [id]);
+  return u;
+}
+
+// Desactivar: deja de aparecer en listas; se conserva el historial. No se puede con niños activos o comunidades a cargo.
+router.post('/:id/desactivar', permitir('administrador'), async (req, res) => {
+  const { rows: [c] } = await pool.query('SELECT * FROM comunidad WHERE id = $1', [req.params.id]);
+  if (!c) return res.status(404).json({ error: 'Comunidad no encontrada.' });
+  const u = await usoDe(pool, c.id);
+  if (u.hijas) return res.status(409).json({ error: `Tiene ${u.hijas} comunidades a cargo: páselas a otro puesto primero.` });
+  if (u.ninos_activos) return res.status(409).json({ error: `Tiene ${u.ninos_activos} niños activos: cámbielos de comunidad primero.` });
+  await pool.query('UPDATE comunidad SET activo = false, responsable_id = NULL WHERE id = $1', [c.id]);
+  await registrarBitacora(pool, req, 'editar', 'comunidad', c.id, c, { activo: false });
+  res.json({ ok: true });
+});
+
+// Eliminar: solo si nunca se usó (sin niños, responsables, cuadernos ni jornadas); si no, se desactiva
+router.delete('/:id', permitir('administrador'), async (req, res) => {
+  const { rows: [c] } = await pool.query('SELECT * FROM comunidad WHERE id = $1', [req.params.id]);
+  if (!c) return res.status(404).json({ error: 'Comunidad no encontrada.' });
+  const u = await usoDe(pool, c.id);
+  if (u.ninos || u.responsables || u.hijas || u.cuadernos || u.jornadas)
+    return res.status(409).json({ error: 'Ya tiene registros (niños, familias, cuadernos o jornadas): desactívela en lugar de eliminarla.' });
+  await pool.query('DELETE FROM poblacion_meta WHERE comunidad_id = $1', [c.id]);
+  await pool.query('DELETE FROM comunidad WHERE id = $1', [c.id]);
+  await registrarBitacora(pool, req, 'eliminar', 'comunidad', c.id, c, null);
+  res.json({ ok: true });
+});
+
+// Reactivar una comunidad desactivada
+router.post('/:id/activar', permitir('administrador'), async (req, res) => {
+  const { rows: [c] } = await pool.query('UPDATE comunidad SET activo = true WHERE id = $1 RETURNING *', [req.params.id]);
+  if (!c) return res.status(404).json({ error: 'Comunidad no encontrada.' });
+  await registrarBitacora(pool, req, 'editar', 'comunidad', c.id, null, { activo: true });
+  res.json(c);
+});
+
+// Inactivas (para reactivarlas desde Administración)
+router.get('/inactivas', permitir('administrador'), async (_req, res) => {
+  const { rows } = await pool.query('SELECT id, nombre, tipo FROM comunidad WHERE NOT activo ORDER BY nombre');
+  res.json(rows);
+});
+
 module.exports = router;
