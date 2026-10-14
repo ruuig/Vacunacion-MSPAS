@@ -60,9 +60,7 @@ const SITUACION = {
   del_mes: { texto: 'Le tocaba este mes', tono: 'atencion' },
   por_venir: { texto: 'Le toca este mes', tono: 'info' },
 };
-const FILTROS = [
-  ['', 'Todos'], ['dosis_cero', 'Dosis cero'], ['abandono', 'Abandono'], ['atrasada', 'Atrasados'], ['inasistencia', 'Inasistencia'], ['por_venir', 'Les toca este mes'],
-];
+const FILTROS = [['', 'Todos'], ['dosis_cero', 'Dosis cero'], ['abandono', 'Abandono'], ['atrasada', 'Atrasados'], ['inasistencia', 'Inasistencia']];
 const coincide = (p, f) => (f === 'por_venir' ? p.situacion === 'por_venir' : p.situacion !== 'por_venir' && (!f || p.alerta === f || (f === 'atrasada' && !p.alerta)));
 const sinTildes = (t = '') => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
@@ -84,7 +82,9 @@ export default function Alertas() {
   const lugar = describir({ puesto, comunidad });
   // Quien tiene un sector a cargo entra viendo lo suyo; puede cambiar a «Todos»
   const asignado = params.get('asignado') ?? (usuario.rol === 'vacunador' && usuario.sector ? 'yo' : '');
-  const filtro = params.get('tipo') || '';
+  // Al entrar no se lista nada: se elige el grupo (atrasados o les toca este mes) y abajo salen sus filtros y la lista
+  const grupo = params.get('grupo') || '';
+  const filtro = grupo === 'por_venir' ? 'por_venir' : params.get('tipo') || '';
   const comunidades = useCatalogo('comunidades');
   const [datos, setDatos] = useState(null);
   const [casos, setCasos] = useState([]);
@@ -126,8 +126,7 @@ export default function Alertas() {
   // El caso (alertas, contactos) del niño abierto; sin alertas abiertas, se abre su ficha
   const abierto = params.get('nino');
   const actual = casos.find((c) => String(c.nino_id) === abierto);
-  const visibles = (datos?.pendientes || []).filter((p) => casos.some((c) => c.nino_id === p.id));
-  const siguiente = visibles[visibles.findIndex((p) => String(p.id) === abierto) + 1] || null;
+  const enGrupo = (p) => !grupo || (grupo === 'por_venir') === (p.situacion === 'por_venir');
   const abrir = (p) => {
     if (modoAsignar) { alternarMarca(p.id); return; }
     if (casos.some((c) => c.nino_id === p.id)) cambiar({ nino: String(p.id) }); else ir(`/ninos/${p.id}`);
@@ -154,13 +153,16 @@ export default function Alertas() {
   // Esta semana: los atrasados y a quienes les toca antes del domingo (para la hoja del puesto o barrio)
   const finSemana = sumarDias(ahora, (7 - new Date(`${ahora}T12:00:00Z`).getUTCDay()) % 7);
   const enPeriodo = (p) => !(esEsteMes && periodo === 'semana') || p.situacion !== 'por_venir' || p.dosis.some((d) => d.programada <= finSemana);
-  const pendientes = (datos?.pendientes || []).filter((p) => enPeriodo(p) && coincide(p, filtro)
+  const pendientes = (datos?.pendientes || []).filter((p) => enPeriodo(p) && enGrupo(p) && (!grupo || coincide(p, filtro))
     && (!buscar || sinTildes(`${p.nombre_completo} ${p.responsable || ''}`).includes(sinTildes(buscar))));
   const cuenta = (f) => (datos?.pendientes || []).filter((p) => enPeriodo(p) && coincide(p, f)).length;
   const porComunidad = Object.values(pendientes.reduce((m, p) => {
     (m[p.comunidad_id] ||= { id: p.comunidad_id, nombre: p.comunidad, ninos: [] }).ninos.push(p);
     return m;
   }, {}));
+  // «Siguiente niño» sigue el orden de la lista que se ve
+  const visibles = porComunidad.flatMap((g) => g.ninos).filter((p) => casos.some((c) => c.nino_id === p.id));
+  const siguiente = visibles[visibles.findIndex((p) => String(p.id) === abierto) + 1] || null;
   const titulo = `${MESES[mes - 1]} ${anio}`;
   const IMPRESION = { por_vacunar: 'Niños por vacunar', vacunados: 'Niños vacunados', suplementos: 'Suplementación' };
   const enSemana = esEsteMes && periodo === 'semana' && ['por_vacunar', 'suplementos'].includes(vista);
@@ -169,7 +171,7 @@ export default function Alertas() {
     <>
       <div className="no-imprimir">
         <Encabezado titulo="Control del mes">
-          {esEnfermera && vista === 'por_vacunar' && !modoAsignar && <button className="btn" onClick={() => { setModoAsignar(true); cambiar({ nino: '' }); }}><Users size={17} />Asignar casos</button>}
+          {esEnfermera && vista === 'por_vacunar' && !modoAsignar && <button className="btn" onClick={() => { setModoAsignar(true); cambiar({ nino: '', grupo: grupo || 'atrasados' }); }}><Users size={17} />Asignar casos</button>}
           <button className="btn" onClick={() => window.print()} disabled={!datos}><Printer size={17} />Imprimir</button>
         </Encabezado>
 
@@ -183,21 +185,15 @@ export default function Alertas() {
           )}
           {datos?.solo_sector ? <span className="chip-sector"><MapPin size={16} />Su sector</span>
             : <SelectorTerritorio puesto={puesto} comunidad={comunidad} onCambio={(t) => cambiar({ ...t, nino: '' })} />}
-          {esEsteMes && ['por_vacunar', 'suplementos'].includes(vista) && (
+          {esEsteMes && vista === 'suplementos' && (
             <div className="segmentado" role="group" aria-label="Período">
               <button type="button" className={periodo === 'mes' ? 'activa' : ''} onClick={() => cambiar({ periodo: '' })}>Este mes</button>
               <button type="button" className={periodo === 'semana' ? 'activa' : ''} onClick={() => cambiar({ periodo: 'semana' })}>Esta semana</button>
             </div>
           )}
-          {operativo && vista === 'por_vacunar' && !datos?.solo_sector && (
-            <div className="segmentado" role="group" aria-label="Casos">
-              <button type="button" className={asignado !== 'yo' ? 'activa' : ''} onClick={() => { const p = new URLSearchParams(params); p.set('asignado', ''); setParams(p, { replace: true }); }}>Todos</button>
-              <button type="button" className={asignado === 'yo' ? 'activa' : ''} onClick={() => cambiar({ asignado: 'yo' })}>{usuario.sector ? 'Mi sector' : 'Mis casos'}</button>
-            </div>
-          )}
         </div>
 
-        <Pestanas valor={vista} onCambio={(v) => cambiar({ vista: v === 'por_vacunar' ? '' : v, nino: '' })} opciones={[
+        <Pestanas valor={vista} onCambio={(v) => cambiar({ vista: v === 'por_vacunar' ? '' : v, nino: '', grupo: '', tipo: '' })} opciones={[
           ['por_vacunar', <><Syringe size={15} />Por vacunar</>, datos && <span className="cuenta">{datos.resumen.pendientes}</span>],
           ['vacunados', <><CheckCircle2 size={15} />Vacunados</>, datos && <span className="cuenta">{datos.resumen.ninos_vacunados}</span>],
           ['suplementos', <><Pill size={15} />Suplementos</>],
@@ -228,15 +224,38 @@ export default function Alertas() {
             ))}
           </Documento>
           <div className="no-imprimir">
-          <div className="kpis no-imprimir">
-            <Kpi valor={datos.resumen.pendientes} rotulo={esEsteMes ? 'Atrasados por vacunar' : 'No se vacunaron'} icono={AlertOctagon} color="rojo" resaltar />
-            {esEsteMes && <Kpi valor={datos.resumen.por_venir} rotulo="Les toca este mes" icono={CalendarClock} color="azul" />}
-            <Kpi valor={datos.resumen.ninos_vacunados} rotulo="Vacunados en el mes" icono={CheckCircle2} color="verde" pie={`${plural(datos.resumen.dosis, 'dosis', 'dosis')}`} />
+          <div className="control-grupos">
+            <button type="button" className={`control-grupo rojo ${grupo === 'atrasados' ? 'activa' : ''}`} aria-pressed={grupo === 'atrasados'}
+              onClick={() => cambiar({ grupo: grupo === 'atrasados' ? '' : 'atrasados', tipo: '', nino: '' })}>
+              <AlertOctagon size={26} /><strong>{datos.resumen.pendientes}</strong><span>{esEsteMes ? 'Atrasados' : 'No se vacunaron'}</span>
+            </button>
+            {esEsteMes && (
+              <button type="button" className={`control-grupo azul ${grupo === 'por_venir' ? 'activa' : ''}`} aria-pressed={grupo === 'por_venir'}
+                onClick={() => cambiar({ grupo: grupo === 'por_venir' ? '' : 'por_venir', tipo: '', nino: '' })}>
+                <CalendarClock size={26} /><strong>{cuenta('por_venir')}</strong><span>{periodo === 'semana' ? 'Les toca esta semana' : 'Les toca este mes'}</span>
+              </button>
+            )}
           </div>
-          <div className="chips-filtro no-imprimir">
-            {FILTROS.map(([k, t]) => (!esEsteMes && k === 'por_venir') ? null : (
-              <button key={k} className={`chip-filtro ${filtro === k ? 'activa' : ''}`} onClick={() => cambiar({ tipo: k })}>{t} ({cuenta(k)})</button>
-            ))}
+          {grupo && <>
+          <div className="control-filtros">
+            {grupo === 'atrasados' ? (
+              <div className="chips-filtro">
+                {FILTROS.map(([k, t]) => (k && !cuenta(k) ? null : (
+                  <button key={k} className={`chip-filtro ${filtro === k ? 'activa' : ''}`} onClick={() => cambiar({ tipo: k })}>{t} ({cuenta(k)})</button>
+                )))}
+              </div>
+            ) : (
+              <div className="segmentado" role="group" aria-label="Período">
+                <button type="button" className={periodo === 'mes' ? 'activa' : ''} onClick={() => cambiar({ periodo: '' })}>Todo el mes</button>
+                <button type="button" className={periodo === 'semana' ? 'activa' : ''} onClick={() => cambiar({ periodo: 'semana' })}>Esta semana</button>
+              </div>
+            )}
+            {operativo && !datos?.solo_sector && (
+              <div className="segmentado" role="group" aria-label="Casos">
+                <button type="button" className={asignado !== 'yo' ? 'activa' : ''} onClick={() => { const p = new URLSearchParams(params); p.set('asignado', ''); setParams(p, { replace: true }); }}>Todos</button>
+                <button type="button" className={asignado === 'yo' ? 'activa' : ''} onClick={() => cambiar({ asignado: 'yo' })}>{usuario.sector ? 'Mi sector' : 'Mis casos'}</button>
+              </div>
+            )}
           </div>
           <div className="con-icono buscador-control no-imprimir">
             <Search size={18} />
@@ -290,6 +309,7 @@ export default function Alertas() {
               </button>
             </div>
           )}
+          </>}
           </div>
         </>
       )}
