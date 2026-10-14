@@ -1889,3 +1889,20 @@ label.btn.deshabilitado { opacity: .55; pointer-events: none; }
 .btn-llevada.si { background: #1a8f57; color: #fff; border-color: #1a8f57; border-bottom-color: var(--verde-hondo, #12683f); }
 .btn-llevada.si svg { opacity: 1; }
 .btn-llevada:disabled { cursor: default; }
+.control-grupo { grid-template-columns: auto 1fr auto; }
+.control-grupo .cg-flecha { grid-column: 3; grid-row: 1 / 3; opacity: .45; transition: transform .2s; }
+.control-grupo .cg-flecha.girada { transform: rotate(180deg); opacity: .8; }
+.control-lugar { flex: 1 1 260px; max-width: 420px; }
+.control-lugar select { width: 100%; }
+@media (max-width: 700px) {
+  .control-grupo { grid-template-columns: 1fr auto; }
+  .control-grupo .cg-flecha { grid-column: 2; grid-row: 1; width: 18px; height: 18px; }
+  .control-lugar { max-width: none; flex-basis: 100%; }
+}
+@media (max-width: 700px) {
+  .control-grupo { grid-template-columns: 1fr auto; grid-template-areas: "ic fl" "num num" "txt txt"; }
+  .control-grupo > svg:first-child { grid-area: ic; }
+  .control-grupo strong { grid-area: num; }
+  .control-grupo span { grid-area: txt; }
+  .control-grupo .cg-flecha { grid-area: fl; grid-row: auto; grid-column: auto; }
+}

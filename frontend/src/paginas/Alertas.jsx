@@ -183,8 +183,8 @@ export default function Alertas() {
               <button type="button" className="btn btn-icono" onClick={() => moverMes(1)} disabled={esEsteMes} aria-label="Mes siguiente"><ChevronRight size={20} /></button>
             </div>
           )}
-          {datos?.solo_sector ? <span className="chip-sector"><MapPin size={16} />Su sector</span>
-            : <SelectorTerritorio puesto={puesto} comunidad={comunidad} onCambio={(t) => cambiar({ ...t, nino: '' })} />}
+          {vista !== 'por_vacunar' && (datos?.solo_sector ? <span className="chip-sector"><MapPin size={16} />Su sector</span>
+            : <SelectorTerritorio puesto={puesto} comunidad={comunidad} onCambio={(t) => cambiar({ ...t, nino: '' })} />)}
           {esEsteMes && vista === 'suplementos' && (
             <div className="segmentado" role="group" aria-label="Período">
               <button type="button" className={periodo === 'mes' ? 'activa' : ''} onClick={() => cambiar({ periodo: '' })}>Este mes</button>
@@ -194,7 +194,7 @@ export default function Alertas() {
         </div>
 
         <Pestanas valor={vista} onCambio={(v) => cambiar({ vista: v === 'por_vacunar' ? '' : v, nino: '', grupo: '', tipo: '' })} opciones={[
-          ['por_vacunar', <><Syringe size={15} />Por vacunar</>, datos && <span className="cuenta">{datos.resumen.pendientes}</span>],
+          ['por_vacunar', <><Syringe size={15} />Por vacunar</>, datos && <span className="cuenta">{datos.resumen.pendientes + (esEsteMes ? datos.resumen.por_venir : 0)}</span>],
           ['vacunados', <><CheckCircle2 size={15} />Vacunados</>, datos && <span className="cuenta">{datos.resumen.ninos_vacunados}</span>],
           ['suplementos', <><Pill size={15} />Suplementos</>],
         ]} />
@@ -228,16 +228,20 @@ export default function Alertas() {
             <button type="button" className={`control-grupo rojo ${grupo === 'atrasados' ? 'activa' : ''}`} aria-pressed={grupo === 'atrasados'}
               onClick={() => cambiar({ grupo: grupo === 'atrasados' ? '' : 'atrasados', tipo: '', nino: '' })}>
               <AlertOctagon size={26} /><strong>{datos.resumen.pendientes}</strong><span>{esEsteMes ? 'Atrasados' : 'No se vacunaron'}</span>
+              <ChevronDown size={22} className={`cg-flecha ${grupo === 'atrasados' ? 'girada' : ''}`} />
             </button>
             {esEsteMes && (
               <button type="button" className={`control-grupo azul ${grupo === 'por_venir' ? 'activa' : ''}`} aria-pressed={grupo === 'por_venir'}
                 onClick={() => cambiar({ grupo: grupo === 'por_venir' ? '' : 'por_venir', tipo: '', nino: '' })}>
                 <CalendarClock size={26} /><strong>{cuenta('por_venir')}</strong><span>{periodo === 'semana' ? 'Les toca esta semana' : 'Les toca este mes'}</span>
+                <ChevronDown size={22} className={`cg-flecha ${grupo === 'por_venir' ? 'girada' : ''}`} />
               </button>
             )}
           </div>
           {grupo && <>
           <div className="control-filtros">
+            <div className="control-lugar">{datos?.solo_sector ? <span className="chip-sector"><MapPin size={16} />Su sector</span>
+              : <SelectorTerritorio puesto={puesto} comunidad={comunidad} onCambio={(t) => cambiar({ ...t, nino: '' })} />}</div>
             {grupo === 'atrasados' ? (
               <div className="chips-filtro">
                 {FILTROS.map(([k, t]) => (k && !cuenta(k) ? null : (
