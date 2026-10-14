@@ -8,15 +8,16 @@ import { useSesion } from '../App.jsx';
 import { useCatalogo } from '../componentes/useCatalogo.js';
 import { Campo, Encabezado, InputCui, InputNombreDoble, Mensaje } from '../componentes/ui.jsx';
 import { DEPARTAMENTOS, ESTADO_REGISTRO, LINGUISTICAS, MUNICIPIOS, PUEBLOS, cuadernoFila, edad, fecha, hoy, sumarDias, puede } from '../util.js';
+import { centroActual } from '../componentes/useCentro.js';
 
 const VACIO_NINO = {
   cuaderno_id: '', fila: '', cui: '', primer_nombre: '', segundo_nombre: '', primer_apellido: '', segundo_apellido: '',
-  fecha_nacimiento: '', nacimiento_departamento: 'Jalapa', nacimiento_municipio: 'San Luis Jilotepeque', nacimiento_comunidad: '',
+  fecha_nacimiento: '', nacimiento_departamento: centroActual().departamento, nacimiento_municipio: centroActual().municipio, nacimiento_comunidad: '',
   sexo: '', pueblo: '', comunidad_linguistica: '23', numero_registro_carne: '', fecha_registro_carne: '', nombre_padre: '', estado: 'activo',
 };
 const VACIO_RESP = {
   id: null, cui: '', primer_nombre: '', segundo_nombre: '', primer_apellido: '', segundo_apellido: '', fecha_nacimiento: '',
-  departamento: 'Jalapa', municipio: 'San Luis Jilotepeque', comunidad_id: '', direccion_detalle: '', numero_casa: '',
+  departamento: centroActual().departamento, municipio: centroActual().municipio, comunidad_id: '', direccion_detalle: '', numero_casa: '',
   numero_sector: '', telefono: '', idioma_preferente: 'espanol',
 };
 const hace7Anios = () => sumarDias(`${Number(hoy().slice(0, 4)) - 7}${hoy().slice(4)}`, 1);
@@ -219,7 +220,16 @@ export default function NinoForm() {
                 <select required {...n('nacimiento_departamento')}>{DEPARTAMENTOS.map((d) => <option key={d}>{d}</option>)}</select>
               </Campo>
               <Campo etiqueta="Municipio de nacimiento" requerido><Municipio required departamento={nino.nacimiento_departamento} {...n('nacimiento_municipio')} /></Campo>
-              <Campo etiqueta="Comunidad de nacimiento"><input {...n('nacimiento_comunidad')} /></Campo>
+              <Campo etiqueta="Comunidad de nacimiento">
+                {/* Si nació en este municipio, se elige de la lista; si nació fuera, se escribe */}
+                {nino.nacimiento_municipio === centroActual().municipio ? (
+                  <select {...n('nacimiento_comunidad')}>
+                    <option value="">Elija la comunidad…</option>
+                    {comunidades.map((c) => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+                    {nino.nacimiento_comunidad && !comunidades.some((c) => c.nombre === nino.nacimiento_comunidad) && <option value={nino.nacimiento_comunidad}>{nino.nacimiento_comunidad}</option>}
+                  </select>
+                ) : <input {...n('nacimiento_comunidad')} placeholder="Comunidad donde nació" />}
+              </Campo>
               <Campo etiqueta="Comunidad lingüística" ayuda={esMaya ? null : 'Solo para pueblo Maya'}>
                 <select disabled={!esMaya} {...n('comunidad_linguistica')} value={esMaya ? nino.comunidad_linguistica : '23'}>
                   {Object.entries(LINGUISTICAS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}

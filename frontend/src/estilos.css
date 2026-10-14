@@ -2033,3 +2033,10 @@ button.pedido-vacuna.activa { background: #e8f1fb; border-color: #9fc0e6; border
   .iu-ic { width: 50px; height: 50px; }
   .inicio-buscar { flex-basis: 100%; }
 }
+/* Administración: celdas editables y casillas chicas */
+.input-tabla { width: 100%; min-width: 160px; border: 1px solid transparent; background: transparent; padding: .35rem .5rem; border-radius: 8px; font: inherit; font-weight: 700; }
+.input-tabla:hover, .input-tabla:focus { border-color: var(--borde); background: #fff; }
+.casillas.casillas-chicas { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); max-height: 320px; overflow: auto; }
+table th .sub { display: block; text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--suave); margin-top: .15rem; }
+td select.selector-chico { min-width: 130px; }
+.tabla-roles td:first-child { min-width: 260px; }

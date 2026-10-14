@@ -4,6 +4,7 @@ import { api } from '../api.js';
 import { Campo, Mensaje } from '../componentes/ui.jsx';
 import Logo from '../componentes/Logo.jsx';
 import { BotonInstalar } from '../componentes/Pwa.jsx';
+import { centroCorto, useCentro } from '../componentes/useCentro.js';
 
 export default function Login({ onEntrar }) {
   const [usuario, setUsuario] = useState('');
@@ -11,6 +12,7 @@ export default function Login({ onEntrar }) {
   const [verClave, setVerClave] = useState(false);
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
+  const centro = useCentro();
 
   async function enviar(e) {
     e.preventDefault();
@@ -32,7 +34,7 @@ export default function Login({ onEntrar }) {
           <Logo className="logo" />
           <div className="login-tarjeta">
             <h1 className="login-titulo">Control de vacunación infantil</h1>
-            <p>C. S. San Luis Jilotepeque, Jalapa</p>
+            <p>{centroCorto(centro)}</p>
             <form onSubmit={enviar}>
               <Campo etiqueta="Usuario">
                 <div className="con-icono">

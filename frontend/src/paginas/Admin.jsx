@@ -1,20 +1,26 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import {
-  ArchiveRestore, Building2, DatabaseBackup, Download, ImageUp, KeyRound, Upload, ListTree, MapPin, Plus, RotateCcw, Save, ScrollText, SlidersHorizontal, Syringe, Trash2, UserPlus, Users,
+  ArchiveRestore, BadgeCheck, Building2, DatabaseBackup, Download, Hospital, ImageUp, KeyRound, Upload, ListTree, MapPin, Plus, RotateCcw, Save, ScrollText, SlidersHorizontal, Syringe, Trash2, UserPlus, Users,
 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { recargarCentro } from '../componentes/useCentro.js';
+import { DEPARTAMENTOS, MUNICIPIOS } from '../util.js';
 import { api, descargarArchivo, qs, subirArchivo } from '../api.js';
 import Logo, { recargarLogo } from '../componentes/Logo.jsx';
 import { useSesion } from '../App.jsx';
 import { useDialogos } from '../componentes/Dialogos.jsx';
 import { invalidarCatalogo, useCatalogo } from '../componentes/useCatalogo.js';
 import { Campo, Cargando, Encabezado, Mensaje, Modal, Pestanas, Tabla, Tarjeta, Vacio, iniciales } from '../componentes/ui.jsx';
-import { Estado } from '../componentes/Estado.jsx';
+import { Estado, plural } from '../componentes/Estado.jsx';
 
+// El administrador configura todo desde aquí, sin tocar código: centro, territorio, personas, roles y cargos, esquema
 const VISTAS = [
-  ['usuarios', <><Users size={15} />Usuarios</>],
-  ['parametros', <><SlidersHorizontal size={15} />Parámetros</>],
-  ['esquema', <><Syringe size={15} />Esquema</>],
+  ['centro', <><Hospital size={15} />Centro de salud</>],
   ['territorio', <><MapPin size={15} />Puestos y comunidades</>],
+  ['usuarios', <><Users size={15} />Usuarios</>],
+  ['roles', <><BadgeCheck size={15} />Roles y cargos</>],
+  ['esquema', <><Syringe size={15} />Esquema</>],
+  ['parametros', <><SlidersHorizontal size={15} />Parámetros</>],
   ['bitacora', <><ScrollText size={15} />Bitácora</>],
   ['respaldos', <><DatabaseBackup size={15} />Respaldos</>],
   ['logo', <><ImageUp size={15} />Logo</>],
@@ -23,11 +29,15 @@ const ROLES = { administrador: 'Administrador', enfermera: 'Enfermera', vacunado
 const TIPOS_COMUNIDAD = { casco_urbano: 'Casco urbano', barrio: 'Barrio', aldea: 'Aldea', caserio: 'Caserío', canton: 'Cantón' };
 
 export default function Admin() {
-  const [vista, setVista] = useState('usuarios');
+  const [params, setParams] = useSearchParams();
+  const vista = params.get('vista') || 'centro';
+  const setVista = (v) => setParams({ vista: v }, { replace: true });
   return (
     <>
       <Encabezado titulo="Administración" />
       <Pestanas valor={vista} onCambio={setVista} opciones={VISTAS} />
+      {vista === 'centro' && <CentroSalud />}
+      {vista === 'roles' && <RolesCargos />}
       {vista === 'usuarios' && <Usuarios />}
       {vista === 'parametros' && <Parametros />}
       {vista === 'esquema' && <Esquema />}
@@ -56,10 +66,32 @@ function useAccion(cargar, setError) {
   };
 }
 
+/** Cargo de la lista; «Agregar otro…» lo crea en el catálogo. */
+function SelectorCargo({ valor, onCambio, cargos, onNuevo, ...resto }) {
+  const { pedirTexto } = useDialogos();
+  return (
+    <select value={valor} {...resto} onChange={async (e) => {
+      if (e.target.value !== '__nuevo') { onCambio(e.target.value); return; }
+      const nombre = await pedirTexto({ titulo: 'Nuevo cargo', etiqueta: 'Nombre del cargo', aceptar: 'Agregar' });
+      if (!nombre) return;
+      const c = await api('/admin/cargos', { method: 'POST', body: { nombre } });
+      onNuevo?.(); onCambio(c.nombre);
+    }}>
+      <option value="">Sin cargo</option>
+      {cargos.map((c) => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+      {valor && !cargos.some((c) => c.nombre === valor) && <option value={valor}>{valor}</option>}
+      <option value="__nuevo">+ Agregar otro cargo…</option>
+    </select>
+  );
+}
+
 function Usuarios() {
   const { usuario: yo } = useSesion();
   const { pedirTexto } = useDialogos();
   const [usuarios, cargar, error, setError] = useCarga('/admin/usuarios');
+  const [cargos, cargarCargos] = useCarga('/catalogos/cargos');
+  const comunidades = useCatalogo('comunidades');
+  const aCargo = (id) => comunidades.filter((c) => c.responsable_id === id).map((c) => (c.es_central ? `Puesto ${c.nombre}` : c.nombre));
   const accion = useAccion(cargar, setError);
   const VACIO = { nombre: '', cargo: '', usuario: '', contrasena: '', rol: 'vacunador' };
   const [nuevo, setNuevo] = useState(VACIO);
@@ -84,7 +116,7 @@ function Usuarios() {
           pie={<div className="acciones"><button className="btn btn-primario"><Plus size={17} />Crear usuario</button></div>}>
           <div className="rejilla">
             <Campo etiqueta="Nombre completo" requerido><input required value={nuevo.nombre} onChange={set('nombre')} /></Campo>
-            <Campo etiqueta="Cargo"><input placeholder="Auxiliar de enfermería…" value={nuevo.cargo} onChange={set('cargo')} /></Campo>
+            <Campo etiqueta="Cargo"><SelectorCargo valor={nuevo.cargo} cargos={cargos} onNuevo={cargarCargos} onCambio={(v) => setNuevo({ ...nuevo, cargo: v })} /></Campo>
             <Campo etiqueta="Usuario" requerido><input required value={nuevo.usuario} onChange={set('usuario')} autoComplete="off" autoCapitalize="none" /></Campo>
             <Campo etiqueta="Contraseña" requerido ayuda="Mínimo 8 caracteres"><input required type="password" minLength={8} value={nuevo.contrasena} onChange={set('contrasena')} autoComplete="new-password" /></Campo>
             <Campo etiqueta="Rol" requerido><select value={nuevo.rol} onChange={set('rol')}>{Object.entries(ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Campo>
@@ -92,14 +124,14 @@ function Usuarios() {
         </Tarjeta>
       </form>
       <Tabla>
-        <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Último acceso</th><th>Estado</th><th /></tr></thead>
+        <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol y cargo</th><th>A cargo de</th><th>Último acceso</th><th>Estado</th><th /></tr></thead>
         <tbody>
           {usuarios.map((u) => (
             <tr key={u.id} className={u.activo ? '' : 'anulada'}>
               <td>
                 <div style={{ display: 'flex', gap: '.7rem', alignItems: 'center' }}>
                   <span className="avatar" style={{ width: 34, height: 34, fontSize: '.75rem' }}>{iniciales(u.nombre)}</span>
-                  <div><span className="fuerte">{u.nombre}</span><span className="sub">{u.cargo}</span></div>
+                  <div><span className="fuerte">{u.nombre}</span></div>
                 </div>
               </td>
               <td><code>{u.usuario}</code></td>
@@ -107,7 +139,11 @@ function Usuarios() {
                 <select value={u.rol} disabled={u.id === yo.id} onChange={(e) => cambiar(u, { rol: e.target.value }, 'Rol actualizado.')} style={{ minWidth: 170 }}>
                   {Object.entries(ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
+                <SelectorCargo className="selector-chico" valor={u.cargo || ''} cargos={cargos} onNuevo={cargarCargos} aria-label={`Cargo de ${u.nombre}`}
+                  onCambio={(v) => cambiar(u, { cargo: v }, 'Cargo actualizado.')} style={{ marginTop: '.35rem', minWidth: 170 }} />
               </td>
+              <td>{u.rol === 'vacunador' ? (aCargo(u.id).length ? aCargo(u.id).join(', ')
+                : <span className="rojo" title="Sin lugar a cargo ve todo el municipio">Sin lugar · <a href="?vista=territorio">asignar</a></span>) : <span className="tenue">Todo el municipio</span>}</td>
               <td>{u.ultimo_acceso ? new Date(u.ultimo_acceso).toLocaleString('es-GT') : '—'}</td>
               <td><Estado de={!u.activo ? 'desactivado' : u.intentos_fallidos >= 5 ? 'bloqueado' : 'activo'} /></td>
               <td className="celda-fin">
@@ -200,18 +236,51 @@ function Esquema() {
   );
 }
 
-/** Territorio real: cada puesto (comunidad central) con su responsable y las comunidades que atiende; el casco urbano con sus barrios. */
+/** Territorio: centro → puestos → aldeas, caseríos y barrios. Se crea, mueve, desactiva o elimina; cada lugar tiene su responsable. */
 function Territorio() {
   const comunidades = useCatalogo('comunidades');
   const [usuarios] = useCarga('/admin/usuarios');
+  const [inactivas] = useCarga('/comunidades/inactivas');
+  const { confirmar } = useDialogos();
   const [error, setError] = useState('');
   const [nueva, setNueva] = useState(null); // { comunidad_padre_id, tipo }
-  const [, refrescar] = useState(0);
-  const accion = useAccion(() => { invalidarCatalogo('comunidades'); refrescar((n) => n + 1); window.location.reload(); }, setError);
+  const [nuevoPuesto, setNuevoPuesto] = useState(null);
+  const [quitarPuesto, setQuitarPuesto] = useState(null);
+  const accion = useAccion(() => { invalidarCatalogo('comunidades'); window.location.reload(); }, setError);
   const personal = usuarios.filter((u) => u.activo && u.rol !== 'administrador');
   const centrales = comunidades.filter((c) => c.es_central).sort((x, y) => (x.tipo === 'casco_urbano') - (y.tipo === 'casco_urbano') || x.nombre.localeCompare(y.nombre));
   const sueltas = comunidades.filter((c) => !c.es_central && !c.comunidad_padre_id);
-  const guardar = (c, cambios) => accion(() => api('/comunidades/' + c.id, { method: 'PUT', body: cambios }), `${c.nombre} actualizada.`);
+  const nombrePuesto = (x) => (x.tipo === 'casco_urbano' ? 'Casco urbano' : `Puesto ${x.nombre}`);
+  const guardar = (c, cambios, ok = `${c.nombre} actualizada.`) => accion(() => api('/comunidades/' + c.id, { method: 'PUT', body: cambios }), ok);
+
+  // Quitar: si nunca se usó se elimina; si ya tiene registros, se ofrece desactivarla (se conserva el historial)
+  async function quitar(c) {
+    if (!(await confirmar({ titulo: `Quitar ${c.nombre}`, mensaje: 'Si no tiene registros se elimina; si ya los tiene, se desactiva y deja de aparecer en las listas.', aceptar: 'Quitar', peligro: true }))) return;
+    try {
+      await api('/comunidades/' + c.id, { method: 'DELETE' });
+      invalidarCatalogo('comunidades'); window.location.reload();
+    } catch (e) {
+      if (!/desactívela/.test(e.message)) { setError(e.message); return; }
+      if (await confirmar({ titulo: `Desactivar ${c.nombre}`, mensaje: 'Ya tiene niños, familias, cuadernos o jornadas. Se desactiva: deja de aparecer, pero su historial se conserva y se puede volver a activar.', aceptar: 'Desactivar', peligro: true }))
+        accion(() => api(`/comunidades/${c.id}/desactivar`, { method: 'POST' }), `${c.nombre} desactivada.`);
+    }
+  }
+
+  async function crearPuesto(e) {
+    e.preventDefault();
+    const p = nuevoPuesto;
+    await accion(async () => {
+      let id = Number(p.existente_id);
+      if (p.modo === 'nuevo') {
+        const c = await api('/comunidades', { method: 'POST', body: { nombre: p.nombre, tipo: 'aldea', es_central: true, responsable_id: p.responsable_id ? Number(p.responsable_id) : null } });
+        id = c.id;
+      } else {
+        await api('/comunidades/' + id, { method: 'PUT', body: { es_central: true, comunidad_padre_id: null, responsable_id: p.responsable_id ? Number(p.responsable_id) : null } });
+      }
+      for (const a of p.aldeas) await api('/comunidades/' + a, { method: 'PUT', body: { comunidad_padre_id: id } });
+    }, 'Puesto creado.');
+    setNuevoPuesto(null);
+  }
 
   const Responsable = ({ c }) => (
     <select className="selector-chico" value={c.responsable_id || ''} onChange={(e) => guardar(c, { responsable_id: e.target.value ? Number(e.target.value) : null })}
@@ -223,30 +292,40 @@ function Territorio() {
   return (
     <>
       <Mensaje tipo="error" onCerrar={() => setError('')}>{error}</Mensaje>
+      <div className="acciones" style={{ justifyContent: 'flex-end', marginBottom: '1rem' }}>
+        <button className="btn btn-primario" onClick={() => setNuevoPuesto({ modo: 'nuevo', nombre: '', existente_id: '', responsable_id: '', aldeas: [] })}>
+          <Plus size={17} />Nuevo puesto de salud
+        </button>
+      </div>
       {centrales.map((c) => {
         const hijas = comunidades.filter((h) => h.comunidad_padre_id === c.id).sort((x, y) => x.nombre.localeCompare(y.nombre));
         const urbano = c.tipo === 'casco_urbano';
         return (
           <Tarjeta key={c.id} titulo={urbano ? 'Casco urbano · centro de salud' : `Puesto ${c.nombre}`} icono={urbano ? Building2 : MapPin} cuerpo={false}
+            sub={`${plural(hijas.length, 'comunidad a cargo', 'comunidades a cargo')}${!c.responsable_id && c.responsable ? ` · Anotado: ${c.responsable} (falta enlazar su usuario)` : ''}`}
             acciones={<span className="botones-fila">{!urbano && <Responsable c={c} />}
-              <button className="btn btn-sm" onClick={() => setNueva({ comunidad_padre_id: c.id, tipo: urbano ? 'barrio' : 'aldea' })}><Plus size={14} />{urbano ? 'Barrio' : 'Comunidad'}</button></span>}>
+              <button className="btn btn-sm" onClick={() => setNueva({ comunidad_padre_id: c.id, tipo: urbano ? 'barrio' : 'aldea' })}><Plus size={14} />{urbano ? 'Barrio' : 'Aldea o caserío'}</button>
+              {!urbano && centrales.length > 1 && <button className="btn btn-sm" onClick={() => setQuitarPuesto({ puesto: c, destino_id: '' })}><ArchiveRestore size={14} />Dejar de ser puesto</button>}</span>}>
             <Tabla>
-              <thead><tr><th>{urbano ? 'Barrio' : 'Comunidad'}</th><th>Responsable</th><th className="celda-num">Km</th><th /></tr></thead>
+              <thead><tr><th>{urbano ? 'Barrio' : 'Comunidad'}</th><th>Tipo</th><th>Responsable</th><th className="celda-num">Km</th><th>Puesto</th><th /></tr></thead>
               <tbody>
                 {hijas.map((h) => (
                   <tr key={h.id}>
-                    <td className="fuerte">{h.nombre}<span className="sub">{TIPOS_COMUNIDAD[h.tipo]}</span></td>
+                    <td className="fuerte">{h.nombre}</td>
+                    <td><select className="selector-chico" value={h.tipo} onChange={(e) => guardar(h, { tipo: e.target.value })} aria-label={`Tipo de ${h.nombre}`}>
+                      {Object.entries(TIPOS_COMUNIDAD).filter(([k]) => k !== 'casco_urbano').map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></td>
                     <td><Responsable c={h} /></td>
                     <td className="celda-num"><input type="number" min="0" className="num-input" defaultValue={h.distancia_km != null ? Number(h.distancia_km) : ''}
                       onBlur={(e) => Number(e.target.value) !== Number(h.distancia_km ?? -1) && guardar(h, { distancia_km: e.target.value === '' ? null : Number(e.target.value) })} aria-label={`Distancia de ${h.nombre}`} /></td>
-                    <td className="celda-fin">
-                      <select className="selector-chico" value={h.comunidad_padre_id} onChange={(e) => guardar(h, { comunidad_padre_id: Number(e.target.value) })} aria-label="Mover a otro puesto">
-                        {centrales.map((x) => <option key={x.id} value={x.id}>{x.tipo === 'casco_urbano' ? 'Casco urbano' : `Puesto ${x.nombre}`}</option>)}
+                    <td>
+                      <select className="selector-chico" value={h.comunidad_padre_id} onChange={(e) => guardar(h, { comunidad_padre_id: Number(e.target.value) }, `${h.nombre} pasó a otro puesto.`)} aria-label="Pasar a otro puesto">
+                        {centrales.map((x) => <option key={x.id} value={x.id}>{nombrePuesto(x)}</option>)}
                       </select>
                     </td>
+                    <td className="celda-fin"><button className="btn btn-sm btn-icono" onClick={() => quitar(h)} aria-label={`Quitar ${h.nombre}`} title="Quitar"><Trash2 size={15} /></button></td>
                   </tr>
                 ))}
-                {hijas.length === 0 && <tr><td colSpan={4} className="tenue">{urbano ? 'Sin barrios' : 'Solo la aldea del puesto'}</td></tr>}
+                {hijas.length === 0 && <tr><td colSpan={6} className="tenue">{urbano ? 'Sin barrios' : 'Solo la aldea del puesto'}</td></tr>}
               </tbody>
             </Tabla>
           </Tarjeta>
@@ -258,23 +337,181 @@ function Territorio() {
             <tbody>{sueltas.map((h) => (
               <tr key={h.id}><td className="fuerte">{h.nombre}</td>
                 <td className="celda-fin"><select className="selector-chico" value="" onChange={(e) => guardar(h, { comunidad_padre_id: Number(e.target.value) })}>
-                  <option value="">Elegir puesto…</option>{centrales.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}</select></td></tr>
+                  <option value="">Elegir puesto…</option>{centrales.map((x) => <option key={x.id} value={x.id}>{nombrePuesto(x)}</option>)}</select></td></tr>
+            ))}</tbody>
+          </Tabla>
+        </Tarjeta>
+      )}
+      {inactivas.length > 0 && (
+        <Tarjeta titulo="Desactivadas" icono={ArchiveRestore} sub="No aparecen en las listas; su historial se conserva" cuerpo={false}>
+          <Tabla>
+            <tbody>{inactivas.map((h) => (
+              <tr key={h.id}><td className="fuerte">{h.nombre}<span className="sub">{TIPOS_COMUNIDAD[h.tipo]}</span></td>
+                <td className="celda-fin"><button className="btn btn-sm" onClick={() => accion(() => api(`/comunidades/${h.id}/activar`, { method: 'POST' }), `${h.nombre} activada.`)}><RotateCcw size={14} />Activar</button></td></tr>
             ))}</tbody>
           </Tabla>
         </Tarjeta>
       )}
       {nueva && (
-        <Modal titulo={nueva.tipo === 'barrio' ? 'Nuevo barrio' : 'Nueva comunidad'} chico onCerrar={() => setNueva(null)}
+        <Modal titulo={nueva.tipo === 'barrio' ? 'Nuevo barrio' : 'Nueva aldea o caserío'} chico onCerrar={() => setNueva(null)}
           onSubmit={async (e) => { e.preventDefault(); if (await accion(() => api('/comunidades', { method: 'POST', body: nueva }), 'Agregada.')) setNueva(null); }}
           pie={<><button type="button" className="btn" onClick={() => setNueva(null)}>Cancelar</button><button className="btn btn-primario"><Plus size={16} />Agregar</button></>}>
           <div className="rejilla">
             <Campo etiqueta="Nombre" requerido className="ancho"><input required autoFocus value={nueva.nombre || ''} onChange={(e) => setNueva({ ...nueva, nombre: e.target.value })} /></Campo>
             <Campo etiqueta="Tipo"><select value={nueva.tipo} onChange={(e) => setNueva({ ...nueva, tipo: e.target.value })}>
               {Object.entries(TIPOS_COMUNIDAD).filter(([k]) => k !== 'casco_urbano').map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Campo>
+            <Campo etiqueta="Responsable"><select value={nueva.responsable_id || ''} onChange={(e) => setNueva({ ...nueva, responsable_id: e.target.value ? Number(e.target.value) : null })}>
+              <option value="">El del puesto</option>{personal.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}</select></Campo>
             <Campo etiqueta="Km desde la cabecera"><input type="number" min="0" value={nueva.distancia_km || ''} onChange={(e) => setNueva({ ...nueva, distancia_km: e.target.value })} /></Campo>
           </div>
         </Modal>
       )}
+      {nuevoPuesto && (
+        <Modal titulo="Nuevo puesto de salud" onCerrar={() => setNuevoPuesto(null)} onSubmit={crearPuesto}
+          pie={<><button type="button" className="btn" onClick={() => setNuevoPuesto(null)}>Cancelar</button><button className="btn btn-primario"><Plus size={16} />Crear puesto</button></>}>
+          <div className="segmentado" role="group" style={{ marginBottom: '1rem', width: 'fit-content' }}>
+            <button type="button" className={nuevoPuesto.modo === 'nuevo' ? 'activa' : ''} onClick={() => setNuevoPuesto({ ...nuevoPuesto, modo: 'nuevo' })}>Aldea nueva</button>
+            <button type="button" className={nuevoPuesto.modo === 'existente' ? 'activa' : ''} onClick={() => setNuevoPuesto({ ...nuevoPuesto, modo: 'existente' })}>Una aldea que ya existe</button>
+          </div>
+          <div className="rejilla">
+            {nuevoPuesto.modo === 'nuevo' ? (
+              <Campo etiqueta="Nombre de la aldea del puesto" requerido className="ancho"><input required autoFocus value={nuevoPuesto.nombre} onChange={(e) => setNuevoPuesto({ ...nuevoPuesto, nombre: e.target.value })} /></Campo>
+            ) : (
+              <Campo etiqueta="Aldea donde queda el puesto" requerido className="ancho"><select required value={nuevoPuesto.existente_id} onChange={(e) => setNuevoPuesto({ ...nuevoPuesto, existente_id: e.target.value, aldeas: nuevoPuesto.aldeas.filter((x) => String(x) !== e.target.value) })}>
+                <option value="">Elija…</option>{comunidades.filter((c) => !c.es_central).map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}</select></Campo>
+            )}
+            <Campo etiqueta="Responsable del puesto" className="ancho"><select value={nuevoPuesto.responsable_id} onChange={(e) => setNuevoPuesto({ ...nuevoPuesto, responsable_id: e.target.value })}>
+              <option value="">Sin responsable por ahora</option>{personal.map((u) => <option key={u.id} value={u.id}>{u.nombre}</option>)}</select></Campo>
+          </div>
+          <div className="seccion-titulo">Comunidades que atenderá</div>
+          <div className="casillas casillas-chicas">
+            {comunidades.filter((c) => !c.es_central && String(c.id) !== String(nuevoPuesto.existente_id)).map((c) => {
+              const si = nuevoPuesto.aldeas.includes(c.id);
+              return (
+                <label key={c.id} className={`casilla ${si ? 'marcada' : ''}`}>
+                  <input type="checkbox" checked={si} onChange={() => setNuevoPuesto({ ...nuevoPuesto, aldeas: si ? nuevoPuesto.aldeas.filter((x) => x !== c.id) : [...nuevoPuesto.aldeas, c.id] })} />
+                  <span className="casilla-texto"><span className="casilla-nombre">{c.nombre}</span><span className="sub">Hoy: {c.puesto || 'sin puesto'}</span></span>
+                </label>
+              );
+            })}
+          </div>
+        </Modal>
+      )}
+      {quitarPuesto && (
+        <Modal titulo={`Dejar de ser puesto: ${quitarPuesto.puesto.nombre}`} chico onCerrar={() => setQuitarPuesto(null)}
+          onSubmit={async (e) => { e.preventDefault(); if (await accion(() => api(`/comunidades/${quitarPuesto.puesto.id}/quitar-puesto`, { method: 'POST', body: { destino_id: Number(quitarPuesto.destino_id) } }), 'Listo: sus comunidades pasaron al otro puesto.')) setQuitarPuesto(null); }}
+          pie={<><button type="button" className="btn" onClick={() => setQuitarPuesto(null)}>Cancelar</button><button className="btn btn-peligro">Pasar comunidades y quitar puesto</button></>}>
+          <p className="suave" style={{ marginBottom: '.8rem' }}>{quitarPuesto.puesto.nombre} y todas sus comunidades pasan al puesto que elija. No se pierde ningún registro.</p>
+          <Campo etiqueta="Pasan al puesto" requerido><select required value={quitarPuesto.destino_id} onChange={(e) => setQuitarPuesto({ ...quitarPuesto, destino_id: e.target.value })}>
+            <option value="">Elija…</option>{centrales.filter((x) => x.id !== quitarPuesto.puesto.id).map((x) => <option key={x.id} value={x.id}>{nombrePuesto(x)}</option>)}</select></Campo>
+        </Modal>
+      )}
+    </>
+  );
+}
+
+/** Datos del centro (encabezados, documentos, inicio de sesión) y establecimientos donde se vacuna. */
+function CentroSalud() {
+  const [centro, setCentro] = useState(null);
+  const [establecimientos, cargarEst] = useCarga('/catalogos/establecimientos?todos=1');
+  const [error, setError] = useState('');
+  const accion = useAccion(cargarEst, setError);
+  const [nuevoEst, setNuevoEst] = useState({ nombre: '', tipo: 'puesto' });
+  useEffect(() => { api('/marca/centro').then(setCentro).catch((e) => setError(e.message)); }, []);
+  if (!centro) return <Cargando />;
+  const set = (k) => (e) => setCentro({ ...centro, [k]: e.target.value });
+  const TIPOS_EST = { centro: 'Centro de salud', puesto: 'Puesto de salud', hospital: 'Hospital', privado: 'Clínica privada', otro_municipio: 'Otro municipio / externo' };
+  return (
+    <>
+      <Mensaje tipo="error" onCerrar={() => setError('')}>{error}</Mensaje>
+      <form onSubmit={async (e) => { e.preventDefault(); if (await accion(() => api('/admin/centro', { method: 'PUT', body: centro }), 'Datos del centro guardados.')) recargarCentro(); }}>
+        <Tarjeta titulo="Datos del centro de salud" icono={Hospital} sub="Salen en el encabezado, en el inicio de sesión y en todo lo que se imprime"
+          pie={<div className="acciones"><button className="btn btn-primario"><Save size={16} />Guardar</button></div>}>
+          <div className="rejilla">
+            <Campo etiqueta="Nombre del centro" requerido className="ancho"><input required value={centro.nombre} onChange={set('nombre')} /></Campo>
+            <Campo etiqueta="Departamento"><select value={centro.departamento} onChange={(e) => setCentro({ ...centro, departamento: e.target.value, municipio: '' })}>
+              <option value="">Elija…</option>{DEPARTAMENTOS.map((d) => <option key={d}>{d}</option>)}</select></Campo>
+            <Campo etiqueta="Municipio"><select value={centro.municipio} onChange={set('municipio')}>
+              <option value="">Elija…</option>{(MUNICIPIOS[centro.departamento] || []).map((m) => <option key={m}>{m}</option>)}
+              {centro.municipio && !(MUNICIPIOS[centro.departamento] || []).includes(centro.municipio) && <option>{centro.municipio}</option>}</select></Campo>
+            <Campo etiqueta="Área de salud"><input value={centro.area_salud} onChange={set('area_salud')} placeholder="Área de Salud de …" /></Campo>
+            <Campo etiqueta="Distrito"><input value={centro.distrito} onChange={set('distrito')} placeholder="Distrito …" /></Campo>
+          </div>
+        </Tarjeta>
+      </form>
+      <Tarjeta titulo="Establecimientos" icono={Building2} sub="Dónde se vacuna: el centro, los puestos y los lugares externos (para registrar vacunas puestas fuera)" cuerpo={false}
+        pie={<form className="acciones" style={{ justifyContent: 'flex-start' }} onSubmit={async (e) => { e.preventDefault(); if (await accion(() => api('/admin/establecimientos', { method: 'POST', body: nuevoEst }), 'Establecimiento agregado.')) setNuevoEst({ nombre: '', tipo: 'puesto' }); }}>
+          <input required placeholder="Nombre del establecimiento" value={nuevoEst.nombre} onChange={(e) => setNuevoEst({ ...nuevoEst, nombre: e.target.value })} style={{ maxWidth: 300 }} />
+          <select value={nuevoEst.tipo} onChange={(e) => setNuevoEst({ ...nuevoEst, tipo: e.target.value })} style={{ maxWidth: 220 }}>
+            {Object.entries(TIPOS_EST).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+          <button className="btn btn-primario"><Plus size={16} />Agregar</button>
+        </form>}>
+        <Tabla>
+          <thead><tr><th>Nombre</th><th>Tipo</th><th>Estado</th><th /></tr></thead>
+          <tbody>
+            {establecimientos.map((x) => (
+              <tr key={x.id} className={x.activo ? '' : 'anulada'}>
+                <td><input className="input-tabla" defaultValue={x.nombre} aria-label="Nombre" onBlur={(e) => e.target.value.trim() && e.target.value !== x.nombre && accion(() => api('/admin/establecimientos/' + x.id, { method: 'PUT', body: { nombre: e.target.value } }), 'Nombre actualizado.')} /></td>
+                <td><select className="selector-chico" value={x.tipo} onChange={(e) => accion(() => api('/admin/establecimientos/' + x.id, { method: 'PUT', body: { tipo: e.target.value } }), 'Tipo actualizado.')}>
+                  {Object.entries(TIPOS_EST).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></td>
+                <td><Estado de={x.activo ? 'activo' : 'desactivado'} /></td>
+                <td className="celda-fin"><button className="btn btn-sm" onClick={() => accion(() => api('/admin/establecimientos/' + x.id, { method: 'PUT', body: { activo: !x.activo } }), x.activo ? 'Desactivado.' : 'Activado.')}>{x.activo ? 'Desactivar' : 'Activar'}</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </Tabla>
+      </Tarjeta>
+    </>
+  );
+}
+
+// Qué puede hacer cada rol (los permisos los decide el rol; el cargo es solo el nombre del puesto de trabajo)
+const PERMISOS = [
+  ['Ver niños', 'Su sector', 'Todos', 'Todos (solo ver)', 'Todos'],
+  ['Registrar niños, vacunar y entregar suplementos', '✓', '✓', '—', '✓'],
+  ['Llamar o visitar y anotar el seguimiento', 'Su sector', '✓', '—', '✓'],
+  ['Iniciar una jornada y vacunar en ella', 'Si va en el equipo', '✓', '—', '✓'],
+  ['Planificar, cerrar y cancelar jornadas', '—', '✓', '—', '✓'],
+  ['Anular registros equivocados', '—', '✓', '—', '✓'],
+  ['Tablero, informes y pedido de vacunas', '—', '✓', '✓ (solo ver)', '✓'],
+  ['Centro, territorio, usuarios, roles y cargos, esquema, respaldos', '—', '—', '—', '✓'],
+];
+
+function RolesCargos() {
+  const [cargos, cargar, error, setError] = useCarga('/catalogos/cargos?todos=1');
+  const [usuarios] = useCarga('/admin/usuarios');
+  const accion = useAccion(cargar, setError);
+  const [nuevo, setNuevo] = useState('');
+  const cuantos = (rol) => usuarios.filter((u) => u.activo && u.rol === rol).length;
+  return (
+    <>
+      <Mensaje tipo="error" onCerrar={() => setError('')}>{error}</Mensaje>
+      <Tarjeta titulo="Roles" icono={BadgeCheck} sub="El rol decide qué puede hacer cada persona; se asigna en Usuarios" cuerpo={false}>
+        <Tabla adaptable={false} className="tabla-roles">
+          <thead><tr><th>Puede…</th><th>Personal de vacunación<span className="sub">{cuantos('vacunador')} usuarios</span></th><th>Enfermera<span className="sub">{cuantos('enfermera')} usuarios</span></th>
+            <th>Encargada (consulta)<span className="sub">{cuantos('encargado')} usuarios</span></th><th>Administrador<span className="sub">{cuantos('administrador')} usuarios</span></th></tr></thead>
+          <tbody>{PERMISOS.map(([p, ...v]) => <tr key={p}><td className="fuerte">{p}</td>{v.map((x, i) => <td key={i} className={x === '—' ? 'tenue' : ''}>{x}</td>)}</tr>)}</tbody>
+        </Tabla>
+      </Tarjeta>
+      <Tarjeta titulo="Cargos" icono={Users} sub="Nombre del puesto de trabajo de cada persona; aparece como lista al crear un usuario" cuerpo={false}
+        pie={<form className="acciones" style={{ justifyContent: 'flex-start' }} onSubmit={async (e) => { e.preventDefault(); if (await accion(() => api('/admin/cargos', { method: 'POST', body: { nombre: nuevo } }), 'Cargo agregado.')) setNuevo(''); }}>
+          <input required placeholder="Nuevo cargo" value={nuevo} onChange={(e) => setNuevo(e.target.value)} style={{ maxWidth: 320 }} />
+          <button className="btn btn-primario"><Plus size={16} />Agregar cargo</button>
+        </form>}>
+        <Tabla>
+          <thead><tr><th>Cargo</th><th>Personas</th><th>Estado</th><th /></tr></thead>
+          <tbody>
+            {cargos.map((c) => (
+              <tr key={c.id} className={c.activo ? '' : 'anulada'}>
+                <td><input className="input-tabla" defaultValue={c.nombre} aria-label="Nombre del cargo" onBlur={(e) => e.target.value.trim() && e.target.value !== c.nombre && accion(() => api('/admin/cargos/' + c.id, { method: 'PUT', body: { nombre: e.target.value } }), 'Cargo actualizado.')} /></td>
+                <td>{usuarios.filter((u) => u.cargo === c.nombre).length}</td>
+                <td><Estado de={c.activo ? 'activo' : 'desactivado'} /></td>
+                <td className="celda-fin"><button className="btn btn-sm" onClick={() => accion(() => api('/admin/cargos/' + c.id, { method: 'PUT', body: { activo: !c.activo } }), c.activo ? 'Cargo desactivado.' : 'Cargo activado.')}>{c.activo ? 'Desactivar' : 'Activar'}</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </Tabla>
+      </Tarjeta>
     </>
   );
 }

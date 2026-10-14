@@ -11,6 +11,7 @@ import { useCatalogo } from './useCatalogo.js';
 import { Modal, Mensaje } from './ui.jsx';
 import { catalogoGuardado, encolar } from './fueraDeLinea.js';
 import { fecha, hoy } from '../util.js';
+import { centroActual } from './useCentro.js';
 
 
 /** Hoja pequeña con la próxima cita para entregar a la mamá (por si pierde o no trae el carné). */
@@ -21,7 +22,7 @@ function imprimirCita(nombre, cita, vacunas) {
   v.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Próxima cita</title>
     <style>body{font-family:system-ui,sans-serif;margin:24px;color:#1b2a5c}h1{font-size:15px;margin:0 0 4px}p{margin:4px 0}
     .fecha{font-size:34px;font-weight:800;margin:14px 0 6px}.caja{border:2px solid #1b2a5c;border-radius:12px;padding:16px}small{color:#555}</style></head>
-    <body><div class="caja"><h1>Ministerio de Salud Pública y Asistencia Social</h1><small>Centro de Salud de San Luis Jilotepeque</small>
+    <body><div class="caja"><h1>Ministerio de Salud Pública y Asistencia Social</h1><small>${esc(centroActual().nombre)}</small>
     <p style="margin-top:14px"><strong>${esc(nombre)}</strong></p><p>Próxima vacuna:</p><div class="fecha">${esc(fecha(cita))}</div>
     <p>${esc(vacunas.join(', '))}</p><p style="margin-top:14px"><small>Traiga el carné de vacunación.</small></p></div>
     <script>window.onload=()=>{window.print();}</script></body></html>`);

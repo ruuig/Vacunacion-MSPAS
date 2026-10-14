@@ -20,6 +20,7 @@ import { ListaJornadas, NuevaJornada, JornadaDetalle } from './paginas/Jornadas.
 import Informes from './paginas/Informes.jsx';
 import Admin from './paginas/Admin.jsx';
 import Vacunas from './paginas/Vacunas.jsx';
+import { centroActual, centroCorto, useCentro } from './componentes/useCentro.js';
 // El tablero (con la librería de gráficas) se descarga solo al abrirlo
 const Tablero = lazy(() => import('./paginas/Tablero.jsx'));
 
@@ -30,6 +31,7 @@ export const ROL = { administrador: 'Administrador', enfermera: 'Enfermera', vac
 
 export default function App() {
   const [sesion, setSesion] = useState(sesionGuardada);
+  useCentro();
   const [resumen, setResumen] = useState([]);
   const [pendientes, setPendientes] = useState({ total: 0, mios: 0 });
   const [menuAbierto, setMenuAbierto] = useState(false);
@@ -69,6 +71,7 @@ export default function App() {
   }
 
   const { rol, nombre } = sesion.usuario;
+  const centro = centroActual();
   // El número del menú es de niños con vacunas retrasadas: lo que el personal tiene que atender
   const totalAlertas = pendientes.total;
   const verInformes = ['enfermera', 'administrador', 'encargado'].includes(rol);
@@ -88,7 +91,7 @@ export default function App() {
             <Logo />
             <div className="sistema">
               <strong>Control de Vacunación</strong>
-              <span>C. S. San Luis Jilotepeque, Jalapa</span>
+              <span>{centroCorto(centro)}</span>
             </div>
           </div>
           <nav className="menu">
@@ -123,7 +126,7 @@ export default function App() {
             <Logo alt="MSPAS" />
             <div className="titulo-app">
               <strong>Control de Vacunación</strong>
-              <span>San Luis Jilotepeque</span>
+              <span>{centro.municipio || centro.nombre}</span>
             </div>
             <button className="btn btn-fantasma btn-icono" onClick={() => setMenuAbierto(true)} aria-label="Abrir menú"><Menu size={22} /></button>
           </header>
@@ -152,7 +155,7 @@ export default function App() {
             </Routes>
           </main>
           <footer className="pie-app">
-            Ministerio de Salud Pública y Asistencia Social · Centro de Salud San Luis Jilotepeque, Jalapa · {new Date().getFullYear()}
+            Ministerio de Salud Pública y Asistencia Social · {centro.nombre}{centro.departamento ? `, ${centro.departamento}` : ''} · {new Date().getFullYear()}
           </footer>
         </div>
 

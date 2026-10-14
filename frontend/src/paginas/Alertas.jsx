@@ -13,6 +13,7 @@ import {
 } from '../componentes/ui.jsx';
 import { Estado, plural, tonoDe } from '../componentes/Estado.jsx';
 import Documento, { TablaDoc } from '../componentes/Documento.jsx';
+import { centroActual } from '../componentes/useCentro.js';
 import { MEDIOS, MESES, RESULTADOS, TIPO_ALERTA, cuadernoFila, edad, fecha, hoy, puede, sumarDias } from '../util.js';
 import SelectorTerritorio, { useTerritorio } from '../componentes/SelectorTerritorio.jsx';
 
@@ -42,7 +43,7 @@ function enlaceWhatsApp(caso) {
   const digitos = String(caso.telefono).replace(/\D/g, '');
   const numero = digitos.length === 8 ? `502${digitos}` : digitos;
   const vacunas = caso.alertas.filter((a) => a.etiqueta).map((a) => a.etiqueta).join(', ');
-  const texto = `Buen día${caso.responsable ? `, ${caso.responsable.split(' ')[0]}` : ''}. Le saludamos del Centro de Salud de San Luis Jilotepeque. `
+  const texto = `Buen día${caso.responsable ? `, ${caso.responsable.split(' ')[0]}` : ''}. Le saludamos del ${centroActual().nombre}. `
     + `${caso.nombre_completo} tiene pendiente${vacunas ? `: ${vacunas}` : ' su vacunación'}. `
     + 'Le esperamos en el centro de salud o en la próxima jornada de su comunidad. Traiga el carné de vacunación.';
   return `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`;

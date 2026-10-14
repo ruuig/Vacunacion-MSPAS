@@ -3,17 +3,19 @@
 import Logo from './Logo.jsx';
 import { useSesion } from '../App.jsx';
 import { fecha, hoy } from '../util.js';
+import { useCentro } from './useCentro.js';
 
 export default function Documento({ titulo, periodo, detalle, children }) {
   const { usuario } = useSesion();
+  const centro = useCentro();
   return (
     <article className="documento solo-imprimir">
       <header className="doc-cab">
         <Logo alt="MSPAS" />
         <div className="doc-institucion">
           <strong>Ministerio de Salud Pública y Asistencia Social</strong>
-          <span>Área de Salud de Jalapa · Distrito San Luis Jilotepeque</span>
-          <span>Centro de Salud de San Luis Jilotepeque</span>
+          <span>{[centro.area_salud, centro.distrito].filter(Boolean).join(' · ')}</span>
+          <span>{centro.nombre}</span>
         </div>
       </header>
       <h1 className="doc-titulo">{titulo}</h1>

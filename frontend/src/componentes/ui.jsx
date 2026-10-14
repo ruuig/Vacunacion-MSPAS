@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertCircle, AlertTriangle, CheckCircle2, ChevronRight, Info, MoreHorizontal, X } from 'lucide-react';
 import Logo from './Logo.jsx';
+import { centroCorto, useCentro } from './useCentro.js';
 
 /** Título de pantalla con migas de pan, descripción y botones. */
 export function Encabezado({ titulo, descripcion, migas, children }) {
@@ -29,12 +30,13 @@ export function Encabezado({ titulo, descripcion, migas, children }) {
 
 /** Encabezado que solo aparece al imprimir (logo institucional + título). */
 export function EncabezadoImpresion({ titulo, detalle }) {
+  const centro = useCentro();
   return (
     <div className="encabezado-impresion">
       <Logo alt="MSPAS" />
       <div style={{ textAlign: 'right' }}>
         <strong>{titulo}</strong>
-        <div>Centro de Salud San Luis Jilotepeque, Jalapa</div>
+        <div>{centro.nombre}{centro.departamento ? `, ${centro.departamento}` : ''}</div>
         {detalle && <div>{detalle}</div>}
       </div>
     </div>
