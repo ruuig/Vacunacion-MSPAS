@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BellRing, Eye, EyeOff, Lock, MapPinned, ShieldCheck, User, Syringe } from 'lucide-react';
+import { Eye, EyeOff, Lock, ShieldCheck, User } from 'lucide-react';
 import { api } from '../api.js';
 import { Campo, Mensaje } from '../componentes/ui.jsx';
 import Logo from '../componentes/Logo.jsx';
@@ -27,29 +27,12 @@ export default function Login({ onEntrar }) {
 
   return (
     <div className="login">
-      <section className="login-marca">
-        <div className="gob">Gobierno de la República de Guatemala</div>
-        <div>
-          <h1>Control de <span>vacunación</span> infantil</h1>
-          <p className="lema">
-            Registro nominal, seguimiento del esquema y planificación de jornadas extramurales
-            del Centro de Salud de San Luis Jilotepeque, Jalapa.
-          </p>
-          <div className="login-puntos">
-            <div><span className="ic"><Syringe size={20} /></span>Ficha del niño con los campos del cuaderno SIGSA 5a</div>
-            <div><span className="ic"><BellRing size={20} /></span>Alertas automáticas de dosis atrasadas y abandono</div>
-            <div><span className="ic"><MapPinned size={20} /></span>Organización por comunidad para las jornadas</div>
-          </div>
-        </div>
-        <div className="pie">Ministerio de Salud Pública y Asistencia Social · Área de Salud de Jalapa</div>
-      </section>
-
       <section className="login-form-lado">
         <div className="login-caja">
           <Logo className="logo" />
           <div className="login-tarjeta">
-            <h2>Iniciar sesión</h2>
-            <p>Ingrese con el usuario asignado por el administrador.</p>
+            <h1 className="login-titulo">Control de vacunación infantil</h1>
+            <p>C. S. San Luis Jilotepeque, Jalapa</p>
             <form onSubmit={enviar}>
               <Campo etiqueta="Usuario">
                 <div className="con-icono">
