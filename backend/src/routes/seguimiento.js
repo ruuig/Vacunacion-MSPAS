@@ -159,7 +159,7 @@ router.get('/proyeccion', permitir(...TODOS), async (req, res) => {
       sumar(col.clave, dosis);
       quienes[col.clave].push({ id: n.id, nombre_completo: n.nombre_completo, fecha_nacimiento: n.fecha_nacimiento, comunidad_id: n.comunidad_id,
         comunidad: n.comunidad, lugar: n.lugar, responsable: n.responsable, telefono: n.telefono,
-        dosis: dosis.map((d) => d.etiqueta), fecha: aFecha(Math.max(aDia(i < 2 ? hoy() : inicioDeMes(col.anio, col.mes)), aDia(d0(dosis)))) });
+        dosis: dosis.map((d) => d.etiqueta), productos: [...productosNecesarios(dosis)], fecha: aFecha(Math.max(aDia(i < 2 ? hoy() : inicioDeMes(col.anio, col.mes)), aDia(d0(dosis)))) });
       const inicio = i < 2 ? hoy() : inicioDeMes(col.anio, col.mes);
       for (const d of dosis) apps.push({ esquemaDosisId: d.esquemaDosisId, fecha: aFecha(Math.max(aDia(inicio), aDia(d.fechaProgramada))) });
     }

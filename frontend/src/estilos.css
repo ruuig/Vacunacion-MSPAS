@@ -1953,3 +1953,12 @@ tr.fila-en-curso .estado.grande .ic { background: rgba(255,255,255,.2); color: #
 .tc-avatar.t-critico { background: #fdecea; color: #c0392b; }
 .caso-ir-ficha { margin: 0 0 .8rem; }
 .btn.caso-ir-ficha { width: auto; display: flex; margin: 0 1.4rem 1rem; }
+/* Qué pedir: las vacunas se tocan para ver a quién le toca; filtro por comunidad */
+button.pedido-vacuna { text-align: left; font: inherit; cursor: pointer; transition: transform .08s, background .15s; }
+button.pedido-vacuna:hover { background: #f3f8fd; }
+button.pedido-vacuna:active { transform: translateY(3px); border-bottom-width: 2px; }
+button.pedido-vacuna.activa { background: #e8f1fb; border-color: #9fc0e6; border-bottom-color: var(--marino); }
+.pedido-quienes { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; margin: 1.2rem 0 .8rem; }
+.pedido-quienes .pq-titulo { display: inline-flex; align-items: center; gap: .4rem; font-size: 1.05rem; color: var(--marino); }
+.pedido-quienes select { flex: 0 1 300px; }
+.pedido-quienes .chip-filtro { margin: 0; }

@@ -93,7 +93,9 @@ function PedidoVacunas() {
   const [error, setError] = useState('');
   const [col, setCol] = useState(2);
   const [conAtrasados, setConAtrasados] = useState(false);
-  const [verNinos, setVerNinos] = useState(false);
+  // Quiénes son: se filtra por comunidad o tocando una vacuna; sin filtro no se lista a nadie
+  const [comunidadSel, setComunidadSel] = useState('');
+  const [vacunaSel, setVacunaSel] = useState('');
   const [impreso, setImpreso] = useState('pedido');
   // Se elige qué documento sale y luego se abre la impresión
   const imprimir = (cual) => { setImpreso(cual); setTimeout(() => window.print(), 50); };
@@ -117,6 +119,10 @@ function PedidoVacunas() {
   const porLugar = Object.values(ninos.reduce((m, n) => { const l = n.lugar || n.comunidad; (m[l] ||= { nombre: l, ninos: [] }).ninos.push(n); return m; }, {}))
     .sort((x, y) => x.nombre.localeCompare(y.nombre))
     .map((g) => ({ ...g, ninos: [...g.ninos].sort((x, y) => (x.atrasado ? '' : x.fecha).localeCompare(y.atrasado ? '' : y.fecha) || x.nombre_completo.localeCompare(y.nombre_completo)) }));
+  const comunidadesPedido = porComunidad.map((g) => g.nombre);
+  const filtrados = ninos.filter((n) => (!comunidadSel || n.comunidad === comunidadSel) && (!vacunaSel || (n.productos || []).includes(vacunaSel)));
+  const gruposFiltrados = Object.values(filtrados.reduce((m, n) => { (m[n.comunidad] ||= { nombre: n.comunidad, ninos: [] }).ninos.push(n); return m; }, {}))
+    .sort((x, y) => x.nombre.localeCompare(y.nombre));
   const total = vacunas.reduce((t, v) => t + reserva(v.n), 0);
 
   return (
@@ -147,22 +153,32 @@ function PedidoVacunas() {
         {vacunas.length === 0 ? <div className="tarjeta"><Vacio icono={Package} titulo="Nadie se vacuna en este mes" /></div> : (
           <div className="pedido-vacunas">
             {vacunas.map((v) => (
-              <div key={v.codigo} className="pedido-vacuna">
+              <button type="button" key={v.codigo} className={`pedido-vacuna ${vacunaSel === v.codigo ? 'activa' : ''}`} aria-pressed={vacunaSel === v.codigo}
+                onClick={() => setVacunaSel(vacunaSel === v.codigo ? '' : v.codigo)}>
                 <strong>{reserva(v.n)}</strong>
                 <span className="pv-nombre">{v.nombre}</span>
                 {v.atrasados > 0 && <span className="pv-detalle">{v.mes} del mes + {v.atrasados} atrasados</span>}
-              </div>
+              </button>
             ))}
           </div>
         )}
 
         {ninos.length > 0 && (
           <>
-            <button type="button" className="carne-completas lejanas" style={{ margin: '1rem 0' }} onClick={() => setVerNinos(!verNinos)} aria-expanded={verNinos}>
-              <Users size={20} /><span><strong>Quiénes son</strong> · {ninos.length} niños en {porComunidad.length} comunidades</span>
-              <ChevronDown size={18} className={verNinos ? 'girada' : ''} />
-            </button>
-            {verNinos && porComunidad.map((g) => (
+            <div className="pedido-quienes">
+              <strong className="pq-titulo"><Users size={18} />Quiénes son</strong>
+              <select value={comunidadSel} onChange={(e) => setComunidadSel(e.target.value)} aria-label="Comunidad">
+                <option value="">Elija una comunidad…</option>
+                {comunidadesPedido.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              {vacunaSel && (
+                <button type="button" className="chip-filtro activa" onClick={() => setVacunaSel('')}>
+                  {vacunas.find((v) => v.codigo === vacunaSel)?.nombre} ✕
+                </button>
+              )}
+              {(comunidadSel || vacunaSel) && <span className="tenue">{filtrados.length} niños</span>}
+            </div>
+            {(comunidadSel || vacunaSel) && gruposFiltrados.map((g) => (
               <section key={g.nombre} className="grupo-casos">
                 <div className="grupo-casos-cab"><strong>{g.nombre}</strong><span className="chip">{g.ninos.length}</span></div>
                 <div className="casos-filas">
