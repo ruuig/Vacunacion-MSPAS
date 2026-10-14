@@ -171,7 +171,6 @@ export default function Alertas() {
     <>
       <div className="no-imprimir">
         <Encabezado titulo="Control del mes">
-          {esEnfermera && vista === 'por_vacunar' && !modoAsignar && <button className="btn" onClick={() => { setModoAsignar(true); cambiar({ nino: '', grupo: grupo || 'atrasados' }); }}><Users size={17} />Asignar casos</button>}
           <button className="btn" onClick={() => window.print()} disabled={!datos}><Printer size={17} />Imprimir</button>
         </Encabezado>
 
@@ -254,12 +253,6 @@ export default function Alertas() {
               <div className="segmentado" role="group" aria-label="Período">
                 <button type="button" className={grupo && periodo === 'mes' ? 'activa' : ''} onClick={() => cambiar({ grupo: 'por_venir', periodo: '', nino: '' })}>Todo el mes</button>
                 <button type="button" className={grupo && periodo === 'semana' ? 'activa' : ''} onClick={() => cambiar({ grupo: 'por_venir', periodo: 'semana', nino: '' })}>Esta semana</button>
-              </div>
-            )}
-            {operativo && !datos?.solo_sector && (
-              <div className="segmentado" role="group" aria-label="Casos">
-                <button type="button" className={asignado !== 'yo' ? 'activa' : ''} onClick={() => { const p = new URLSearchParams(params); p.set('asignado', ''); setParams(p, { replace: true }); }}>Todos</button>
-                <button type="button" className={asignado === 'yo' ? 'activa' : ''} onClick={() => cambiar({ asignado: 'yo' })}>{usuario.sector ? 'Mi sector' : 'Mis casos'}</button>
               </div>
             )}
           </div>
@@ -512,6 +505,9 @@ const MEDIO_CORTO = { llamada: 'Llamada', visita: 'Visita', lider_comunitario: '
  */
 function DetalleCaso({ caso, rol, esCelular, onCerrarPanel, onCambio, onSiguiente }) {
   const { pedirTexto, avisar } = useDialogos();
+  // Quien da seguimiento es el responsable de la comunidad (o, si no tiene, el del puesto)
+  const lugarCaso = useCatalogo('comunidades').find((c) => c.id === caso.comunidad_id);
+  const responsableLugar = lugarCaso?.responsable || lugarCaso?.responsable_puesto;
   const [personal, setPersonal] = useState([]);
   const [seguimientos, setSeguimientos] = useState([]);
   const [verHistorial, setVerHistorial] = useState(false);
@@ -709,12 +705,7 @@ function DetalleCaso({ caso, rol, esCelular, onCerrarPanel, onCambio, onSiguient
 
       {jefa && (
         <section className="caso-bloque caso-mas">
-          <label className="caso-asignado"><span>Asignado a</span>
-            <select value={caso.asignado_id || ''} onChange={(e) => reasignar(e.target.value)}>
-              <option value="">Nadie</option>
-              {personal.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
-            </select>
-          </label>
+          <span className="caso-asignado"><span>Responsable</span><strong>{responsableLugar || 'Sin responsable'}</strong></span>
           <button type="button" className="enlace-tenue rojo" onClick={cerrar}>Cerrar caso sin vacunar</button>
         </section>
       )}
