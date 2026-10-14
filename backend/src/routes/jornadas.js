@@ -126,7 +126,9 @@ router.post('/', permitir('enfermera'), async (req, res) => {
 // Detalle: listado nominal (hoja de jornada), biológicos y resultados
 router.get('/:id', permitir(...TODOS), soloEquipo, async (req, res) => {
   const { rows: [j] } = await pool.query(
-    'SELECT j.*, u.nombre AS responsable, u.cargo FROM jornada j LEFT JOIN usuario u ON u.id = j.responsable_id WHERE j.id = $1', [req.params.id]);
+    `SELECT j.*, u.nombre AS responsable, u.cargo, ui.nombre AS iniciada_por_nombre, uc.nombre AS cerrada_por_nombre
+     FROM jornada j LEFT JOIN usuario u ON u.id = j.responsable_id
+     LEFT JOIN usuario ui ON ui.id = j.iniciada_por LEFT JOIN usuario uc ON uc.id = j.cerrada_por WHERE j.id = $1`, [req.params.id]);
   if (!j) return res.status(404).json({ error: 'Jornada no encontrada.' });
   const [comunidades, ninos, biologicos, equipo] = await Promise.all([
     pool.query(`SELECT c.id, c.nombre, s.nombre AS sector FROM jornada_comunidad jc JOIN comunidad c ON c.id = jc.comunidad_id
@@ -183,8 +185,12 @@ router.post('/:id/iniciar', permitir(...OPERATIVOS), soloEquipo, async (req, res
   if (j.estado === 'en_curso') return res.json(j); // ya la inició otra persona del equipo
   if (j.estado !== 'planificada') return res.status(409).json({ error: 'La jornada ya está cerrada o cancelada.' });
   if (j.fecha > hoy()) return res.status(409).json({ error: `La jornada es el ${j.fecha.split('-').reverse().join('/')}; se inicia ese día.` });
+  // Sin señal se envía la hora en que se tocó «Iniciar» en el teléfono; se acepta si es de ese mismo día y no es futura
+  const hora = req.body?.hora && !Number.isNaN(Date.parse(req.body.hora)) ? new Date(req.body.hora) : null;
+  const valida = hora && hora <= new Date() && hora.toLocaleDateString('en-CA', { timeZone: 'America/Guatemala' }) === j.fecha;
   const { rows: [act] } = await pool.query(
-    "UPDATE jornada SET estado = 'en_curso', iniciada_en = now(), iniciada_por = $2 WHERE id = $1 RETURNING *", [j.id, req.usuario.id]);
+    "UPDATE jornada SET estado = 'en_curso', iniciada_en = coalesce($3, now()), iniciada_por = $2 WHERE id = $1 RETURNING *",
+    [j.id, req.usuario.id, valida ? hora : null]);
   await registrarBitacora(pool, req, 'iniciar', 'jornada', j.id, j, act);
   res.json(act);
 });
@@ -244,7 +250,7 @@ router.post('/:id/cerrar', permitir('enfermera'), async (req, res) => {
       await c.query(`INSERT INTO alerta (nino_id, esquema_dosis_id, tipo, prioridad) VALUES ($1, NULL, 'inasistencia', 'media')
                      ON CONFLICT DO NOTHING`, [f.nino_id]);
     }
-    await c.query("UPDATE jornada SET estado = 'cerrada' WHERE id = $1", [j.id]);
+    await c.query("UPDATE jornada SET estado = 'cerrada', cerrada_en = now(), cerrada_por = $2 WHERE id = $1", [j.id, req.usuario.id]);
     await registrarBitacora(c, req, 'cerrar', 'jornada', j.id, j, { inasistencias: faltaron.length });
     return { inasistencias: faltaron.length };
   });

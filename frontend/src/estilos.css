@@ -1906,3 +1906,6 @@ label.btn.deshabilitado { opacity: .55; pointer-events: none; }
   .control-grupo span { grid-area: txt; }
   .control-grupo .cg-flecha { grid-area: fl; grid-row: auto; grid-column: auto; }
 }
+
+.horas-jornada { display: flex; flex-wrap: wrap; gap: .3rem 1rem; font-size: .88rem; font-weight: 700; color: var(--texto-suave, #5b6478); width: 100%; }
+.horas-jornada > span { display: inline-flex; align-items: center; gap: .3rem; }

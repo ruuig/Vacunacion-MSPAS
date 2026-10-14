@@ -223,6 +223,18 @@ export function NuevaJornada() {
 const FILTROS_NINOS = [['todos', 'Todos'], ['falta', 'Faltan'], ['vacunado', 'Vacunados'], ['no_asistio', 'No llegaron']];
 const sinTildes = (t = '') => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
+// Hora de inicio o cierre (si fue otro día, también la fecha)
+const hora = (t) => {
+  const d = new Date(t);
+  const h = d.toLocaleTimeString('es-GT', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Guatemala' });
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Guatemala' }) === hoy() ? h : `${d.toLocaleDateString('es-GT', { day: '2-digit', month: '2-digit', timeZone: 'America/Guatemala' })} ${h}`;
+};
+const duracion = (a, b) => {
+  const min = Math.round((new Date(b) - new Date(a)) / 60000);
+  if (min >= 24 * 60) return `${Math.floor(min / 1440)} d después`;
+  return min >= 60 ? `${Math.floor(min / 60)} h ${min % 60} min` : `${min} min`;
+};
+
 export function JornadaDetalle() {
   const { id } = useParams();
   const ir = useNavigate();
@@ -348,7 +360,7 @@ export function JornadaDetalle() {
       cargar();
     } catch (e) {
       if (!e.sinRed) { avisar(e.message, 'error'); return; }
-      encolar({ ruta: `/jornadas/${id}/iniciar`, method: 'POST', body: {}, tipo: 'iniciar', jornada_id: j.id, descripcion: `Iniciar la jornada del ${fecha(j.fecha)}` });
+      encolar({ ruta: `/jornadas/${id}/iniciar`, method: 'POST', body: { hora: new Date().toISOString() }, tipo: 'iniciar', jornada_id: j.id, descripcion: `Iniciar la jornada del ${fecha(j.fecha)}` });
       avisar('Sin señal: la jornada quedó iniciada en este teléfono.');
     }
   }
@@ -545,6 +557,13 @@ export function JornadaDetalle() {
         {abierta && delPersonal && (
           <span className={`sin-internet ${copia ? 'si' : ''}`} title="La jornada se guarda sola en este teléfono para poder trabajar sin señal">
             {copia ? <><Check size={14} />Disponible sin internet</> : descargando ? 'Guardando para usar sin internet…' : 'Se guardará para usar sin internet'}
+          </span>
+        )}
+        {j.iniciada_en && (
+          <span className="horas-jornada">
+            <span><PlayCircle size={15} />Inició {hora(j.iniciada_en)}{j.iniciada_por_nombre ? ` · ${j.iniciada_por_nombre.split(' ')[0]}` : ''}</span>
+            {j.cerrada_en && <span><Lock size={15} />Cerró {hora(j.cerrada_en)}{j.cerrada_por_nombre ? ` · ${j.cerrada_por_nombre.split(' ')[0]}` : ''}</span>}
+            {j.cerrada_en && <span className="tenue">{duracion(j.iniciada_en, j.cerrada_en)}</span>}
           </span>
         )}
         <div className="texto"><strong>{atendidos} de {j.ninos.length} niños atendidos</strong>
