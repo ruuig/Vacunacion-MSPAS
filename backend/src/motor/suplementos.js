@@ -1,6 +1,6 @@
 // Suplementación con micronutrientes y desparasitación (página del cuaderno SIGSA 5a). Módulo puro.
-// Cada dosis se da dentro de un rango de edad (6 a 11 meses, 1 año, 2 años); la 2a, 6 meses después de la 1a
-// del mismo grupo. Si el niño sale del rango sin recibirla, esa dosis ya no se da.
+// Cada dosis se da dentro de un rango de edad (6 a 11 meses y cada año hasta los 5); cada una, 6 meses después de la anterior
+// del mismo insumo. Si el niño sale del rango sin recibirla, esa dosis ya no se da.
 const { aDia, aFecha } = require('./motorEsquema');
 
 const AVISO_DIAS = 30; // «próxima»: le toca en el próximo mes
@@ -23,8 +23,10 @@ function calcularSuplementos({ fechaNacimiento, catalogo, entregas = [], fechaRe
     if (d.numero > 1) {
       const anterior = orden.find((x) => x.insumo === d.insumo && x.grupo === d.grupo && x.numero === d.numero - 1);
       if (anterior && !dadas.has(anterior.id)) return { ...base, estado: F > hasta ? 'no_dada' : 'en_espera' };
-      if (anterior) desde = Math.max(desde, dadas.get(anterior.id) + (d.intervalo_dias || 0));
     }
+    // 6 meses (intervalo) después de la última entrega del mismo insumo, aunque haya sido en la edad anterior
+    const previas = orden.filter((x) => x.insumo === d.insumo && x.orden < d.orden && dadas.has(x.id)).map((x) => dadas.get(x.id));
+    if (previas.length && d.intervalo_dias) desde = Math.max(desde, Math.max(...previas) + d.intervalo_dias);
     if (desde > hasta) return { ...base, estado: 'no_aplica' }; // ya no alcanza dentro del rango de edad
     if (F > hasta) return { ...base, estado: 'no_dada', programada: aFecha(desde) };
     if (F >= desde) return { ...base, estado: 'le_toca', programada: aFecha(desde), hasta: aFecha(hasta) };

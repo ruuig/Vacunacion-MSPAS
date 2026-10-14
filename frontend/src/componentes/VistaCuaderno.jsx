@@ -97,8 +97,8 @@ function CarnePorEdad({ dosis, hexa, onTocar }) {
       {lejanas.length > 0 && (
         <button type="button" className="carne-completas lejanas" onClick={() => alternar('lejanas')} aria-expanded={verLejanas}>
           <Clock size={20} />
-          <span>Más adelante: <strong>{lejanas.map((f) => f.nombre).join(', ')}</strong></span>
-          <ChevronDown size={18} className={verLejanas ? 'girada' : ''} />
+          <span><strong>Lo que le toca después</strong><small>{lejanas.map((f) => f.nombre).join(' · ')}</small></span>
+          <span className="cc-ver">{verLejanas ? 'Ocultar' : 'Ver'}<ChevronDown size={16} className={verLejanas ? 'girada' : ''} /></span>
         </button>
       )}
     </div>

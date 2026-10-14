@@ -4,10 +4,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { Check, CheckCircle2, ChevronDown, Clock, Pill } from 'lucide-react';
 import { api } from '../api.js';
 import { useDialogos } from './Dialogos.jsx';
-import { Mensaje, Modal, Tarjeta } from './ui.jsx';
+import { Campo, Mensaje, Modal, Tarjeta } from './ui.jsx';
 import { fecha, hoy } from '../util.js';
 
-const GRUPOS = [['6_11', '6 a 11 meses', 'lila'], ['12_23', '1 año a menor de 2', 'durazno'], ['24_35', '2 años a menor de 3', 'verde']];
+const GRUPOS = [['6_11', '6 a 11 meses', 'lila'], ['12_23', '1 año', 'durazno'], ['24_35', '2 años', 'verde'],
+  ['36_47', '3 años', 'lila'], ['48_59', '4 años', 'durazno'], ['60_71', '5 años', 'verde']];
 const ESTADO = {
   aplicada: ['Entregado el', Check], le_toca: ['Le toca desde el', Pill], proxima: ['Le toca desde el', Clock], pendiente: ['Le toca desde el'],
   en_espera: ['Después de la anterior'], no_dada: ['No se dio a esa edad'], no_aplica: ['Ya no alcanza a esa edad'],
@@ -18,6 +19,7 @@ export default function SuplementosNino({ ninoId, operativo, siempre = false }) 
   const [datos, setDatos] = useState(null);
   const [entregar, setEntregar] = useState(false);
   const [verPasadas, setVerPasadas] = useState(false);
+  const [verLejanas, setVerLejanas] = useState(false);
   const cargar = useCallback(() => { api(`/suplementos/nino/${ninoId}`).then(setDatos).catch(() => setDatos({ dosis: [], historial: [] })); }, [ninoId]);
   useEffect(cargar, [cargar]);
   if (!datos) return null;
@@ -27,14 +29,19 @@ export default function SuplementosNino({ ninoId, operativo, siempre = false }) 
   const pasada = (g) => deGrupo(g).every((d) => ['aplicada', 'no_dada', 'no_aplica'].includes(d.estado));
   const empezada = (g) => deGrupo(g).some((d) => d.estado !== 'pendiente');
   const pasadas = GRUPOS.filter(([g]) => pasada(g) && empezada(g));
-  const visibles = GRUPOS.filter(([g]) => empezada(g) && (!pasada(g) || verPasadas));
-  if (!pasadas.length && !visibles.length) return siempre ? <Tarjeta titulo="Suplementación" icono={Pill}><p className="tenue">Empieza a los 6 meses.</p></Tarjeta> : null;
+  // De lo que falta se muestra la edad en curso (o la siguiente); las demás, en «Lo que le toca después»
+  const activas = GRUPOS.filter(([g]) => deGrupo(g).length && !pasada(g));
+  const enCurso = activas.filter(([g]) => deGrupo(g).some((d) => ['le_toca', 'proxima', 'aplicada'].includes(d.estado)));
+  const cercanas = enCurso.length ? enCurso : activas.slice(0, 1);
+  const lejanas = activas.filter((x) => !cercanas.includes(x));
+  const visibles = [...(verPasadas ? pasadas : []), ...cercanas, ...(verLejanas ? lejanas : [])];
+  if (!GRUPOS.some(([g]) => empezada(g))) return siempre ? <Tarjeta titulo="Suplementación" icono={Pill}><p className="tenue">Empieza a los 6 meses.</p></Tarjeta> : null;
 
   return (
     <Tarjeta titulo="Suplementación" icono={Pill} cuerpo={false}
-      acciones={operativo && tocan.length > 0 && (
+      acciones={operativo && (tocan.length > 0 ? (
         <button className="btn btn-verde btn-sm no-imprimir" onClick={() => setEntregar(true)}><Pill size={15} />Entregar ({tocan.length})</button>
-      )}>
+      ) : <button className="btn btn-sm no-imprimir" onClick={() => setEntregar(true)}><Pill size={15} />Registrar entrega</button>)}>
       <div className="carne-edad">
         {pasadas.length > 0 && (
           <button type="button" className="carne-completas" onClick={() => setVerPasadas(!verPasadas)} aria-expanded={verPasadas}>
@@ -67,27 +74,50 @@ export default function SuplementosNino({ ninoId, operativo, siempre = false }) 
           </div>
         ))}
       </div>
-      {entregar && <Entregar ninoId={ninoId} tocan={tocan} onCerrar={() => setEntregar(false)}
+      {lejanas.length > 0 && (
+        <div className="carne-edad" style={{ paddingTop: 0 }}>
+          <button type="button" className="carne-completas lejanas" onClick={() => setVerLejanas(!verLejanas)} aria-expanded={verLejanas}>
+            <Clock size={20} />
+            <span><strong>Lo que le toca después</strong><small>{lejanas.map(([, n]) => n).join(' · ')}</small></span>
+            <span className="cc-ver">{verLejanas ? 'Ocultar' : 'Ver'}<ChevronDown size={16} className={verLejanas ? 'girada' : ''} /></span>
+          </button>
+        </div>
+      )}
+      {entregar && <Entregar ninoId={ninoId} tocanHoy={tocan} onCerrar={() => setEntregar(false)}
         onListo={(r) => { setEntregar(false); avisar(`Entregado: ${r.guardadas.join(', ')}.`); cargar(); }} />}
     </Tarjeta>
   );
 }
 
-function Entregar({ ninoId, tocan, onCerrar, onListo }) {
-  const [marcados, setMarcados] = useState(() => new Set(tocan.map((d) => d.id)));
+function Entregar({ ninoId, tocanHoy, onCerrar, onListo }) {
+  // Hoy por defecto; si se entregó otro día, se elige la fecha y salen los que le tocaban ese día
+  const [dia, setDia] = useState(hoy());
+  const [tocan, setTocan] = useState(tocanHoy);
+  const [marcados, setMarcados] = useState(() => new Set(tocanHoy.map((d) => d.id)));
+  useEffect(() => {
+    if (dia === hoy()) { setTocan(tocanHoy); setMarcados(new Set(tocanHoy.map((d) => d.id))); return; }
+    if (!dia || dia > hoy()) return;
+    api(`/suplementos/nino/${ninoId}?fecha=${dia}`).then((d) => {
+      const t = d.dosis.filter((x) => x.estado === 'le_toca');
+      setTocan(t); setMarcados(new Set(t.map((x) => x.id)));
+    }).catch(() => {});
+  }, [dia, ninoId, tocanHoy]);
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
   const alternar = (id) => setMarcados((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   async function guardar() {
     setGuardando(true);
-    try { onListo(await api(`/suplementos/nino/${ninoId}`, { method: 'POST', body: { ids: [...marcados], fecha: hoy() } })); }
+    try { onListo(await api(`/suplementos/nino/${ninoId}`, { method: 'POST', body: { ids: [...marcados], fecha: dia } })); }
     catch (e) { setError(e.message); setGuardando(false); }
   }
   return (
-    <Modal titulo="Entregar suplementos" sub={`Hoy, ${fecha(hoy())}`} onCerrar={onCerrar} chico
+    <Modal titulo="Entregar suplementos" onCerrar={onCerrar} chico
       pie={<><button className="btn" onClick={onCerrar}>Cancelar</button>
         <button className="btn btn-verde" disabled={!marcados.size || guardando} onClick={guardar}><Check size={17} />{guardando ? 'Guardando…' : `Guardar ${marcados.size}`}</button></>}>
-      <p className="suave" style={{ marginBottom: '.75rem' }}>Están marcados los que le tocan. Toque uno para quitarlo si no se entregó.</p>
+      <Campo etiqueta="¿Cuándo se entregó?" requerido>
+        <input type="date" required max={hoy()} value={dia} onChange={(e) => setDia(e.target.value)} />
+      </Campo>
+      {tocan.length === 0 && <Mensaje tipo="aviso">Ese día no le tocaba ningún suplemento.</Mensaje>}
       <div className="vacunas-marcar">
         {tocan.map((d) => {
           const si = marcados.has(d.id);

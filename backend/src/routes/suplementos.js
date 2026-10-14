@@ -20,7 +20,9 @@ router.get('/nino/:id', permitir(...TODOS), async (req, res) => {
     SELECT s.id, s.fecha, d.etiqueta, d.grupo, u.nombre AS registro FROM suplementacion s
     JOIN suplemento_dosis d ON d.id = s.suplemento_dosis_id LEFT JOIN usuario u ON u.id = s.creado_por
     WHERE s.nino_id = $1 AND NOT s.anulada ORDER BY s.fecha DESC`, [n.id]);
-  res.json({ dosis: calcularSuplementos({ fechaNacimiento: n.fecha_nacimiento, catalogo: cat, entregas, fechaRef: hoy() }), historial });
+  // ?fecha=: cómo estaba a esa fecha (para registrar una entrega de días anteriores)
+  const ref = /^\d{4}-\d{2}-\d{2}$/.test(req.query.fecha || '') && req.query.fecha <= hoy() ? req.query.fecha : hoy();
+  res.json({ dosis: calcularSuplementos({ fechaNacimiento: n.fecha_nacimiento, catalogo: cat, entregas, fechaRef: ref }), historial });
 });
 
 // Entregar uno o varios suplementos el mismo día
@@ -75,7 +77,7 @@ router.get('/mes', permitir(...TODOS), async (req, res) => {
     SELECT n.id, n.nombre_completo, n.fecha_nacimiento, n.comunidad_id, c.nombre AS comunidad, r.nombre_completo AS responsable, r.telefono
     FROM nino n JOIN comunidad c ON c.id = n.comunidad_id
     LEFT JOIN nino_responsable nr ON nr.nino_id = n.id AND nr.es_principal LEFT JOIN responsable r ON r.id = nr.responsable_id
-    WHERE n.estado = 'activo' AND n.fecha_nacimiento > $1::date - 1095 AND ($2::int[] IS NULL OR n.comunidad_id = ANY($2))`, [hasta, comunidades]);
+    WHERE n.estado = 'activo' AND n.fecha_nacimiento > $1::date - 2191 AND ($2::int[] IS NULL OR n.comunidad_id = ANY($2))`, [hasta, comunidades]);
   const cat = await catalogo(pool);
   const entregas = await entregasDe(pool, ninos.map((n) => n.id));
   const pendientes = [];

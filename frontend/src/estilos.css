@@ -1909,3 +1909,12 @@ label.btn.deshabilitado { opacity: .55; pointer-events: none; }
 
 .horas-jornada { display: flex; flex-wrap: wrap; gap: .3rem 1rem; font-size: .88rem; font-weight: 700; color: var(--texto-suave, #5b6478); width: 100%; }
 .horas-jornada > span { display: inline-flex; align-items: center; gap: .3rem; }
+/* «Lo que le toca después»: botón celeste suave, que se note que se toca */
+.carne-completas.lejanas { background: #eaf4fc; border-color: #b9d9f2; border-bottom-color: #8cbfe6; color: var(--celeste-2, #1f6fb2); transition: transform .08s, background .15s; }
+.carne-completas.lejanas:hover { background: #dcedfa; }
+.carne-completas.lejanas:active { transform: translateY(2px); border-bottom-width: 2px; }
+.carne-completas.lejanas > span:not(.cc-ver) { display: grid; gap: .1rem; }
+.carne-completas.lejanas strong { color: var(--marino); font-weight: 800; }
+.carne-completas.lejanas small { color: var(--suave); font-size: .82rem; }
+.carne-completas.lejanas .cc-ver { flex: none; display: inline-flex; align-items: center; gap: .25rem; padding: .3rem .7rem; border-radius: 999px;
+  background: #fff; color: var(--celeste-2, #1f6fb2); font-weight: 800; font-size: .82rem; border: 1.5px solid #b9d9f2; }
