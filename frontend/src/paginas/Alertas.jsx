@@ -238,20 +238,22 @@ export default function Alertas() {
               </button>
             )}
           </div>
-          {grupo && <>
+          <>
           <div className="control-filtros">
             <div className="control-lugar">{datos?.solo_sector ? <span className="chip-sector"><MapPin size={16} />Su sector</span>
               : <SelectorTerritorio puesto={puesto} comunidad={comunidad} onCambio={(t) => cambiar({ ...t, nino: '' })} />}</div>
-            {grupo === 'atrasados' ? (
+            {grupo !== 'por_venir' && (
               <div className="chips-filtro">
                 {FILTROS.map(([k, t]) => (k && !cuenta(k) ? null : (
-                  <button key={k} className={`chip-filtro ${filtro === k ? 'activa' : ''}`} onClick={() => cambiar({ tipo: k })}>{t} ({cuenta(k)})</button>
+                  <button key={k} className={`chip-filtro ${grupo === 'atrasados' && filtro === k ? 'activa' : ''}`}
+                    onClick={() => cambiar({ grupo: 'atrasados', tipo: k, nino: '' })}>{t} ({cuenta(k)})</button>
                 )))}
               </div>
-            ) : (
+            )}
+            {grupo !== 'atrasados' && esEsteMes && (
               <div className="segmentado" role="group" aria-label="Período">
-                <button type="button" className={periodo === 'mes' ? 'activa' : ''} onClick={() => cambiar({ periodo: '' })}>Todo el mes</button>
-                <button type="button" className={periodo === 'semana' ? 'activa' : ''} onClick={() => cambiar({ periodo: 'semana' })}>Esta semana</button>
+                <button type="button" className={grupo && periodo === 'mes' ? 'activa' : ''} onClick={() => cambiar({ grupo: 'por_venir', periodo: '', nino: '' })}>Todo el mes</button>
+                <button type="button" className={grupo && periodo === 'semana' ? 'activa' : ''} onClick={() => cambiar({ grupo: 'por_venir', periodo: 'semana', nino: '' })}>Esta semana</button>
               </div>
             )}
             {operativo && !datos?.solo_sector && (
@@ -284,7 +286,7 @@ export default function Alertas() {
             </div>
           )}
 
-          {porComunidad.length === 0 ? (
+          {!grupo && !buscar ? null : porComunidad.length === 0 ? (
             <div className="tarjeta"><Vacio icono={BellOff} titulo="Nadie por vacunar con estos filtros">Cuando a un niño le toque una vacuna y no venga, aparecerá aquí.</Vacio></div>
           ) : porComunidad.map((g) => (
             <section key={g.id} className="grupo-casos">
@@ -313,7 +315,7 @@ export default function Alertas() {
               </button>
             </div>
           )}
-          </>}
+          </>
           </div>
         </>
       )}
