@@ -12,6 +12,7 @@ import {
   Cargando, Encabezado, EncabezadoImpresion, Kpi, Mensaje, Modal, Pestanas, Tabla, Tarjeta, Vacio, iniciales, useEsCelular,
 } from '../componentes/ui.jsx';
 import { Estado, plural, tonoDe } from '../componentes/Estado.jsx';
+import Documento, { TablaDoc } from '../componentes/Documento.jsx';
 import { MEDIOS, MESES, RESULTADOS, TIPO_ALERTA, cuadernoFila, edad, fecha, hoy, puede, sumarDias } from '../util.js';
 import SelectorTerritorio, { useTerritorio } from '../componentes/SelectorTerritorio.jsx';
 
@@ -166,8 +167,6 @@ export default function Alertas() {
 
   return (
     <>
-      <EncabezadoImpresion titulo={`${IMPRESION[vista]} · ${enSemana ? `semana al ${fecha(finSemana)}` : titulo}`}
-        detalle={`${lugar.nombre}${lugar.responsable ? ` · Responsable: ${lugar.responsable}` : ''}`} />
       <div className="no-imprimir">
         <Encabezado titulo="Control del mes">
           {esEnfermera && vista === 'por_vacunar' && !modoAsignar && <button className="btn" onClick={() => { setModoAsignar(true); cambiar({ nino: '' }); }}><Users size={17} />Asignar casos</button>}
@@ -207,11 +206,28 @@ export default function Alertas() {
       </div>
       <Mensaje tipo="error">{error}</Mensaje>
 
-      {vista === 'suplementos' ? <Suplementos anio={anio} mes={mes} puesto={puesto} comunidad={comunidad} hastaSemana={esEsteMes && periodo === 'semana' ? finSemana : null} />
+      {vista === 'suplementos' ? <Suplementos anio={anio} mes={mes} puesto={puesto} comunidad={comunidad} hastaSemana={esEsteMes && periodo === 'semana' ? finSemana : null}
+        periodo={enSemana ? `Semana al ${fecha(finSemana)}` : titulo} lugar={lugar} />
         : !datos ? <Cargando /> : vista === 'vacunados' ? (
-        <Vacunados datos={datos} />
+        <Vacunados datos={datos} periodo={titulo} lugar={lugar} />
       ) : (
         <>
+          <Documento titulo="Niños a buscar" periodo={enSemana ? `Semana al ${fecha(finSemana)}` : titulo}
+            detalle={`${lugar.nombre}${lugar.responsable ? ` · Responsable: ${lugar.responsable}` : ''}`} firmas={['Responsable']}>
+            {porComunidad.map((g) => (
+              <section key={g.id}>
+                <h2 className="doc-seccion">{g.nombre} · {g.ninos.length}</h2>
+                <TablaDoc columnas={[
+                  { titulo: 'Niña o niño', valor: (p) => <><strong>{p.nombre_completo}</strong><br />{edad(p.fecha_nacimiento)}</>, ancho: '24%' },
+                  { titulo: 'Le falta', valor: (p) => p.dosis.map((d) => d.etiqueta).join(', ') },
+                  { titulo: 'Atraso', valor: (p) => (p.situacion === 'por_venir' ? `Le toca ${fecha(p.dosis[0].programada).slice(0, 5)}` : `${p.dias_atraso} días`), num: true },
+                  { titulo: 'Mamá o responsable', valor: (p) => <>{p.responsable || '—'}<br />{p.telefono || 'Sin teléfono'}</>, ancho: '24%' },
+                  { titulo: 'Resultado', valor: () => '', ancho: '18%' },
+                ]} filas={g.ninos} />
+              </section>
+            ))}
+          </Documento>
+          <div className="no-imprimir">
           <div className="kpis no-imprimir">
             <Kpi valor={datos.resumen.pendientes} rotulo={esEsteMes ? 'Atrasados por vacunar' : 'No se vacunaron'} icono={AlertOctagon} color="rojo" resaltar />
             {esEsteMes && <Kpi valor={datos.resumen.por_venir} rotulo="Les toca este mes" icono={CalendarClock} color="azul" />}
@@ -274,6 +290,7 @@ export default function Alertas() {
               </button>
             </div>
           )}
+          </div>
         </>
       )}
 
@@ -320,7 +337,7 @@ function FilaPendiente({ p, seleccionado, marcado, onMarcar, onAbrir }) {
 }
 
 /** Vacunados del mes, día por día. */
-function Vacunados({ datos }) {
+function Vacunados({ datos, periodo, lugar }) {
   const dias = Object.entries(datos.vacunados.reduce((m, v) => {
     const d = (m[v.fecha] ||= {});
     const n = (d[v.nino_id] ||= { ...v, vacunas: [], jornada: false });
@@ -329,10 +346,26 @@ function Vacunados({ datos }) {
     return m;
   }, {})).sort(([a], [b]) => b.localeCompare(a));
   if (!dias.length) return <div className="tarjeta"><Vacio icono={Syringe} titulo="Nadie se vacunó en este mes">Elija otro mes con las flechas.</Vacio></div>;
-  return dias.map(([dia, ninos]) => {
+  const largo = (dia) => new Date(`${dia}T12:00:00Z`).toLocaleDateString('es-GT', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+  const documento = (
+    <Documento key="doc" titulo="Niños vacunados" periodo={periodo} detalle={lugar.nombre}>
+      {[...dias].reverse().map(([dia, ninos]) => (
+        <section key={dia}>
+          <h2 className="doc-seccion">{largo(dia).replace(/^\w/, (x) => x.toUpperCase())} · {Object.keys(ninos).length}</h2>
+          <TablaDoc columnas={[
+            { titulo: 'Niña o niño', valor: 'nombre_completo', ancho: '30%' },
+            { titulo: 'Comunidad', valor: 'comunidad' },
+            { titulo: 'Vacunas', valor: (n) => n.vacunas.join(', ') },
+            { titulo: 'Lugar', valor: (n) => (n.jornada ? 'Jornada' : n.establecimiento || 'Servicio') },
+          ]} filas={Object.values(ninos)} />
+        </section>
+      ))}
+    </Documento>
+  );
+  return [documento, ...dias.map(([dia, ninos]) => {
     const lista = Object.values(ninos);
     return (
-      <section key={dia} className="dia-vacunados">
+      <section key={dia} className="dia-vacunados no-imprimir">
         <div className="grupo-casos-cab">
           <CalendarDays size={16} />
           <strong>{new Date(`${dia}T12:00:00Z`).toLocaleDateString('es-GT', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })}</strong>
@@ -351,11 +384,11 @@ function Vacunados({ datos }) {
         </div>
       </section>
     );
-  });
+  })];
 }
 
 /** Suplementación del mes: a quién le toca (para llamar), qué se entregó y cuánto pedir. */
-function Suplementos({ anio, mes, puesto, comunidad, hastaSemana }) {
+function Suplementos({ anio, mes, puesto, comunidad, hastaSemana, periodo, lugar }) {
   const [datos, setDatos] = useState(null);
   const [vista, setVista] = useState('toca');
   const [error, setError] = useState('');
@@ -374,7 +407,21 @@ function Suplementos({ anio, mes, puesto, comunidad, hastaSemana }) {
   }, {}));
   return (
     <>
-      <div className="kpis tres no-imprimir">
+      <Documento titulo="Suplementación: a quién le toca" periodo={periodo} detalle={lugar.nombre} firmas={['Entregó']}>
+        {porComunidad.map((g) => (
+          <section key={g.id}>
+            <h2 className="doc-seccion">{g.nombre} · {g.ninos.length}</h2>
+            <TablaDoc columnas={[
+              { titulo: 'Niña o niño', valor: (p) => <><strong>{p.nombre_completo}</strong><br />{edad(p.fecha_nacimiento)}</>, ancho: '28%' },
+              { titulo: 'Le toca', valor: (p) => p.suplementos.map((x) => x.etiqueta).join(', ') },
+              { titulo: 'Mamá o responsable', valor: (p) => <>{p.responsable || '—'}<br />{p.telefono || ''}</> },
+              { titulo: 'Entregado', valor: () => '', ancho: '14%' },
+            ]} filas={g.ninos} />
+          </section>
+        ))}
+      </Documento>
+      <div className="no-imprimir">
+      <div className="kpis tres">
         {datos.insumos.map((i) => (
           <Kpi key={i.insumo} valor={i.pendientes} rotulo={`${i.nombre}: le toca`} icono={Pill} color="azul" pie={`${i.entregados} entregados en el mes`} />
         ))}
@@ -414,6 +461,7 @@ function Suplementos({ anio, mes, puesto, comunidad, hastaSemana }) {
           </div>
         </section>
       ))}
+      </div>
     </>
   );
 }

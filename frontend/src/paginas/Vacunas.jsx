@@ -2,7 +2,8 @@
 // No es un inventario: las existencias y la cadena de frío se reportan por los canales del MSPAS (SIGSA).
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, PackagePlus, Printer, Users } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Package, PackagePlus, Plus, Printer, Users } from 'lucide-react';
+import Documento, { TablaDoc } from '../componentes/Documento.jsx';
 import { api, qs } from '../api.js';
 import { useDialogos } from '../componentes/Dialogos.jsx';
 import { useCatalogo } from '../componentes/useCatalogo.js';
@@ -231,71 +232,118 @@ function Consumo() {
   );
 }
 
-/** Qué pedir al distrito: para cada mes, cuántas dosis de cada vacuna y quiénes se vacunan (según el esquema de cada niño). */
+/**
+ * Qué pedir al distrito. Se elige el mes del pedido (por defecto el siguiente: en octubre se pide noviembre)
+ * y se puede sumar a los niños atrasados, que también podrían venir. Imprime una solicitud formal, no la pantalla.
+ */
 function PedidoVacunas() {
   const [datos, setDatos] = useState(null);
   const [error, setError] = useState('');
-  const [col, setCol] = useState(2); // el mes siguiente: es el que se pide ahora
+  const [col, setCol] = useState(2);
+  const [conAtrasados, setConAtrasados] = useState(false);
   const [verNinos, setVerNinos] = useState(false);
+  const [imprimirLista, setImprimirLista] = useState(true);
   useEffect(() => { api('/seguimiento/proyeccion').then(setDatos).catch((e) => setError(e.message)); }, []);
   if (error) return <Mensaje tipo="error">{error}</Mensaje>;
   if (!datos) return <Cargando />;
+  const ultimo = datos.columnas.length - 1;
   const c = datos.columnas[col];
+  const atr = datos.columnas[0];
+  const nombreMes = (k) => (k.clave === 'este_mes' ? k.nombre.replace('Resto de ', 'Lo que falta de ') : k.nombre.replace(/^\w/, (x) => x.toUpperCase()));
   const reserva = (n) => Math.ceil(n * (1 + datos.reserva / 100));
-  const vacunas = datos.filas.map((f) => ({ ...f, n: f.cantidades[col] })).filter((f) => f.n > 0).sort((x, y) => y.n - x.n);
-  const porComunidad = Object.values(c.ninos.reduce((m, n) => { (m[n.comunidad_id] ||= { nombre: n.comunidad, ninos: [] }).ninos.push(n); return m; }, {}));
-  const titulo = (k) => (k.clave === 'atrasadas' ? 'Atrasados' : k.nombre.replace(/^\w/, (x) => x.toUpperCase()));
+  const vacunas = datos.filas.map((f) => {
+    const mes = f.cantidades[col];
+    const atrasados = conAtrasados ? f.cantidades[0] : 0;
+    return { ...f, mes, atrasados, n: mes + atrasados };
+  }).filter((f) => f.n > 0).sort((x, y) => y.n - x.n);
+  const ninos = conAtrasados ? [...c.ninos, ...atr.ninos.map((n) => ({ ...n, atrasado: true }))] : c.ninos;
+  const porComunidad = Object.values(ninos.reduce((m, n) => { (m[n.comunidad_id] ||= { nombre: n.comunidad, ninos: [] }).ninos.push(n); return m; }, {}))
+    .sort((x, y) => x.nombre.localeCompare(y.nombre));
+  const total = vacunas.reduce((t, v) => t + reserva(v.n), 0);
+
   return (
     <>
-      <EncabezadoImpresion titulo={`Pedido de vacunas · ${titulo(c)}`} detalle={`${c.ninos.length} niños · reserva ${datos.reserva} %`} />
-      <div className="pedido-meses no-imprimir" role="tablist">
-        {datos.columnas.map((k, i) => (
-          <button key={k.clave} type="button" role="tab" aria-selected={i === col} className={`pedido-mes ${i === col ? 'activo' : ''}`} onClick={() => setCol(i)}>
-            <strong>{k.ninos.length}</strong><span>{titulo(k)}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="pedido-cab">
-        <h2>{titulo(c)} · <span>{c.ninos.length} niños</span></h2>
-        <button className="btn no-imprimir" onClick={() => window.print()}><Printer size={16} />Imprimir</button>
-      </div>
-
-      {vacunas.length === 0 ? <div className="tarjeta"><Vacio icono={Package} titulo="Nadie se vacuna en este período" /></div> : (
-        <div className="pedido-vacunas">
-          {vacunas.map((v) => (
-            <div key={v.codigo} className="pedido-vacuna">
-              <strong>{reserva(v.n)}</strong>
-              <span className="pv-nombre">{v.nombre}</span>
-              <span className="pv-detalle">{v.n} + {reserva(v.n) - v.n} de reserva</span>
-            </div>
-          ))}
+      <div className="no-imprimir">
+        <div className="pedido-barra">
+          <div className="selector-mes" role="group" aria-label="Mes del pedido">
+            <button type="button" className="btn btn-icono" onClick={() => setCol(col - 1)} disabled={col <= 1} aria-label="Mes anterior"><ChevronLeft size={20} /></button>
+            <strong>{nombreMes(c)}</strong>
+            <button type="button" className="btn btn-icono" onClick={() => setCol(col + 1)} disabled={col >= ultimo} aria-label="Mes siguiente"><ChevronRight size={20} /></button>
+          </div>
+          {col === 2 && <span className="chip-sector">Próximo pedido</span>}
+          <label className={`chip-filtro ${conAtrasados ? 'activa' : ''}`}>
+            <input type="checkbox" checked={conAtrasados} onChange={(e) => setConAtrasados(e.target.checked)} hidden />
+            {conAtrasados ? <Check size={15} /> : <Plus size={15} />} Sumar {atr.ninos.length} atrasados
+          </label>
+          <button className="btn" onClick={() => window.print()} style={{ marginLeft: 'auto' }}><Printer size={16} />Imprimir solicitud</button>
         </div>
-      )}
 
-      {c.ninos.length > 0 && (
-        <>
-          <button type="button" className="carne-completas lejanas no-imprimir" style={{ margin: '1rem 0' }} onClick={() => setVerNinos(!verNinos)} aria-expanded={verNinos}>
-            <Users size={20} /><span><strong>Quiénes son</strong> · {c.ninos.length} niños en {porComunidad.length} comunidades</span>
-          </button>
-          <div className={verNinos ? '' : 'solo-imprimir'}>
-            {porComunidad.map((g) => (
+        <div className="pedido-resumen">
+          <div><strong>{ninos.length}</strong><span>niños</span></div>
+          <div><strong>{total}</strong><span>dosis a pedir</span></div>
+          <div><strong>{datos.reserva} %</strong><span>de reserva incluida</span></div>
+        </div>
+
+        {vacunas.length === 0 ? <div className="tarjeta"><Vacio icono={Package} titulo="Nadie se vacuna en este mes" /></div> : (
+          <div className="pedido-vacunas">
+            {vacunas.map((v) => (
+              <div key={v.codigo} className="pedido-vacuna">
+                <strong>{reserva(v.n)}</strong>
+                <span className="pv-nombre">{v.nombre}</span>
+                <span className="pv-detalle">{v.mes} del mes{v.atrasados ? ` + ${v.atrasados} atrasados` : ''} + {reserva(v.n) - v.n} reserva</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {ninos.length > 0 && (
+          <>
+            <button type="button" className="carne-completas lejanas" style={{ margin: '1rem 0' }} onClick={() => setVerNinos(!verNinos)} aria-expanded={verNinos}>
+              <Users size={20} /><span><strong>Quiénes son</strong> · {ninos.length} niños en {porComunidad.length} comunidades</span>
+              <ChevronDown size={18} className={verNinos ? 'girada' : ''} />
+            </button>
+            {verNinos && porComunidad.map((g) => (
               <section key={g.nombre} className="grupo-casos">
                 <div className="grupo-casos-cab"><strong>{g.nombre}</strong><span className="chip">{g.ninos.length}</span></div>
                 <div className="casos-filas">
                   {g.ninos.map((n) => (
-                    <Link key={n.id} to={`/ninos/${n.id}`} className="fila-caso fila-simple">
+                    <Link key={`${n.id}-${n.atrasado ? 'a' : 'm'}`} to={`/ninos/${n.id}`} className="fila-caso fila-simple">
                       <div className="fc-cuerpo"><strong>{n.nombre_completo}</strong>
-                        <span className="fichas-hoy">{n.dosis.map((d) => <span key={d} className="ficha-vacuna">{d}</span>)}</span></div>
-                      <span className="fs-fecha">{fecha(n.fecha).slice(0, 5)}</span>
+                        <span className="fichas-hoy">{n.dosis.map((d) => <span key={d} className={`ficha-vacuna ${n.atrasado ? 'atrasada' : ''}`}>{d}</span>)}</span></div>
+                      <span className="fs-fecha">{n.atrasado ? 'Atrasado' : fecha(n.fecha).slice(0, 5)}</span>
                     </Link>
                   ))}
                 </div>
               </section>
             ))}
-          </div>
-        </>
-      )}
+            <label className="interruptor" style={{ marginTop: '.5rem' }}>
+              <input type="checkbox" checked={imprimirLista} onChange={(e) => setImprimirLista(e.target.checked)} />Imprimir también la lista de niños
+            </label>
+          </>
+        )}
+      </div>
+
+      <Documento titulo={`Solicitud de vacunas · ${nombreMes(c)}`} periodo={`${nombreMes(c)}${conAtrasados ? ' (incluye atrasados)' : ''}`} detalle="Todo el municipio">
+        <TablaDoc columnas={[
+          { titulo: 'Vacuna', valor: 'nombre' },
+          { titulo: 'Niños del mes', valor: 'mes', num: true },
+          ...(conAtrasados ? [{ titulo: 'Atrasados', valor: 'atrasados', num: true }] : []),
+          { titulo: `Reserva ${datos.reserva} %`, valor: (v) => reserva(v.n) - v.n, num: true },
+          { titulo: 'Dosis a pedir', valor: (v) => <strong>{reserva(v.n)}</strong>, num: true },
+        ]} filas={vacunas} />
+        <p className="doc-nota">Cálculo según el esquema de vacunación de cada niño registrado. Total: {total} dosis para {ninos.length} niños.</p>
+        {imprimirLista && ninos.length > 0 && (
+          <>
+            <h2 className="doc-seccion">Anexo: niños que se vacunan</h2>
+            <TablaDoc columnas={[
+              { titulo: 'Comunidad', valor: 'comunidad', ancho: '18%' },
+              { titulo: 'Niña o niño', valor: 'nombre_completo' },
+              { titulo: 'Vacunas', valor: (n) => n.dosis.join(', ') },
+              { titulo: 'Fecha', valor: (n) => (n.atrasado ? 'Atrasado' : fecha(n.fecha)), num: true },
+            ]} filas={porComunidad.flatMap((g) => g.ninos)} />
+          </>
+        )}
+      </Documento>
     </>
   );
 }
