@@ -614,6 +614,8 @@ function DetalleCaso({ caso, rol, esCelular, onCerrarPanel, onCambio, onSiguient
         </div>
         {caso.dias_atraso > 0 && <span className="caso-dias"><b>{caso.dias_atraso}</b> días</span>}
       </section>
+      {/* Si el niño está aquí (llegó o lo encontraron), se va directo a su ficha para vacunarlo */}
+      <Link to={`/ninos/${caso.nino_id}`} className="btn btn-verde btn-bloque caso-ir-ficha"><Syringe size={18} />Abrir ficha para vacunar</Link>
 
       {/* A quién llamar */}
       <section className="caso-bloque caso-familia">

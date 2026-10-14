@@ -14,9 +14,49 @@ const finDeSemana = () => sumar(hoy(), (7 - new Date(`${hoy()}T12:00:00Z`).getUT
 const RANGOS = [
   ['hoy', 'Hoy', () => hoy()],
   ['semana', 'Esta semana', finDeSemana],
-  ['quince', 'Próximas 2 semanas', () => sumar(hoy(), 14)],
   ['mes', 'Este mes', finDeMes],
 ];
+
+/** Sin búsqueda: a quién le toca vacuna (hoy incluye a los atrasados), para llegar directo a su ficha. */
+function LesToca({ comunidad }) {
+  const [rango, setRango] = useState('hoy');
+  const [lista, setLista] = useState(null);
+  useEffect(() => {
+    setLista(null);
+    const hasta = RANGOS.find((r) => r[0] === rango)[2]();
+    api('/ninos/citas' + qs({ hasta, comunidad })).then(setLista).catch(() => setLista([]));
+  }, [rango, comunidad]);
+  return (
+    <section style={{ marginBottom: '1.25rem' }}>
+      <div className="les-toca-cab">
+        <div className="seccion-titulo" style={{ margin: 0 }}><CalendarDays size={14} />Les toca vacuna</div>
+        <div className="segmentado" role="group" aria-label="Cuándo">
+          {RANGOS.map(([k, t]) => <button key={k} type="button" className={rango === k ? 'activa' : ''} onClick={() => setRango(k)}>{t}</button>)}
+        </div>
+      </div>
+      {lista === null ? <Cargando filas={3} /> : lista.length === 0 ? (
+        <div className="tarjeta"><Vacio icono={CalendarDays} titulo="A nadie le toca en estos días" /></div>
+      ) : (
+        <div className="lista-tarjetas">
+          {lista.map((n) => (
+            <Link key={n.id} to={`/ninos/${n.id}`} className="tarjeta-nino">
+              <span className={`tc-avatar ${n.atrasada ? 't-critico' : ''}`}>{iniciales(n.nombre_completo)}</span>
+              <div className="cuerpo">
+                <strong>{n.nombre_completo}</strong>
+                <span>{edad(n.fecha_nacimiento)} · {n.comunidad}{n.responsable ? ` · ${n.responsable}` : ''}</span>
+                <span className="fichas-hoy">{n.vacunas.map((v) => <span key={v} className={`ficha-vacuna ${n.atrasada ? 'atrasada' : 'le_toca'}`}>{v}</span>)}</span>
+              </div>
+              <div className="derecha">
+                <span className={n.atrasada ? 'rojo fuerte' : 'tenue'}>{n.atrasada ? 'Atrasado' : n.proxima_cita === hoy() ? 'Hoy' : fecha(n.proxima_cita).slice(0, 5)}</span>
+                <ChevronRight size={20} style={{ color: 'var(--tenue)' }} />
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
 
 export default function Buscar() {
   const [params, setParams] = useSearchParams();
@@ -80,8 +120,9 @@ function BuscarNino({ params, setParams }) {
       </div>
 
       <Mensaje tipo="error">{error}</Mensaje>
-      {resultados === null ? (
-        vistos.length > 0 ? (
+      {resultados === null ? (<>
+        <LesToca comunidad={comunidad} />
+        {vistos.length > 0 && (
           <>
             <div className="seccion-titulo" style={{ marginTop: 0 }}><History size={14} />Vistos hace poco</div>
             <div className="lista-tarjetas">
@@ -94,12 +135,8 @@ function BuscarNino({ params, setParams }) {
               ))}
             </div>
           </>
-        ) : (
-          <div className="tarjeta">
-            <Vacio icono={Search} titulo="Escriba un nombre o un CUI" />
-          </div>
-        )
-      ) : buscando && !resultados.length ? <Cargando /> : resultados.length === 0 ? (
+        )}
+      </>) : buscando && !resultados.length ? <Cargando /> : resultados.length === 0 ? (
         <div className="tarjeta">
           <Vacio icono={SearchX} titulo={`Nadie se llama «${q}»`}
             accion={operativo && <Link className="btn btn-verde btn-grande" to="/ninos/nuevo"><UserPlus size={20} />Registrarlo como niño nuevo</Link>} />

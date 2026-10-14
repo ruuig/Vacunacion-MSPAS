@@ -1949,3 +1949,7 @@ tr.fila-en-curso .estado.grande .ic { background: rgba(255,255,255,.2); color: #
 /* Páginas con documento impreso: al imprimir solo sale el documento */
 @media print { .con-documento > :not(.documento) { display: none !important; } }
 .doc-subseccion { font-size: 10pt; margin: .6rem 0 .25rem; color: #1b2a5c; break-after: avoid; }
+.les-toca-cab { display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; margin-bottom: .6rem; }
+.tc-avatar.t-critico { background: #fdecea; color: #c0392b; }
+.caso-ir-ficha { margin: 0 0 .8rem; }
+.btn.caso-ir-ficha { width: auto; display: flex; margin: 0 1.4rem 1rem; }
