@@ -7,6 +7,9 @@ const cache = {};
 /** Olvida una lista para que se vuelva a pedir (después de crear o editar en administración). */
 export const invalidarCatalogo = (nombre) => { delete cache[nombre]; };
 
+/** Olvida todas las listas: al entrar o salir, para que nadie vea las comunidades que veía otra persona. */
+export const limpiarCatalogos = () => { Object.keys(cache).forEach((k) => delete cache[k]); };
+
 /** Carga una lista de /api/catalogos/:nombre una sola vez por sesión de página. */
 export function useCatalogo(nombre) {
   const [lista, setLista] = useState(cache[nombre] || []);

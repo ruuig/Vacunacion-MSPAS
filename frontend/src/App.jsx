@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { api, sesionGuardada, guardarSesion } from './api.js';
 import { cola } from './componentes/fueraDeLinea.js';
+import { limpiarCatalogos } from './componentes/useCatalogo.js';
 import { Cargando, iniciales } from './componentes/ui.jsx';
 import { AvisoActualizacion, AvisoConexion, BotonInstalar, ColaSinEnviar, borrarDatosGuardados } from './componentes/Pwa.jsx';
 import Logo from './componentes/Logo.jsx';
@@ -38,13 +39,15 @@ export default function App() {
   const [menuAbierto, setMenuAbierto] = useState(false);
   const { pathname } = useLocation();
 
-  const entrar = (s) => { guardarSesion(s); setSesion(s); };
+  // Al cambiar de usuario se olvidan las listas guardadas en memoria (cada rol ve otras comunidades)
+  const entrar = (s) => { limpiarCatalogos(); guardarSesion(s); setSesion(s); };
   const salir = async () => {
     // Lo registrado sin señal está solo en este teléfono: salir no lo borra, pero se envía con la sesión de quien entre
     if (cola().length && !window.confirm('Hay registros guardados sin enviar en este teléfono. ¿Salir de todos modos? Se enviarán cuando alguien vuelva a entrar con señal.')) return;
     try { await api('/auth/logout', { method: 'POST' }); } catch { /* sesión ya vencida */ }
     guardarSesion(null);
     await borrarDatosGuardados();
+    limpiarCatalogos();
     setSesion(null);
   };
 
