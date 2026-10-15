@@ -81,7 +81,6 @@ function Saludo({ usuario, buscar }) {
 
 /** Lo más urgente: niños con vacunas retrasadas (el mismo cálculo que Control del mes). */
 function Retrasadas({ mes, porPuesto }) {
-  const comunidades = useCatalogo('comunidades');
   if (!mes) return <div className="tarjeta inicio-urgente"><div className="esqueleto" /></div>;
   const atrasados = mes.pendientes.filter((p) => p.situacion !== 'por_venir');
   const cuenta = (t) => atrasados.filter((p) => (t === 'atrasada' ? !['dosis_cero', 'abandono'].includes(p.alerta) : p.alerta === t)).length;
@@ -93,14 +92,13 @@ function Retrasadas({ mes, porPuesto }) {
       </div>
     );
   }
-  // Por puesto: cada comunidad cuenta en el puesto al que pertenece
-  const puestoDe = (id) => { const c = comunidades.find((x) => x.id === id); return c ? (c.comunidad_padre_id || c.id) : id; };
+  // Por puesto: cada aldea o barrio cuenta en el puesto al que pertenece
   const grupos = Object.values(atrasados.reduce((m, p) => {
-    const id = puestoDe(p.comunidad_id);
-    const c = comunidades.find((x) => x.id === id);
-    (m[id] ||= { id, nombre: c ? (c.tipo === 'casco_urbano' ? 'Casco urbano' : c.nombre) : p.comunidad, n: 0 }).n += 1;
+    const id = p.puesto_id ?? p.comunidad_id;
+    (m[id] ||= { id, nombre: p.puesto_tipo === 'casco_urbano' ? 'Casco urbano' : (p.lugar || p.comunidad), n: 0 }).n += 1;
     return m;
   }, {})).sort((a, b) => b.n - a.n);
+  const mayor = grupos[0]?.n || 1;
   return (
     <section className="inicio-urgente">
       <Link to="/alertas?grupo=atrasados" className="iu-principal">
@@ -118,9 +116,12 @@ function Retrasadas({ mes, porPuesto }) {
       </Link>
       {porPuesto && grupos.length > 1 && (
         <div className="iu-puestos">
-          {grupos.map((g, i) => (
-            <Link key={g.id} to={`/alertas?grupo=atrasados&puesto=${g.id}`} className={`iu-puesto ${i === 0 ? 'peor' : ''}`}>
-              <MapPin size={14} /><span>{g.nombre}</span><b>{g.n}</b>
+          <span className="iu-puestos-titulo">Por puesto</span>
+          {grupos.map((g) => (
+            <Link key={g.id} to={`/alertas?grupo=atrasados&puesto=${g.id}`} className="iu-puesto">
+              <span className="iu-p-nombre">{g.nombre}</span>
+              <span className="iu-p-barra"><span style={{ width: `${(g.n / mayor) * 100}%` }} /></span>
+              <b>{g.n}</b>
             </Link>
           ))}
         </div>

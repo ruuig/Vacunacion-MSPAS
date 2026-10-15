@@ -33,7 +33,7 @@ async function filtroTerritorio(db, { comunidad, puesto } = {}) {
 /** Niños activos con sus aplicaciones vigentes, responsable principal, asignación y último contacto. */
 async function cargarNinos(db, comunidad) {
   const { rows: ninos } = await db.query(`
-    SELECT n.id, n.nombre_completo, n.fecha_nacimiento, n.sexo, n.comunidad_id, c.nombre AS comunidad, COALESCE(p.nombre, c.nombre) AS lugar,
+    SELECT n.id, n.nombre_completo, n.fecha_nacimiento, n.sexo, n.comunidad_id, c.nombre AS comunidad, COALESCE(p.nombre, c.nombre) AS lugar, COALESCE(p.id, c.id) AS puesto_id, COALESCE(p.tipo, c.tipo) AS puesto_tipo,
            r.nombre_completo AS responsable, r.telefono, r.idioma_preferente, r.numero_casa, ua.nombre AS asignado_nombre, ca.usuario_id AS asignado_id
     FROM nino n JOIN comunidad c ON c.id = n.comunidad_id LEFT JOIN comunidad p ON p.id = c.comunidad_padre_id
     LEFT JOIN nino_responsable nr ON nr.nino_id = n.id AND nr.es_principal LEFT JOIN responsable r ON r.id = nr.responsable_id

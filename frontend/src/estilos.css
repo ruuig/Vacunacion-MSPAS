@@ -2056,3 +2056,16 @@ td select.selector-chico { min-width: 130px; }
 .cumplimiento.verde .lleno { background: #1a8f57; } .cumplimiento.verde b { color: #12683f; }
 .cumplimiento.ambar .lleno { background: #e0a100; } .cumplimiento.ambar b { color: #9a6b00; }
 .cumplimiento.rojo .lleno { background: #c0392b; } .cumplimiento.rojo b { color: #b4302a; }
+
+/* Inicio · retrasadas por puesto: lista corta con barras (antes eran fichas sueltas) */
+.iu-puestos { display: grid; gap: .15rem; margin-top: .7rem; padding: .7rem 1rem; background: #fff; border-radius: 18px;
+  border: 2px solid var(--borde); border-bottom-width: 4px; flex-wrap: nowrap; }
+.iu-puestos-titulo { font-size: .78rem; font-weight: 800; color: var(--suave); text-transform: uppercase; letter-spacing: .04em; margin-bottom: .2rem; }
+.iu-puestos .iu-puesto { display: grid; grid-template-columns: 150px 1fr 36px; align-items: center; gap: .8rem; padding: .4rem .3rem;
+  border: none; background: none; border-radius: 10px; font-weight: 700; color: var(--texto); }
+.iu-puestos .iu-puesto:hover { background: #fdecea; }
+.iu-p-nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iu-p-barra { height: 10px; border-radius: 999px; background: #f1e3e1; overflow: hidden; }
+.iu-p-barra span { display: block; height: 100%; border-radius: 999px; background: #d9534a; }
+.iu-puestos .iu-puesto b { text-align: right; color: #b4302a; font-weight: 900; }
+@media (max-width: 600px) { .iu-puestos .iu-puesto { grid-template-columns: 110px 1fr 30px; } }
