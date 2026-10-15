@@ -122,6 +122,19 @@ function PedidoVsAplicado({ d, periodo }) {
         <div className="kpi verde"><div className="kpi-icono"><Syringe size={19} /></div><strong>{aplicadas}</strong><span>Dosis aplicadas en {periodo}</span></div>
         <div className="kpi azul"><div className="kpi-icono"><BarChart3 size={19} /></div><strong>{d.pedido && pedidas ? `${Math.round((aplicadas / pedidas) * 100)} %` : '—'}</strong><span>De lo pedido se aplicó</span></div>
       </div>
+      {d.puestos?.length > 0 && (
+        <Tarjeta titulo={`Por puesto · ${periodo}`} icono={Package} cuerpo={false}>
+          <Tabla>
+            <thead><tr><th>Puesto</th><th className="celda-num">Dosis pedidas</th><th className="celda-num">Dosis aplicadas</th><th className="celda-num">Uso</th></tr></thead>
+            <tbody>
+              {d.puestos.map((p) => (
+                <tr key={p.puesto_id}><td className="fuerte">{p.nombre}</td><td className="celda-num">{p.pedidas ?? '—'}</td><td className="celda-num">{p.aplicadas}</td>
+                  <td className="celda-num">{p.pedidas ? `${Math.round((p.aplicadas / p.pedidas) * 100)} %` : '—'}</td></tr>
+              ))}
+            </tbody>
+          </Tabla>
+        </Tarjeta>
+      )}
       <Tarjeta titulo={`Por vacuna · ${periodo}`} icono={Package} cuerpo={false}>
         <Tabla>
           <thead><tr><th>Vacuna</th><th className="celda-num">Pedidas</th><th className="celda-num">En el servicio</th><th className="celda-num">En jornadas</th><th className="celda-num">Aplicadas</th><th className="celda-num">Diferencia</th><th className="celda-num">Uso</th></tr></thead>

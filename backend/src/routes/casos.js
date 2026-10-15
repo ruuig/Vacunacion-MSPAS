@@ -36,10 +36,8 @@ router.get('/', permitir(...TODOS), async (req, res) => {
     [tipo || null, comunidad || null, prioridad || null, asignado === 'yo' ? req.usuario.id : asignado ? Number(asignado) : null]);
 
   // El personal de un puesto o barrio solo ve su sector y los niños que le asignaron
-  if (req.usuario.rol === 'vacunador') {
-    const sector = new Set(await require('../territorio').territorioDe(pool, req.usuario.id));
-    if (sector.size) rows = rows.filter((r) => sector.has(r.comunidad_id));
-  }
+  const alcance = await require('../territorio').alcanceDe(pool, req.usuario);
+  if (alcance) { const sector = new Set(alcance); rows = rows.filter((r) => sector.has(r.comunidad_id)); }
   // Historial de contactos de los niños de la bandeja (para escalamiento y último contacto)
   const ids = [...new Set(rows.map((r) => r.nino_id))];
   const { rows: contactos } = ids.length ? await pool.query(`

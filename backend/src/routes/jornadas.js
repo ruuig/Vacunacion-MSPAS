@@ -4,13 +4,23 @@ const { permitir, TODOS, OPERATIVOS } = require('../middleware/auth');
 const esq = require('../servicios/esquema');
 const { hoy } = require('../fecha');
 
-// La enfermera y el administrador ven todas las jornadas; el personal de vacunación, solo las de su equipo
-const veTodas = (u) => ['enfermera', 'administrador'].includes(u.rol);
+// La Dirección ve todas las jornadas; la enfermera encargada, las de su puesto y aldeas; el personal, las de su equipo
+const { territorioDe } = require('../territorio');
 const EN_EQUIPO = `(j.responsable_id = $1 OR EXISTS (SELECT 1 FROM jornada_equipo je WHERE je.jornada_id = j.id AND je.usuario_id = $1))`;
+const EN_SU_PUESTO = `($3::int[] IS NOT NULL AND EXISTS (SELECT 1 FROM jornada_comunidad jc WHERE jc.jornada_id = j.id AND jc.comunidad_id = ANY($3)))`;
+// null = ve todas (Dirección, o enfermera sin puesto asignado); [] = ninguna por territorio (personal)
+async function puestoDe(db, u) {
+  if (u.rol === 'administrador') return null;
+  if (u.rol !== 'enfermera') return [];
+  const t = await territorioDe(db, u.id);
+  return t.length ? t : null;
+}
 
 async function esDelEquipo(db, jornadaId, usuario) {
-  if (veTodas(usuario)) return true;
-  const { rows } = await db.query(`SELECT 1 FROM jornada j WHERE j.id = $2 AND ${EN_EQUIPO}`, [usuario.id, jornadaId]);
+  const puesto = await puestoDe(db, usuario);
+  if (puesto === null) return true;
+  const { rows } = await db.query(`SELECT 1 FROM jornada j WHERE j.id = $2 AND (${EN_EQUIPO} OR ${EN_SU_PUESTO})`,
+    [usuario.id, jornadaId, puesto.length ? puesto : null]);
   return rows.length > 0;
 }
 
@@ -85,8 +95,11 @@ router.get('/', permitir(...TODOS), async (req, res) => {
       (SELECT count(*) FROM jornada_nino jn WHERE jn.jornada_id = j.id)::int AS convocados,
       (SELECT count(DISTINCT a.nino_id) FROM aplicacion a WHERE a.jornada_id = j.id AND NOT a.anulada)::int AS vacunados
     FROM jornada j LEFT JOIN usuario u ON u.id = j.responsable_id
-    WHERE $2 OR ${EN_EQUIPO}
-    ORDER BY j.fecha DESC LIMIT 100`, [req.usuario.id, veTodas(req.usuario)]);
+    WHERE $2 OR ${EN_EQUIPO} OR ${EN_SU_PUESTO}
+    ORDER BY j.fecha DESC LIMIT 100`, await (async () => {
+      const puesto = await puestoDe(pool, req.usuario);
+      return [req.usuario.id, puesto === null, puesto && puesto.length ? puesto : null];
+    })());
   res.json(rows);
 });
 
@@ -96,6 +109,10 @@ router.post('/', permitir('enfermera'), async (req, res) => {
   let { comunidad_ids = [] } = req.body || {};
   if (!fecha || !comunidad_ids.length) return res.status(400).json({ error: 'Indique fecha y al menos una comunidad.' });
   if (fecha < hoy()) return res.status(400).json({ error: 'La jornada debe ser hoy o en una fecha futura.' });
+  // La enfermera encargada solo programa jornadas en su puesto y sus aldeas
+  const puesto = await puestoDe(pool, req.usuario);
+  if (puesto && comunidad_ids.some((id) => !puesto.includes(Number(id))))
+    return res.status(403).json({ error: 'Solo puede programar jornadas en las comunidades de su puesto.' });
   // Solo comunidades donde alguien tiene vacunas ese día
   const conNinos = new Set((await convocables(pool, fecha, comunidad_ids.map(Number),
     { catalogo: await esq.cargarCatalogo(pool), params: await esq.cargarParametros(pool) })).map((x) => x.nino.comunidad_id));
@@ -170,7 +187,7 @@ router.get('/:id', permitir(...TODOS), soloEquipo, async (req, res) => {
 });
 
 // Cambiar el equipo de una jornada que aún no se cierra
-router.put('/:id/equipo', permitir('enfermera'), async (req, res) => {
+router.put('/:id/equipo', permitir('enfermera'), soloEquipo, async (req, res) => {
   const { responsable_id, equipo_ids = [] } = req.body || {};
   const r = await transaccion(async (c) => {
     const { rows: [j] } = await c.query("SELECT * FROM jornada WHERE id = $1 AND estado IN ('planificada','en_curso') FOR UPDATE", [req.params.id]);
@@ -241,7 +258,7 @@ router.put('/:id/biologicos/:productoId/llevada', permitir(...OPERATIVOS), soloE
 });
 
 // Cerrar: quien no recibió dosis queda como inasistencia y genera alerta
-router.post('/:id/cerrar', permitir('enfermera'), async (req, res) => {
+router.post('/:id/cerrar', permitir('enfermera'), soloEquipo, async (req, res) => {
   const { devueltas = [] } = req.body || {};
   const r = await transaccion(async (c) => {
     const { rows: [j] } = await c.query("SELECT * FROM jornada WHERE id = $1 AND estado IN ('planificada','en_curso') FOR UPDATE", [req.params.id]);
@@ -267,7 +284,7 @@ router.post('/:id/cerrar', permitir('enfermera'), async (req, res) => {
   r ? res.json(r) : res.status(404).json({ error: 'Jornada no encontrada o ya cerrada.' });
 });
 
-router.post('/:id/cancelar', permitir('enfermera'), async (req, res) => {
+router.post('/:id/cancelar', permitir('enfermera'), soloEquipo, async (req, res) => {
   const { rowCount } = await pool.query("UPDATE jornada SET estado = 'cancelada' WHERE id = $1 AND estado = 'planificada'", [req.params.id]);
   if (rowCount) await registrarBitacora(pool, req, 'cancelar', 'jornada', req.params.id);
   rowCount ? res.json({ ok: true }) : res.status(404).json({ error: 'Jornada no encontrada o ya cerrada.' });

@@ -11,16 +11,19 @@ import {
   Campo, Cargando, Encabezado, EncabezadoImpresion, Mensaje, Modal, Pestanas, Tabla, Tarjeta, Vacio,
 } from '../componentes/ui.jsx';
 import { MESES, fecha, hoy } from '../util.js';
+import { useSesion } from '../App.jsx';
 
 export default function Vacunas() {
+  const { usuario } = useSesion();
+  const direccion = usuario.rol === 'administrador';
   const [vista, setVista] = useState(() => new URLSearchParams(window.location.search).get('vista') || 'pedido');
   return (
     <>
       <div className="no-imprimir">
-        <Encabezado titulo="Vacunas" />
-        <Pestanas valor={vista} onCambio={setVista} opciones={[['pedido', 'Qué pedir'], ['consumo', 'Consumo del mes']]} />
+        <Encabezado titulo={direccion ? 'Vacunas' : 'Vacunas que necesita su puesto'} />
+        {direccion && <Pestanas valor={vista} onCambio={setVista} opciones={[['pedido', 'Qué pedir'], ['consumo', 'Consumo del mes']]} />}
       </div>
-      {vista === 'consumo' ? <Consumo /> : <PedidoVacunas />}
+      {direccion && vista === 'consumo' ? <Consumo /> : <PedidoVacunas direccion={direccion} />}
     </>
   );
 }
@@ -88,7 +91,7 @@ function Consumo() {
  * Qué pedir al distrito. Se elige el mes del pedido (por defecto el siguiente: en octubre se pide noviembre)
  * y se puede sumar a los niños atrasados, que también podrían venir. Imprime una solicitud formal, no la pantalla.
  */
-function PedidoVacunas() {
+function PedidoVacunas({ direccion }) {
   const [datos, setDatos] = useState(null);
   const [error, setError] = useState('');
   const [col, setCol] = useState(2);
@@ -127,6 +130,16 @@ function PedidoVacunas() {
   const gruposFiltrados = Object.values(filtrados.reduce((m, n) => { (m[n.comunidad] ||= { nombre: n.comunidad, ninos: [] }).ninos.push(n); return m; }, {}))
     .sort((x, y) => x.nombre.localeCompare(y.nombre));
   const total = vacunas.reduce((t, v) => t + reserva(v.n), 0);
+  // Dirección: lo que necesita cada puesto (sumando las vacunas de sus niños)
+  const productosCat = datos.filas.map((x) => [x.codigo, x.nombre]);
+  const nombreVacuna = (k) => productosCat.find((x) => x[0] === k)?.[1] || k;
+  const porPuesto = Object.values(ninos.reduce((m, n) => {
+    const id = n.puesto_id ?? n.comunidad_id;
+    const p = (m[id] ||= { id, nombre: n.lugar || n.comunidad, cant: {} });
+    for (const k of n.productos || []) p.cant[k] = (p.cant[k] || 0) + 1;
+    return m;
+  }, {})).sort((a, b) => Object.values(b.cant).reduce((t, x) => t + x, 0) - Object.values(a.cant).reduce((t, x) => t + x, 0));
+  const codigos = vacunas.map((v) => v.codigo).filter((k) => porPuesto.some((p) => p.cant[k]));
 
   return (
     <>
@@ -144,14 +157,15 @@ function PedidoVacunas() {
           </label>
           <div className="pedido-imprimir">
             <button className="btn" disabled={!vacunas.length} onClick={() => {
-              // Al imprimir, el pedido se guarda: a fin de mes se compara con lo aplicado (Informes → Pedido vs. aplicado)
-              if (c.anio && c.mes) {
+              // La Dirección guarda el pedido del municipio (y el de cada puesto) al imprimirlo: a fin de mes se compara con lo aplicado
+              if (direccion && c.anio && c.mes) {
                 api('/lotes/pedido', { method: 'POST', body: { anio: c.anio, mes: c.mes, incluye_atrasados: conAtrasados,
-                  detalle: vacunas.map((v) => ({ codigo: v.codigo, cantidad: v.n })) } })
+                  detalle: vacunas.map((v) => ({ codigo: v.codigo, cantidad: v.n })),
+                  por_puesto: porPuesto.flatMap((p) => Object.entries(p.cant).map(([codigo, cantidad]) => ({ puesto_id: p.id, codigo, cantidad }))) } })
                   .then(() => avisar(`Pedido de ${nombreMes(c)} guardado.`)).catch(() => {});
               }
               imprimir('pedido');
-            }}><Printer size={16} />Imprimir pedido</button>
+            }}><Printer size={16} />{direccion ? 'Imprimir pedido' : 'Imprimir lo que necesita mi puesto'}</button>
             <button className="btn" onClick={() => imprimir('listado')} disabled={!ninos.length}><Printer size={16} />Imprimir listado de niños</button>
           </div>
         </div>
@@ -161,6 +175,20 @@ function PedidoVacunas() {
           <div><strong>{total}</strong><span>dosis a pedir</span></div>
         </div>
 
+        {direccion && porPuesto.length > 0 && (
+          <Tarjeta titulo="Por puesto" icono={Package} sub="Lo que necesita cada puesto para sus niños. El total del municipio suma además BCG y Hepatitis B de los recién nacidos (estimados)" cuerpo={false}>
+            <Tabla>
+              <thead><tr><th>Puesto</th>{codigos.map((k) => <th key={k} className="celda-num">{nombreVacuna(k)}</th>)}<th className="celda-num">Total</th></tr></thead>
+              <tbody>
+                {porPuesto.map((p) => (
+                  <tr key={p.id}><td className="fuerte">{p.nombre}</td>{codigos.map((k) => <td key={k} className="celda-num">{p.cant[k] || '—'}</td>)}
+                    <td className="celda-num fuerte">{Object.values(p.cant).reduce((t, x) => t + x, 0)}</td></tr>
+                ))}
+                <tr className="fila-total"><td>Total del municipio</td>{codigos.map((k) => <td key={k} className="celda-num">{vacunas.find((v) => v.codigo === k)?.n ?? 0}</td>)}<td className="celda-num">{total}</td></tr>
+              </tbody>
+            </Tabla>
+          </Tarjeta>
+        )}
         {vacunas.length === 0 ? <div className="tarjeta"><Vacio icono={Package} titulo="Nadie se vacuna en este mes" /></div> : (
           <div className="pedido-vacunas">
             {vacunas.map((v) => (
@@ -214,7 +242,7 @@ function PedidoVacunas() {
         )}
       </div>
 
-      {impreso === 'pedido' ? <Documento titulo={`Pedido de vacunas · ${nombreMes(c)}`} periodo={`${nombreMes(c)}${conAtrasados ? ' (incluye atrasados)' : ''}`} detalle="Todo el municipio">
+      {impreso === 'pedido' ? <Documento titulo={direccion ? `Pedido de vacunas · ${nombreMes(c)}` : `Vacunas que necesita el puesto · ${nombreMes(c)}`} periodo={`${nombreMes(c)}${conAtrasados ? ' (incluye atrasados)' : ''}`} detalle={direccion ? 'Todo el municipio' : (porPuesto.map((p) => p.nombre).join(', ') || 'Su puesto')}>
         <TablaDoc columnas={[
           { titulo: 'Vacuna', valor: 'nombre' },
           ...(conAtrasados ? [{ titulo: 'Del mes', valor: 'mes', num: true }, { titulo: 'Atrasados', valor: 'atrasados', num: true }] : []),
@@ -222,6 +250,14 @@ function PedidoVacunas() {
           { titulo: 'Dosis a pedir', valor: (v) => <strong>{reserva(v.n)}</strong>, num: true },
         ]} filas={vacunas} total={['Total', ...(conAtrasados ? ['', ''] : []), total]} />
         <p className="doc-nota">Cálculo según el esquema de vacunación de cada niño registrado. Total: {total} dosis para {ninos.length} niños.</p>
+        {direccion && porPuesto.length > 0 && (
+          <>
+            <h2 className="doc-seccion">Por puesto</h2>
+            <TablaDoc columnas={[{ titulo: 'Puesto', valor: 'nombre' }, ...codigos.map((k) => ({ titulo: nombreVacuna(k), valor: (p) => p.cant[k] || '', num: true })),
+              { titulo: 'Total', valor: (p) => Object.values(p.cant).reduce((t, x) => t + x, 0), num: true }]} filas={porPuesto} />
+            <p className="doc-nota">BCG y Hepatitis B de recién nacidos se suman solo en el total del municipio (son estimados, aún no tienen puesto).</p>
+          </>
+        )}
       </Documento> : (
         <Documento titulo={`Niños que se vacunan · ${nombreMes(c)}`} periodo={`${nombreMes(c)}${conAtrasados ? ' (incluye atrasados)' : ''}`}
           detalle={`${ninos.length} niños · ${porLugar.length} ${porLugar.length === 1 ? 'lugar' : 'lugares'}`}>

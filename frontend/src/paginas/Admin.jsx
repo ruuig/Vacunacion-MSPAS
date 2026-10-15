@@ -25,7 +25,7 @@ const VISTAS = [
   ['respaldos', <><DatabaseBackup size={15} />Respaldos</>],
   ['logo', <><ImageUp size={15} />Logo</>],
 ];
-const ROLES = { administrador: 'Administrador', enfermera: 'Enfermera', vacunador: 'Personal de vacunación' };
+const ROLES = { administrador: 'Dirección', enfermera: 'Enfermera encargada de puesto', vacunador: 'Personal de vacunación' };
 const TIPOS_COMUNIDAD = { casco_urbano: 'Casco urbano', barrio: 'Barrio', aldea: 'Aldea', caserio: 'Caserío', canton: 'Cantón' };
 
 export default function Admin() {
@@ -142,8 +142,9 @@ function Usuarios() {
                 <SelectorCargo className="selector-chico" valor={u.cargo || ''} cargos={cargos} onNuevo={cargarCargos} aria-label={`Cargo de ${u.nombre}`}
                   onCambio={(v) => cambiar(u, { cargo: v }, 'Cargo actualizado.')} style={{ marginTop: '.35rem', minWidth: 170 }} />
               </td>
-              <td>{u.rol === 'vacunador' ? (aCargo(u.id).length ? aCargo(u.id).join(', ')
-                : <span className="rojo" title="Sin lugar a cargo ve todo el municipio">Sin lugar · <a href="?vista=territorio">asignar</a></span>) : <span className="tenue">Todo el municipio</span>}</td>
+              <td>{u.rol === 'enfermera' ? (aCargo(u.id).length ? aCargo(u.id).join(', ')
+                : <span className="rojo" title="Sin puesto a cargo ve todo el municipio">Sin puesto · <a href="?vista=territorio">asignar</a></span>)
+                : u.rol === 'vacunador' ? <span className="tenue">Las jornadas a las que lo asignan</span> : <span className="tenue">Todo el municipio</span>}</td>
               <td>{u.ultimo_acceso ? new Date(u.ultimo_acceso).toLocaleString('es-GT') : '—'}</td>
               <td><Estado de={!u.activo ? 'desactivado' : u.intentos_fallidos >= 5 ? 'bloqueado' : 'activo'} /></td>
               <td className="celda-fin">
@@ -247,7 +248,7 @@ function Territorio() {
   const [nuevoPuesto, setNuevoPuesto] = useState(null);
   const [quitarPuesto, setQuitarPuesto] = useState(null);
   const accion = useAccion(() => { invalidarCatalogo('comunidades'); window.location.reload(); }, setError);
-  const personal = usuarios.filter((u) => u.activo && u.rol !== 'administrador');
+  const personal = usuarios.filter((u) => u.activo && u.rol === 'enfermera'); // responsables: enfermeras encargadas
   const centrales = comunidades.filter((c) => c.es_central).sort((x, y) => (x.tipo === 'casco_urbano') - (y.tipo === 'casco_urbano') || x.nombre.localeCompare(y.nombre));
   const sueltas = comunidades.filter((c) => !c.es_central && !c.comunidad_padre_id);
   const nombrePuesto = (x) => (x.tipo === 'casco_urbano' ? 'Casco urbano' : `Puesto ${x.nombre}`);
@@ -467,13 +468,14 @@ function CentroSalud() {
 
 // Qué puede hacer cada rol (los permisos los decide el rol; el cargo es solo el nombre del puesto de trabajo)
 const PERMISOS = [
-  ['Ver niños', 'Su sector', 'Todos', 'Todos'],
-  ['Registrar niños, vacunar y entregar suplementos', '✓', '✓', '✓'],
-  ['Llamar o visitar a los atrasados y anotar', 'Su sector', '✓', '✓'],
-  ['Ir a una jornada, iniciarla y vacunar en ella', 'La que le asignan', '✓', '✓'],
-  ['Crear, cerrar y cancelar jornadas', '—', '✓', '✓'],
-  ['Anular registros equivocados', '—', '✓', '✓'],
-  ['Tablero, informes y pedido de vacunas', '—', '✓', '✓'],
+  ['Ver niños', 'Los de sus jornadas', 'Su puesto y sus aldeas', 'Todo el municipio'],
+  ['Vacunar y marcar «No llegó» en una jornada', '✓', '✓', '✓'],
+  ['Registrar niños nuevos, suplementos y la ficha', 'En su jornada', '✓', '✓'],
+  ['Llamar o visitar a los atrasados y anotar', '—', 'Su puesto', '✓'],
+  ['Programar, cerrar y cancelar jornadas', '—', 'En su puesto', '✓'],
+  ['Cuadernos SIGSA 5a', '—', 'Los de su puesto', '✓'],
+  ['Vacunas que necesita (pedido)', '—', 'Las de su puesto', 'Todo el municipio, por puesto, y lo guarda'],
+  ['Tablero, informes y cumplimiento de todos los puestos', '—', '—', '✓'],
   ['Centro, puestos y aldeas, usuarios, cargos, esquema, respaldos', '—', '—', '✓'],
 ];
 
@@ -486,10 +488,9 @@ function RolesCargos() {
   return (
     <>
       <Mensaje tipo="error" onCerrar={() => setError('')}>{error}</Mensaje>
-      <Tarjeta titulo="Roles" icono={BadgeCheck} sub="El rol decide qué puede hacer cada persona; se asigna en Usuarios" cuerpo={false}>
+      <Tarjeta titulo="Roles" icono={BadgeCheck} sub="Dirección = la doctora (coordinadora del distrito) · Enfermera encargada = responsable de un puesto y sus aldeas · Personal = quien sale a vacunar" cuerpo={false}>
         <Tabla adaptable={false} className="tabla-roles">
-          <thead><tr><th>Puede…</th><th>Personal de vacunación<span className="sub">{cuantos('vacunador')} usuarios</span></th><th>Enfermera<span className="sub">{cuantos('enfermera')} usuarios</span></th>
-<th>Administrador<span className="sub">{cuantos('administrador')} usuarios</span></th></tr></thead>
+          <thead><tr><th>Puede…</th><th>Personal de vacunación<span className="sub">{cuantos('vacunador')} usuarios</span></th><th>Enfermera encargada de puesto<span className="sub">{cuantos('enfermera')} usuarios</span></th><th>Dirección<span className="sub">{cuantos('administrador')} usuarios</span></th></tr></thead>
           <tbody>{PERMISOS.map(([p, ...v]) => <tr key={p}><td className="fuerte">{p}</td>{v.map((x, i) => <td key={i} className={x === '—' ? 'tenue' : ''}>{x}</td>)}</tr>)}</tbody>
         </Tabla>
       </Tarjeta>

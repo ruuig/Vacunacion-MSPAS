@@ -9,14 +9,28 @@ async function territorioDe(db, usuarioId) {
   return rows.map((r) => r.id);
 }
 
+// Comunidades de las jornadas abiertas en las que esta persona va (responsable o equipo)
+const SQL_JORNADAS_ABIERTAS = `
+  SELECT DISTINCT jc.comunidad_id AS id FROM jornada_comunidad jc JOIN jornada j ON j.id = jc.jornada_id
+  WHERE j.estado IN ('planificada', 'en_curso')
+    AND (j.responsable_id = $1 OR EXISTS (SELECT 1 FROM jornada_equipo je WHERE je.jornada_id = j.id AND je.usuario_id = $1))`;
+
 /**
- * Comunidades que un usuario puede ver y editar. null = todas (enfermera, administrador, encargada, o personal sin puesto).
- * El personal de un puesto o barrio solo trabaja en lo suyo: nadie se mete en el puesto de otro.
+ * Comunidades que un usuario puede ver y editar (null = todas). Tres roles:
+ *  · Dirección (administrador): todo el municipio.
+ *  · Enfermera encargada de puesto: su puesto y sus aldeas (si aún no tiene lugar asignado, ve todo).
+ *  · Personal de vacunación: solo las comunidades de las jornadas a las que lo asignan.
  */
 async function alcanceDe(db, usuario) {
-  if (usuario?.rol !== 'vacunador') return null;
-  const t = await territorioDe(db, usuario.id);
-  return t.length ? t : null;
+  if (usuario?.rol === 'enfermera') {
+    const t = await territorioDe(db, usuario.id);
+    return t.length ? t : null;
+  }
+  if (usuario?.rol === 'vacunador') {
+    const { rows } = await db.query(SQL_JORNADAS_ABIERTAS, [usuario.id]);
+    return rows.map((r) => r.id);
+  }
+  return null;
 }
 
 /** ¿Puede este usuario ver al niño? Quien tiene sector, solo los de su sector o los de una jornada suya abierta. */

@@ -13,7 +13,7 @@ import { useSesion } from '../App.jsx';
 import { useCatalogo } from '../componentes/useCatalogo.js';
 import { Tarjeta } from '../componentes/ui.jsx';
 import { plural } from '../componentes/Estado.jsx';
-import { MESES, fecha, hoy, puede, sumarDias } from '../util.js';
+import { MESES, fecha, hoy, sumarDias } from '../util.js';
 
 function saludo() {
   const h = new Date().getHours();
@@ -27,34 +27,71 @@ const diaJornada = (f) => (f.slice(0, 10) === hoy() ? 'Hoy' : f.slice(0, 10) ===
 export default function Inicio() {
   const { usuario, refrescarAlertas } = useSesion();
   const rol = usuario.rol;
-  const operativo = rol === 'vacunador';
-  const jefa = puede(rol, 'enfermera');
+  const direccion = rol === 'administrador';
+  const encargada = rol === 'enfermera';
+  const operativo = encargada; // la enfermera encargada trabaja su puesto: llama, vacuna, programa sus jornadas
+  const jefa = direccion || encargada; // puede programar y cerrar jornadas
   const [mes, setMes] = useState(null);
   const [jornadas, setJornadas] = useState(null);
 
   useEffect(refrescarAlertas, [refrescarAlertas]);
   useEffect(() => {
-    api('/seguimiento/mes').then(setMes).catch(() => setMes({ pendientes: [], resumen: {} }));
+    if (rol !== 'vacunador') api('/seguimiento/mes').then(setMes).catch(() => setMes({ pendientes: [], resumen: {} }));
     api('/jornadas').then(setJornadas).catch(() => setJornadas([]));
   }, [rol]);
 
   return (
     <>
-      <Saludo usuario={usuario} buscar />
-      <Retrasadas mes={mes} porPuesto={jefa} />
+      <Saludo usuario={usuario} buscar={rol !== 'vacunador'} />
+      {rol === 'vacunador' && <MisJornadas jornadas={jornadas} />}
+      {rol !== 'vacunador' && <>
+      <Retrasadas mes={mes} porPuesto={direccion} />
       <div className="inicio-rejilla">
         <Jornadas jornadas={jornadas} jefa={jefa} />
         {operativo ? <EstaSemana mes={mes} /> : <MesEnCurso mes={mes} />}
       </div>
       {operativo && <Compromisos mes={mes} />}
-      {jefa && <RecordatorioPedido />}
-      {rol === 'administrador' && <EstadoSistema />}
+      {jefa && <RecordatorioPedido direccion={direccion} />}
+      {direccion && <EstadoSistema />}
       {operativo && (
         <div className="inicio-acciones">
           <Link to="/ninos" className="btn btn-verde btn-grande"><Syringe size={20} />Vacunar</Link>
           <Link to="/ninos/nuevo" className="btn btn-grande"><UserPlus size={20} />Niño nuevo</Link>
         </div>
       )}
+      </>}
+    </>
+  );
+}
+
+/** Personal de vacunación: solo sus jornadas (la de hoy, grande; las próximas, en lista). */
+function MisJornadas({ jornadas }) {
+  if (jornadas === null) return <div className="tarjeta"><div className="tarjeta-cuerpo"><div className="esqueleto" /></div></div>;
+  const abiertas = jornadas.filter((j) => ['planificada', 'en_curso'].includes(j.estado)).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const deHoy = abiertas.filter((j) => j.fecha.slice(0, 10) === hoy());
+  const proximas = abiertas.filter((j) => j.fecha.slice(0, 10) > hoy());
+  return (
+    <>
+      {deHoy.map((j) => (
+        <Link key={j.id} to={`/jornadas/${j.id}`} className="inicio-urgente iu-principal pedido">
+          <span className="iu-ic"><Truck size={30} /></span>
+          <span className="iu-texto"><strong>Hoy</strong><span>Jornada en {j.comunidades}</span>
+            <span className="iu-desglose"><b>{plural(j.convocados, 'niño', 'niños')}</b>{j.estado === 'en_curso' && <b>En curso</b>}<b>Encargado: {j.responsable}</b></span></span>
+          <span className="btn btn-blanco iu-boton">Abrir jornada <ArrowRight size={17} /></span>
+        </Link>
+      ))}
+      <Tarjeta titulo="Mis próximas jornadas" icono={Truck} cuerpo={false}>
+        <div className="inicio-lista">
+          {proximas.length === 0 ? <div className="il-vacio">{deHoy.length ? 'No tiene más jornadas programadas.' : 'No tiene jornadas asignadas por ahora.'}</div>
+            : proximas.map((j) => (
+              <Link key={j.id} to={`/jornadas/${j.id}`} className="il-fila">
+                <span className="il-dia">{diaJornada(j.fecha)}</span>
+                <span className="il-cuerpo"><strong>{j.comunidades}</strong><span>{plural(j.convocados, 'niño', 'niños')} · Encargado: {j.responsable}</span></span>
+                <ChevronRight size={18} />
+              </Link>
+            ))}
+        </div>
+      </Tarjeta>
     </>
   );
 }
@@ -223,7 +260,7 @@ function Compromisos({ mes }) {
 }
 
 /** Enfermera: recordar hacer el pedido del mes siguiente antes de que empiece. */
-function RecordatorioPedido() {
+function RecordatorioPedido({ direccion }) {
   const [a, m] = hoy().split('-').map(Number);
   const fin = new Date(Date.UTC(a, m, 0)).getUTCDate();
   const faltan = fin - Number(hoy().slice(8, 10));
@@ -231,7 +268,7 @@ function RecordatorioPedido() {
   return (
     <Link to="/vacunas?vista=pedido" className={`inicio-pedido ${faltan <= 10 ? 'pronto' : ''}`}>
       <Package size={22} />
-      <span><strong>Pedido de {siguiente}</strong> · {faltan === 0 ? 'hoy termina el mes' : `faltan ${plural(faltan, 'día', 'días')} para fin de mes`}</span>
+      <span><strong>{direccion ? `Pedido de ${siguiente}` : `Vacunas que necesita su puesto en ${siguiente}`}</strong> · {faltan === 0 ? 'hoy termina el mes' : `faltan ${plural(faltan, 'día', 'días')} para fin de mes`}</span>
       <ArrowRight size={18} />
     </Link>
   );
@@ -247,12 +284,12 @@ function EstadoSistema() {
     api('/admin/respaldos').then((r) => setRespaldos(r.respaldos || [])).catch(() => setRespaldos([]));
   }, []);
   const conLugar = new Set(comunidades.map((c) => c.responsable_id).filter(Boolean));
-  const sinLugar = usuarios.filter((u) => u.activo && u.rol === 'vacunador' && !conLugar.has(u.id));
+  const sinLugar = usuarios.filter((u) => u.activo && u.rol === 'enfermera' && !conLugar.has(u.id));
   const sinResponsable = comunidades.filter((c) => !c.responsable && !c.responsable_puesto && c.tipo !== 'casco_urbano');
   const ultimo = respaldos?.[0];
   const diasRespaldo = ultimo ? Math.floor((Date.now() - new Date(ultimo.creado)) / 86400000) : null;
   const avisos = [
-    sinLugar.length > 0 && { to: '/admin?vista=territorio', icono: Users, texto: `${plural(sinLugar.length, 'persona del personal sin lugar a cargo', 'personas del personal sin lugar a cargo')}: ven todo el municipio`, detalle: sinLugar.map((u) => u.nombre).join(', ') },
+    sinLugar.length > 0 && { to: '/admin?vista=territorio', icono: Users, texto: `${plural(sinLugar.length, 'enfermera sin puesto a cargo', 'enfermeras sin puesto a cargo')}: ven todo el municipio`, detalle: sinLugar.map((u) => u.nombre).join(', ') },
     sinResponsable.length > 0 && { to: '/admin?vista=territorio', icono: MapPin, texto: `${plural(sinResponsable.length, 'comunidad sin responsable', 'comunidades sin responsable')}`, detalle: sinResponsable.map((c) => c.nombre).join(', ') },
     respaldos !== null && (diasRespaldo == null || diasRespaldo > 7) && { to: '/admin?vista=respaldos', icono: DatabaseBackup, texto: ultimo ? `El último respaldo es de hace ${diasRespaldo} días` : 'Todavía no hay respaldos', detalle: 'Haga uno desde Administración' },
   ].filter(Boolean);

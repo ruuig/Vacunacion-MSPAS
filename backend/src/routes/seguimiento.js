@@ -57,8 +57,9 @@ router.get('/mes', permitir(...TODOS), async (req, res) => {
   const hasta = finDeMes(anio, mes);
   const corte = hasta < hoy() ? hasta : hoy(); // el estado se mira al cierre del mes, o a hoy si el mes está en curso
   // El personal de un puesto o barrio solo ve su sector (y los niños que le asignaron); no puede ver todo el municipio
-  const sector = req.usuario.rol === 'vacunador' ? await territorioDe(pool, req.usuario.id) : [];
-  const soloSector = sector.length > 0;
+  const alcance = await require('../territorio').alcanceDe(pool, req.usuario);
+  const sector = alcance || [];
+  const soloSector = alcance !== null;
   const asignado = soloSector ? 'yo' : req.query.asignado;
   const comunidad = soloSector && !req.query.comunidad && !req.query.puesto ? sector : await filtroTerritorio(pool, req.query);
 
@@ -110,7 +111,7 @@ router.get('/mes', permitir(...TODOS), async (req, res) => {
       intentos: intentos.get(n.id) || 0,
     });
   }
-  const mias = asignado === 'yo' ? new Set(await territorioDe(pool, req.usuario.id)) : null;
+  const mias = soloSector ? new Set(sector) : asignado === 'yo' ? new Set(await territorioDe(pool, req.usuario.id)) : null;
   const filtrados = soloSector ? pendientes.filter((p) => mias.has(p.comunidad_id))
     : mias ? pendientes.filter((p) => p.asignado_id === req.usuario.id || mias.has(p.comunidad_id)) : pendientes;
   filtrados.sort((a, b) => a.comunidad.localeCompare(b.comunidad) || b.dias_atraso - a.dias_atraso);
@@ -135,8 +136,8 @@ router.get('/proyeccion', permitir(...TODOS), async (req, res) => {
   const ctx = { catalogo: await esq.cargarCatalogo(pool), params: await esq.cargarParametros(pool) };
   // El personal con sector solo ve lo suyo, aunque pida otro lugar
   let lugares = await filtroTerritorio(pool, req.query);
-  const alcance = await require('../territorio').alcanceDe(pool, req.usuario);
-  if (alcance) lugares = lugares ? lugares.filter((c) => alcance.includes(c)) : alcance;
+  const alcanceP = await require('../territorio').alcanceDe(pool, req.usuario);
+  if (alcanceP) lugares = lugares ? lugares.filter((c) => alcanceP.includes(c)) : alcanceP;
   const { ninos, aplicaciones } = await cargarNinos(pool, lugares);
   const { rows: productos } = await pool.query('SELECT codigo, nombre FROM producto WHERE activo ORDER BY nombre');
 
@@ -162,7 +163,7 @@ router.get('/proyeccion', permitir(...TODOS), async (req, res) => {
       if (!dosis.length) continue;
       sumar(col.clave, dosis);
       quienes[col.clave].push({ id: n.id, nombre_completo: n.nombre_completo, fecha_nacimiento: n.fecha_nacimiento, comunidad_id: n.comunidad_id,
-        comunidad: n.comunidad, lugar: n.lugar, responsable: n.responsable, telefono: n.telefono,
+        comunidad: n.comunidad, lugar: n.puesto_tipo === 'casco_urbano' ? 'Casco urbano' : n.lugar, puesto_id: n.puesto_id, responsable: n.responsable, telefono: n.telefono,
         dosis: dosis.map((d) => d.etiqueta), productos: [...productosNecesarios(dosis)], fecha: aFecha(Math.max(aDia(i < 2 ? hoy() : inicioDeMes(col.anio, col.mes)), aDia(d0(dosis)))) });
       const inicio = i < 2 ? hoy() : inicioDeMes(col.anio, col.mes);
       for (const d of dosis) apps.push({ esquemaDosisId: d.esquemaDosisId, fecha: aFecha(Math.max(aDia(inicio), aDia(d.fechaProgramada))) });
