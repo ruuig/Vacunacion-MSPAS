@@ -5,7 +5,7 @@ const esq = require('../servicios/esquema');
 const { hoy } = require('../fecha');
 
 // La enfermera y el administrador ven todas las jornadas; el personal de vacunación, solo las de su equipo
-const veTodas = (u) => ['enfermera', 'administrador', 'encargado'].includes(u.rol);
+const veTodas = (u) => ['enfermera', 'administrador'].includes(u.rol);
 const EN_EQUIPO = `(j.responsable_id = $1 OR EXISTS (SELECT 1 FROM jornada_equipo je WHERE je.jornada_id = j.id AND je.usuario_id = $1))`;
 
 async function esDelEquipo(db, jornadaId, usuario) {

@@ -11,17 +11,15 @@ function autenticar(req, res, next) {
 }
 
 /**
- * Autorización por rol. El administrador puede todo (superusuario).
- * La encargada consulta lo mismo que la enfermera, pero no registra ni cambia nada (solo lecturas).
+ * Autorización por rol. Tres roles: administrador (configura y puede todo), enfermera y personal de vacunación.
  */
 const permitir = (...roles) => (req, res, next) => {
   const rol = req.usuario?.rol;
   if (rol === 'administrador' || roles.includes(rol)) return next();
-  if (rol === 'encargado' && req.method === 'GET' && (roles.includes('enfermera') || roles.includes('vacunador'))) return next();
   res.status(403).json({ error: 'No tiene permiso para esta acción.' });
 };
 
-const TODOS = ['administrador', 'enfermera', 'vacunador', 'encargado'];
+const TODOS = ['administrador', 'enfermera', 'vacunador'];
 const OPERATIVOS = ['enfermera', 'vacunador'];
 
 module.exports = { autenticar, permitir, TODOS, OPERATIVOS };

@@ -28,7 +28,7 @@ const Tablero = lazy(() => import('./paginas/Tablero.jsx'));
 const Sesion = createContext(null);
 export const useSesion = () => useContext(Sesion);
 
-export const ROL = { administrador: 'Administrador', enfermera: 'Enfermera', vacunador: 'Personal de vacunación', encargado: 'Encargada (consulta)' };
+export const ROL = { administrador: 'Administrador', enfermera: 'Enfermera', vacunador: 'Personal de vacunación' };
 
 export default function App() {
   const [sesion, setSesion] = useState(sesionGuardada);
@@ -75,7 +75,10 @@ export default function App() {
   const centro = centroActual();
   // El número del menú es de niños con vacunas retrasadas: lo que el personal tiene que atender
   const totalAlertas = pendientes.total;
-  const verInformes = ['enfermera', 'administrador', 'encargado'].includes(rol);
+  const verInformes = ['enfermera', 'administrador'].includes(rol);
+  // El personal de vacunación solo ve lo de su trabajo: fichas, su jornada y sus cuadernos.
+  // Las llamadas a su sector las abre desde Inicio («Vacunas retrasadas → Ver y llamar»), sin menú aparte.
+  const personal = rol === 'vacunador';
   const contador = totalAlertas > 0 && <b className="contador-menu">{totalAlertas > 99 ? '99+' : totalAlertas}</b>;
 
   return (
@@ -99,9 +102,9 @@ export default function App() {
             <div className="menu-titulo">Principal</div>
             <NavLink to="/" end><Home size={19} />Inicio</NavLink>
             <NavLink to="/ninos"><Baby size={19} />Niños</NavLink>
-            <NavLink to="/alertas"><CalendarCheck size={19} />Control del mes{contador}</NavLink>
-            <div className="menu-titulo">Territorio</div>
-            <NavLink to="/comunidades"><MapPinned size={19} />Comunidades</NavLink>
+            {!personal && <NavLink to="/alertas"><CalendarCheck size={19} />Control del mes{contador}</NavLink>}
+            <div className="menu-titulo">{personal ? 'Mi trabajo' : 'Territorio'}</div>
+            {!personal && <NavLink to="/comunidades"><MapPinned size={19} />Comunidades</NavLink>}
             <NavLink to="/jornadas"><Truck size={19} />Jornadas</NavLink>
             <NavLink to="/cuadernos"><BookOpen size={19} />Cuadernos SIGSA 5a</NavLink>
             {(verInformes || rol === 'administrador') && <div className="menu-titulo">Gestión</div>}
@@ -145,7 +148,7 @@ export default function App() {
               <Route path="/listado" element={<Listado />} />
               <Route path="/cuadernos" element={<ListaCuadernos />} />
               <Route path="/cuadernos/:id" element={<CuadernoDetalle />} />
-              <Route path="/comunidades" element={<Comunidades />} />
+              {!personal && <Route path="/comunidades" element={<Comunidades />} />}
               <Route path="/jornadas" element={<ListaJornadas />} />
               <Route path="/jornadas/nueva" element={<NuevaJornada />} />
               <Route path="/jornadas/:id" element={<JornadaDetalle />} />
@@ -165,7 +168,9 @@ export default function App() {
         <nav className="barra-inf" aria-label="Navegación rápida">
           <NavLink to="/" end><span className="ic-burbuja"><Home size={21} /></span>Inicio</NavLink>
           <NavLink to="/ninos"><span className="ic-burbuja"><Baby size={21} /></span>Niños</NavLink>
-          <NavLink to="/alertas"><span className="ic-burbuja"><CalendarCheck size={21} />{contador}</span>Control</NavLink>
+          {personal
+            ? <NavLink to="/cuadernos"><span className="ic-burbuja"><BookOpen size={21} /></span>Cuadernos</NavLink>
+            : <NavLink to="/alertas"><span className="ic-burbuja"><CalendarCheck size={21} />{contador}</span>Control</NavLink>}
           <NavLink to="/jornadas"><span className="ic-burbuja"><Truck size={21} /></span>Jornadas</NavLink>
           <button onClick={() => setMenuAbierto(true)}><span className="ic-burbuja"><MoreHorizontal size={21} /></span>Más</button>
         </nav>

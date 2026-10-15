@@ -1,12 +1,11 @@
 // Inicio: lo urgente primero, distinto para cada rol. No es un menú: cada tarjeta lleva a donde se actúa.
 //  · Personal de vacunación: su sector (vacunas retrasadas, sus jornadas, les toca esta semana, familias que prometieron venir).
 //  · Enfermera: el municipio por puesto, jornadas próximas y por cerrar, cobertura del mes y el pedido.
-//  · Encargada: el pedido del próximo mes y cuánto se pidió contra lo aplicado.
 //  · Administrador: lo de la enfermera más el estado del sistema (usuarios sin lugar, comunidades sin responsable, respaldos).
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  AlertOctagon, ArrowRight, CalendarDays, CheckCircle2, ChevronRight, DatabaseBackup, FileText, Lock, MapPin, Package, Phone, Search, Settings,
+  AlertOctagon, ArrowRight, CalendarDays, CheckCircle2, ChevronRight, DatabaseBackup, Lock, MapPin, Package, Phone, Search, Settings,
   Syringe, Truck, UserPlus, Users,
 } from 'lucide-react';
 import { api, qs } from '../api.js';
@@ -35,30 +34,26 @@ export default function Inicio() {
 
   useEffect(refrescarAlertas, [refrescarAlertas]);
   useEffect(() => {
-    if (rol !== 'encargado') api('/seguimiento/mes').then(setMes).catch(() => setMes({ pendientes: [], resumen: {} }));
+    api('/seguimiento/mes').then(setMes).catch(() => setMes({ pendientes: [], resumen: {} }));
     api('/jornadas').then(setJornadas).catch(() => setJornadas([]));
   }, [rol]);
 
   return (
     <>
-      <Saludo usuario={usuario} buscar={rol !== 'encargado'} />
-      {rol === 'encargado' ? <InicioEncargada /> : (
-        <>
-          <Retrasadas mes={mes} porPuesto={jefa} />
-          <div className="inicio-rejilla">
-            <Jornadas jornadas={jornadas} jefa={jefa} />
-            {operativo ? <EstaSemana mes={mes} /> : <MesEnCurso mes={mes} />}
-          </div>
-          {operativo && <Compromisos mes={mes} />}
-          {jefa && <RecordatorioPedido />}
-          {rol === 'administrador' && <EstadoSistema />}
-          {operativo && (
-            <div className="inicio-acciones">
-              <Link to="/ninos" className="btn btn-verde btn-grande"><Syringe size={20} />Vacunar</Link>
-              <Link to="/ninos/nuevo" className="btn btn-grande"><UserPlus size={20} />Niño nuevo</Link>
-            </div>
-          )}
-        </>
+      <Saludo usuario={usuario} buscar />
+      <Retrasadas mes={mes} porPuesto={jefa} />
+      <div className="inicio-rejilla">
+        <Jornadas jornadas={jornadas} jefa={jefa} />
+        {operativo ? <EstaSemana mes={mes} /> : <MesEnCurso mes={mes} />}
+      </div>
+      {operativo && <Compromisos mes={mes} />}
+      {jefa && <RecordatorioPedido />}
+      {rol === 'administrador' && <EstadoSistema />}
+      {operativo && (
+        <div className="inicio-acciones">
+          <Link to="/ninos" className="btn btn-verde btn-grande"><Syringe size={20} />Vacunar</Link>
+          <Link to="/ninos/nuevo" className="btn btn-grande"><UserPlus size={20} />Niño nuevo</Link>
+        </div>
       )}
     </>
   );
@@ -274,48 +269,5 @@ function EstadoSistema() {
           ))}
       </div>
     </Tarjeta>
-  );
-}
-
-/** Encargada: el pedido del próximo mes y cómo se usó el del mes pasado. */
-function InicioEncargada() {
-  const [proy, setProy] = useState(null);
-  const [vsAplicado, setVsAplicado] = useState(null);
-  const [a, m] = hoy().split('-').map(Number);
-  const [pa, pm] = m === 1 ? [a - 1, 12] : [a, m - 1];
-  useEffect(() => {
-    api('/seguimiento/proyeccion').then(setProy).catch(() => {});
-    api('/lotes/pedido-vs-aplicado' + qs({ anio: pa, mes: pm })).then(setVsAplicado).catch(() => {});
-  }, [pa, pm]);
-  const col = 2;
-  const vacunas = (proy?.filas || []).map((f) => ({ nombre: f.nombre, n: f.cantidades[col] })).filter((v) => v.n > 0).sort((x, y) => y.n - x.n);
-  const total = vacunas.reduce((t, v) => t + v.n, 0);
-  const pedidas = (vsAplicado?.vacunas || []).reduce((t, v) => t + (v.pedidas || 0), 0);
-  const aplicadas = (vsAplicado?.vacunas || []).reduce((t, v) => t + v.aplicadas, 0);
-  return (
-    <>
-      <Link to="/vacunas?vista=pedido" className="inicio-urgente iu-principal pedido">
-        <span className="iu-ic"><Package size={30} /></span>
-        <span className="iu-texto">
-          <strong>{proy ? total : '…'}</strong>
-          <span>dosis a pedir para {proy?.columnas?.[col]?.nombre || MESES[m % 12]}</span>
-          <span className="iu-desglose">{vacunas.slice(0, 3).map((v) => <b key={v.nombre}>{v.nombre} {v.n}</b>)}</span>
-        </span>
-        <span className="btn btn-blanco iu-boton">Ver e imprimir <ArrowRight size={17} /></span>
-      </Link>
-      <div className="inicio-rejilla">
-        <Tarjeta titulo={`${MESES[pm - 1].replace(/^\w/, (x) => x.toUpperCase())}: pedido y aplicado`} icono={FileText} cuerpo={false}
-          pie={<Link to="/informes?vista=pedido" className="btn btn-sm btn-fantasma">Ver por vacuna <ArrowRight size={15} /></Link>}>
-          <div className="tarjeta-cuerpo inicio-dos-cifras">
-            <div><strong>{vsAplicado?.pedido ? pedidas : '—'}</strong><span>{vsAplicado?.pedido ? 'dosis pedidas' : 'no se guardó el pedido'}</span></div>
-            <div><strong>{vsAplicado ? aplicadas : '…'}</strong><span>dosis aplicadas</span></div>
-          </div>
-        </Tarjeta>
-        <Tarjeta titulo="Informes" icono={FileText} cuerpo={false}
-          pie={<Link to="/informes" className="btn btn-sm btn-fantasma">Abrir informes <ArrowRight size={15} /></Link>}>
-          <div className="tarjeta-cuerpo"><span className="tenue">Informe mensual SIGSA, listado nominal y pedido contra lo aplicado.</span></div>
-        </Tarjeta>
-      </div>
-    </>
   );
 }

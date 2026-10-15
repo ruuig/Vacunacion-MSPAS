@@ -109,7 +109,7 @@ router.get('/consumo', permitir(...GESTION), async (req, res) => {
 });
 
 // ---- Pedido guardado: se guarda al imprimir la solicitud, para compararlo después con lo aplicado ----
-router.post('/pedido', permitir('enfermera', 'encargado'), async (req, res) => {
+router.post('/pedido', permitir('enfermera'), async (req, res) => {
   const { anio, mes, incluye_atrasados = false, detalle = [] } = req.body || {};
   if (!anio || !mes || mes < 1 || mes > 12 || !detalle.length) return res.status(400).json({ error: 'Pedido incompleto.' });
   const p = await transaccion(async (c) => {

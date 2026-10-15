@@ -7,6 +7,7 @@ const { tomarFoto } = require('../indicadores/consultas');
 
 router.use(permitir('administrador'));
 
+const ROLES_VALIDOS = ['administrador', 'enfermera', 'vacunador'];
 const SIN_HASH = 'id, nombre, cargo, usuario, rol, activo, intentos_fallidos, ultimo_acceso';
 
 router.get('/usuarios', async (_req, res) => {
@@ -17,6 +18,7 @@ router.get('/usuarios', async (_req, res) => {
 router.post('/usuarios', async (req, res) => {
   const { nombre, cargo = '', usuario, contrasena, rol } = req.body || {};
   if (!nombre || !usuario || !rol) return res.status(400).json({ error: 'Indique nombre, usuario y rol.' });
+  if (!ROLES_VALIDOS.includes(rol)) return res.status(400).json({ error: 'Rol no válido.' });
   if (!contrasena || contrasena.length < 8) return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres.' });
   const u = await transaccion(async (c) => {
     const { rows: [u] } = await c.query(
@@ -32,6 +34,7 @@ router.post('/usuarios', async (req, res) => {
 router.put('/usuarios/:id', async (req, res) => {
   const { nombre, cargo, rol, activo, contrasena, desbloquear } = req.body || {};
   if (contrasena && contrasena.length < 8) return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres.' });
+  if (rol && !ROLES_VALIDOS.includes(rol)) return res.status(400).json({ error: 'Rol no válido.' });
   if (Number(req.params.id) === req.usuario.id && (activo === false || (rol && rol !== 'administrador')))
     return res.status(400).json({ error: 'No puede desactivarse ni quitarse el rol de administrador a sí mismo.' });
   const u = await transaccion(async (c) => {

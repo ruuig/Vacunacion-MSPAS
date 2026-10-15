@@ -25,7 +25,7 @@ const VISTAS = [
   ['respaldos', <><DatabaseBackup size={15} />Respaldos</>],
   ['logo', <><ImageUp size={15} />Logo</>],
 ];
-const ROLES = { administrador: 'Administrador', enfermera: 'Enfermera', vacunador: 'Personal de vacunación', encargado: 'Encargada (solo consulta)' };
+const ROLES = { administrador: 'Administrador', enfermera: 'Enfermera', vacunador: 'Personal de vacunación' };
 const TIPOS_COMUNIDAD = { casco_urbano: 'Casco urbano', barrio: 'Barrio', aldea: 'Aldea', caserio: 'Caserío', canton: 'Cantón' };
 
 export default function Admin() {
@@ -467,14 +467,14 @@ function CentroSalud() {
 
 // Qué puede hacer cada rol (los permisos los decide el rol; el cargo es solo el nombre del puesto de trabajo)
 const PERMISOS = [
-  ['Ver niños', 'Su sector', 'Todos', 'Todos (solo ver)', 'Todos'],
-  ['Registrar niños, vacunar y entregar suplementos', '✓', '✓', '—', '✓'],
-  ['Llamar o visitar y anotar el seguimiento', 'Su sector', '✓', '—', '✓'],
-  ['Iniciar una jornada y vacunar en ella', 'Si va en el equipo', '✓', '—', '✓'],
-  ['Planificar, cerrar y cancelar jornadas', '—', '✓', '—', '✓'],
-  ['Anular registros equivocados', '—', '✓', '—', '✓'],
-  ['Tablero, informes y pedido de vacunas', '—', '✓', '✓ (solo ver)', '✓'],
-  ['Centro, territorio, usuarios, roles y cargos, esquema, respaldos', '—', '—', '—', '✓'],
+  ['Ver niños', 'Su sector', 'Todos', 'Todos'],
+  ['Registrar niños, vacunar y entregar suplementos', '✓', '✓', '✓'],
+  ['Llamar o visitar a los atrasados y anotar', 'Su sector', '✓', '✓'],
+  ['Ir a una jornada, iniciarla y vacunar en ella', 'La que le asignan', '✓', '✓'],
+  ['Crear, cerrar y cancelar jornadas', '—', '✓', '✓'],
+  ['Anular registros equivocados', '—', '✓', '✓'],
+  ['Tablero, informes y pedido de vacunas', '—', '✓', '✓'],
+  ['Centro, puestos y aldeas, usuarios, cargos, esquema, respaldos', '—', '—', '✓'],
 ];
 
 function RolesCargos() {
@@ -489,7 +489,7 @@ function RolesCargos() {
       <Tarjeta titulo="Roles" icono={BadgeCheck} sub="El rol decide qué puede hacer cada persona; se asigna en Usuarios" cuerpo={false}>
         <Tabla adaptable={false} className="tabla-roles">
           <thead><tr><th>Puede…</th><th>Personal de vacunación<span className="sub">{cuantos('vacunador')} usuarios</span></th><th>Enfermera<span className="sub">{cuantos('enfermera')} usuarios</span></th>
-            <th>Encargada (consulta)<span className="sub">{cuantos('encargado')} usuarios</span></th><th>Administrador<span className="sub">{cuantos('administrador')} usuarios</span></th></tr></thead>
+<th>Administrador<span className="sub">{cuantos('administrador')} usuarios</span></th></tr></thead>
           <tbody>{PERMISOS.map(([p, ...v]) => <tr key={p}><td className="fuerte">{p}</td>{v.map((x, i) => <td key={i} className={x === '—' ? 'tenue' : ''}>{x}</td>)}</tr>)}</tbody>
         </Tabla>
       </Tarjeta>
