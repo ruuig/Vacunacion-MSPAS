@@ -1,13 +1,18 @@
 const jwt = require('jsonwebtoken');
 
-function autenticar(req, res, next) {
+async function autenticar(req, res, next) {
   const token = (req.headers.authorization || '').replace(/^Bearer /, '');
+  let datos;
   try {
-    req.usuario = jwt.verify(token, process.env.JWT_SECRET);
-    next();
+    datos = jwt.verify(token, process.env.JWT_SECRET);
   } catch {
-    res.status(401).json({ error: 'Sesión no válida o vencida.' });
+    return res.status(401).json({ error: 'Sesión no válida o vencida.' });
   }
+  // El rol vigente es el de la base, no el que tenía al iniciar sesión (así un cambio de rol vale de inmediato)
+  const { rows: [u] } = await require('../db').pool.query('SELECT rol, activo FROM usuario WHERE id = $1', [datos.id]);
+  if (!u || !u.activo) return res.status(401).json({ error: 'Su usuario ya no está activo. Hable con la Dirección.' });
+  req.usuario = { ...datos, rol: u.rol };
+  next();
 }
 
 /**

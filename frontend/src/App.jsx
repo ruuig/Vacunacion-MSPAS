@@ -51,6 +51,17 @@ export default function App() {
     setSesion(null);
   };
 
+  // Al abrir: perfil vigente (si la Dirección le cambió el rol o el lugar, la pantalla se ajusta sin volver a entrar)
+  useEffect(() => {
+    if (!sesion?.token) return;
+    api('/auth/yo').then((u) => {
+      if (JSON.stringify(u) === JSON.stringify(sesion.usuario)) return;
+      limpiarCatalogos();
+      const nueva = { ...sesion, usuario: u };
+      guardarSesion(nueva); setSesion(nueva);
+    }).catch(() => {});
+  }, [sesion?.token]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // RF-16: contador de alertas en el menú
   const refrescarAlertas = useCallback(() => {
     if (!sesion) return;

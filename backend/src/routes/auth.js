@@ -28,6 +28,18 @@ router.post('/login', async (req, res) => {
   });
   if (!ok) return res.status(401).json(CREDENCIALES_INVALIDAS);
 
+  const perfil = await perfilDe(u);
+  const token = jwt.sign(perfil, process.env.JWT_SECRET, { expiresIn: '8h' });
+  res.json({ token, usuario: perfil });
+});
+
+// Perfil vigente: la página lo pide al abrir, por si cambió el rol o el lugar desde que inició sesión
+router.get('/yo', autenticar, async (req, res) => {
+  const { rows: [u] } = await pool.query('SELECT id, nombre, rol FROM usuario WHERE id = $1', [req.usuario.id]);
+  res.json(await perfilDe(u));
+});
+
+async function perfilDe(u) {
   const sector = (await require('../territorio').territorioDe(pool, u.id)).length;
   // Lugar principal del que está a cargo (el puesto; si no tiene puesto, sus barrios o aldeas): se muestra en la pantalla
   const { rows: lugares } = await pool.query(`
@@ -35,10 +47,8 @@ router.post('/login', async (req, res) => {
                 WHEN tipo = 'barrio' THEN 'Barrio ' || nombre ELSE nombre END AS nombre
     FROM comunidad WHERE activo AND responsable_id = $1 ORDER BY es_central DESC, nombre`, [u.id]);
   const lugar = lugares.length ? (lugares[0].nombre.startsWith('Puesto') || lugares[0].nombre === 'Casco urbano' ? lugares[0].nombre : lugares.map((l) => l.nombre).join(', ')) : null;
-  const perfil = { id: u.id, nombre: u.nombre, rol: u.rol, sector, lugar };
-  const token = jwt.sign(perfil, process.env.JWT_SECRET, { expiresIn: '8h' });
-  res.json({ token, usuario: perfil });
-});
+  return { id: u.id, nombre: u.nombre, rol: u.rol, sector, lugar };
+}
 
 router.post('/logout', autenticar, async (req, res) => {
   await registrarBitacora(pool, req, 'logout', 'usuario', req.usuario.id);
