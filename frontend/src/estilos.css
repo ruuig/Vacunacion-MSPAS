@@ -2069,3 +2069,7 @@ td select.selector-chico { min-width: 130px; }
 .iu-p-barra span { display: block; height: 100%; border-radius: 999px; background: #d9534a; }
 .iu-puestos .iu-puesto b { text-align: right; color: #b4302a; font-weight: 900; }
 @media (max-width: 600px) { .iu-puestos .iu-puesto { grid-template-columns: 110px 1fr 30px; } }
+
+.lf-fechas { display: inline-flex; gap: .6rem; flex-wrap: wrap; }
+.lf-fechas label { display: inline-flex; align-items: center; gap: .35rem; font-weight: 700; font-size: .85rem; color: var(--suave); }
+.lf-fechas input { min-height: 40px; }
