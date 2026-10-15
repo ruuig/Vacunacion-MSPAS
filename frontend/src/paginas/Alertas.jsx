@@ -173,6 +173,7 @@ export default function Alertas() {
       <div className="no-imprimir">
         <Encabezado titulo="Control del mes">
           <button className="btn" onClick={() => window.print()} disabled={!datos}><Printer size={17} />Imprimir</button>
+          <Link className="btn" to={`/listado${qs({ puesto, comunidad })}`}><Printer size={17} />Imprimir listado por vacuna o edad</Link>
         </Encabezado>
 
         <div className="control-barra">

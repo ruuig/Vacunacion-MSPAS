@@ -1,7 +1,7 @@
 // Listado para vacunar: a quién le toca, con cuatro filtros que se combinan (lugar, vacuna, edad y periodo)
 // y una hoja impresa con el título según lo elegido. Ej.: «Hexavalente · Puesto Los Trapichitos · Esta semana».
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ClipboardList, Printer, Users } from 'lucide-react';
 import { api, qs } from '../api.js';
 import { useSesion } from '../App.jsx';
@@ -38,7 +38,8 @@ export default function Listado() {
   const { usuario } = useSesion();
   const productos = useCatalogo('productos');
   const { describir } = useTerritorio();
-  const [lugar, setLugar] = useState({ puesto: '', comunidad: '' });
+  const [params] = useSearchParams();
+  const [lugar, setLugar] = useState({ puesto: params.get('puesto') || '', comunidad: params.get('comunidad') || '' });
   const [vacuna, setVacuna] = useState('');
   const [edadSel, setEdadSel] = useState('');
   const [periodo, setPeriodo] = useState('semana');
@@ -96,7 +97,7 @@ export default function Listado() {
         ))}
       </Documento>
 
-      <Encabezado titulo="Listado para vacunar">
+      <Encabezado titulo="Imprimir listado para vacunar" migas={[['Control del mes', '/alertas'], ['Imprimir listado']]}>
         <button className="btn btn-primario" onClick={() => window.print()} disabled={!ninos.length}><Printer size={17} />Imprimir listado</button>
       </Encabezado>
       <Mensaje tipo="error">{error}</Mensaje>
