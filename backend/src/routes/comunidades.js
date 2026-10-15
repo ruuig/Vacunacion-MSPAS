@@ -95,7 +95,7 @@ router.get('/poblacion-meta', permitir(...TODOS), async (req, res) => {
   res.json(rows);
 });
 
-router.put('/poblacion-meta', permitir('administrador', 'enfermera'), async (req, res) => {
+router.put('/poblacion-meta', permitir(), async (req, res) => {
   const { anio, filas = [] } = req.body || {};
   await transaccion(async (c) => {
     for (const f of filas) {

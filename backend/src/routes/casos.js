@@ -171,9 +171,11 @@ router.post('/asignar', permitir('enfermera'), async (req, res) => {
 });
 
 // Personal operativo para asignar casos
-router.get('/personal', permitir(...TODOS), async (_req, res) => {
+router.get('/personal', permitir(...TODOS), async (req, res) => {
+  // La Dirección ve a todo el personal; la enfermera encargada, a sí misma y al personal de vacunación (no a otras encargadas)
   const { rows } = await pool.query(
-    "SELECT id, nombre, cargo, rol FROM usuario WHERE activo AND rol IN ('enfermera','vacunador') ORDER BY nombre");
+    `SELECT id, nombre, cargo, rol FROM usuario WHERE activo AND (rol = 'vacunador' OR ($1 AND rol = 'enfermera') OR id = $2) ORDER BY nombre`,
+    [req.usuario.rol === 'administrador', req.usuario.id]);
   res.json(rows);
 });
 

@@ -7,7 +7,9 @@ const { hoy } = require('../fecha');
 // La Dirección ve todas las jornadas; la enfermera encargada, las de su puesto y aldeas; el personal, las de su equipo
 const { territorioDe } = require('../territorio');
 const EN_EQUIPO = `(j.responsable_id = $1 OR EXISTS (SELECT 1 FROM jornada_equipo je WHERE je.jornada_id = j.id AND je.usuario_id = $1))`;
-const EN_SU_PUESTO = `($3::int[] IS NOT NULL AND EXISTS (SELECT 1 FROM jornada_comunidad jc WHERE jc.jornada_id = j.id AND jc.comunidad_id = ANY($3)))`;
+// Todas sus comunidades son del puesto de la encargada (una jornada mezclada con otro puesto no se le muestra)
+const EN_SU_PUESTO = `($3::int[] IS NOT NULL AND EXISTS (SELECT 1 FROM jornada_comunidad jc WHERE jc.jornada_id = j.id)
+  AND NOT EXISTS (SELECT 1 FROM jornada_comunidad jc WHERE jc.jornada_id = j.id AND NOT (jc.comunidad_id = ANY($3))))`;
 // null = ve todas (Dirección, o enfermera sin puesto asignado); [] = ninguna por territorio (personal)
 async function puestoDe(db, u) {
   if (u.rol === 'administrador') return null;

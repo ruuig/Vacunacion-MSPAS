@@ -18,8 +18,9 @@ function periodo(q) {
 }
 
 // El tablero es de gestión: el personal de vacunación trabaja con Pendientes y Jornadas
-const VER = permitir('enfermera', 'administrador');
-const GESTION = permitir('enfermera', 'administrador');
+// Tablero de todo el municipio: solo la Dirección
+const VER = permitir();
+const GESTION = permitir();
 
 // Fila de indicadores principales y lecturas del mes
 router.get('/resumen', VER, async (req, res) => {

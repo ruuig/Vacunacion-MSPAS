@@ -74,7 +74,7 @@ router.get('/:id/ninos', permitir(...GESTION), async (req, res) => {
  * dosis llevadas y devueltas en las jornadas, y dosis registradas sin lote.
  * Sirve para preparar el pedido de biológicos al distrito sin contar a mano.
  */
-router.get('/consumo', permitir(...GESTION), async (req, res) => {
+router.get('/consumo', permitir(), async (req, res) => {
   const anio = Number(req.query.anio), mes = Number(req.query.mes);
   if (!anio || !mes || mes < 1 || mes > 12) return res.status(400).json({ error: 'Indique el año y el mes.' });
   const desde = `${anio}-${String(mes).padStart(2, '0')}-01`;

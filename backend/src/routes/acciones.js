@@ -7,7 +7,7 @@ const CAMPOS = ['fecha', 'comunidad_id', 'indicador_codigo', 'problema', 'accion
   'valor_inicial', 'valor_final', 'resultado'];
 const limpiar = (b) => Object.fromEntries(CAMPOS.filter((k) => k in b).map((k) => [k, b[k] === '' ? null : b[k]]));
 
-router.get('/', permitir('enfermera', 'administrador'), async (req, res) => {
+router.get('/', permitir(), async (req, res) => {
   const { rows } = await pool.query(`
     SELECT ac.*, c.nombre AS comunidad, u.nombre AS responsable,
            (ac.estado IN ('pendiente','en_curso') AND ac.fecha_limite < CURRENT_DATE) AS vencida
@@ -18,7 +18,7 @@ router.get('/', permitir('enfermera', 'administrador'), async (req, res) => {
   res.json(rows);
 });
 
-router.post('/', permitir('enfermera'), async (req, res) => {
+router.post('/', permitir(), async (req, res) => {
   const d = limpiar(req.body || {});
   if (!d.problema || !d.accion) return res.status(400).json({ error: 'Escriba el problema y la acción acordada.' });
   const a = await transaccion(async (c) => {
@@ -32,7 +32,7 @@ router.post('/', permitir('enfermera'), async (req, res) => {
   res.status(201).json(a);
 });
 
-router.put('/:id', permitir('enfermera'), async (req, res) => {
+router.put('/:id', permitir(), async (req, res) => {
   const d = limpiar(req.body || {});
   if (!Object.keys(d).length) return res.status(400).json({ error: 'Nada que actualizar.' });
   const a = await transaccion(async (c) => {
