@@ -39,6 +39,7 @@ export async function api(ruta, { method = 'GET', body } = {}) {
     guardarSesion(null);
     window.location.href = '/login';
   }
+  if (res.status === 403 && datos.sin_permiso) window.dispatchEvent(new Event('sin-permiso'));
   if (!res.ok) throw Object.assign(new Error(datos.error || 'No se pudo completar la operación.'), { estado: res.status });
   return datos;
 }

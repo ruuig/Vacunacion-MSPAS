@@ -1,5 +1,5 @@
 import { createContext, lazy, Suspense, useContext, useEffect, useState, useCallback } from 'react';
-import { Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Baby, Bell, CalendarCheck, BookOpen, FileText, Home, LayoutDashboard, LogOut, MapPinned, Menu, Package, Search, Settings, Truck, MoreHorizontal,
 } from 'lucide-react';
@@ -40,7 +40,7 @@ export default function App() {
   const { pathname } = useLocation();
 
   // Al cambiar de usuario se olvidan las listas guardadas en memoria (cada rol ve otras comunidades)
-  const entrar = (s) => { limpiarCatalogos(); guardarSesion(s); setSesion(s); };
+  const entrar = async (s) => { limpiarCatalogos(); await borrarDatosGuardados(); guardarSesion(s); setSesion(s); };
   const salir = async () => {
     // Lo registrado sin señal está solo en este teléfono: salir no lo borra, pero se envía con la sesión de quien entre
     if (cola().length && !window.confirm('Hay registros guardados sin enviar en este teléfono. ¿Salir de todos modos? Se enviarán cuando alguien vuelva a entrar con señal.')) return;
@@ -51,16 +51,26 @@ export default function App() {
     setSesion(null);
   };
 
-  // Al abrir: perfil vigente (si la Dirección le cambió el rol o el lugar, la pantalla se ajusta sin volver a entrar)
-  useEffect(() => {
-    if (!sesion?.token) return;
+  // Perfil vigente: al abrir y cada vez que el servidor dice que algo no corresponde al rol.
+  // Si la Dirección le cambió el rol o el lugar, el menú y las pantallas se ajustan sin volver a entrar.
+  const ir = useNavigate();
+  const actualizarPerfil = useCallback((volverAlInicio = false) => {
+    const s = sesionGuardada();
+    if (!s?.token) return;
     api('/auth/yo').then((u) => {
-      if (JSON.stringify(u) === JSON.stringify(sesion.usuario)) return;
+      if (volverAlInicio) ir('/', { replace: true });
+      if (JSON.stringify(u) === JSON.stringify(s.usuario)) return;
       limpiarCatalogos();
-      const nueva = { ...sesion, usuario: u };
+      const nueva = { ...s, usuario: u };
       guardarSesion(nueva); setSesion(nueva);
     }).catch(() => {});
-  }, [sesion?.token]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ir]);
+  useEffect(() => { actualizarPerfil(); }, [sesion?.token, actualizarPerfil]);
+  useEffect(() => {
+    const alNegar = () => actualizarPerfil(true);
+    window.addEventListener('sin-permiso', alNegar);
+    return () => window.removeEventListener('sin-permiso', alNegar);
+  }, [actualizarPerfil]);
 
   // RF-16: contador de alertas en el menú
   const refrescarAlertas = useCallback(() => {
@@ -154,17 +164,17 @@ export default function App() {
           <main className="contenido">
             <Routes>
               <Route path="/" element={<Inicio />} />
-              <Route path="/ninos" element={<Buscar />} />
+              {!personal && <Route path="/ninos" element={<Buscar />} />}
               <Route path="/ninos/nuevo" element={<NinoForm />} />
               <Route path="/ninos/:id" element={<Ficha />} />
               <Route path="/ninos/:id/editar" element={<NinoForm />} />
-              <Route path="/alertas" element={<Alertas />} />
-              <Route path="/listado" element={<Listado />} />
-              <Route path="/cuadernos" element={<ListaCuadernos />} />
-              <Route path="/cuadernos/:id" element={<CuadernoDetalle />} />
+              {!personal && <Route path="/alertas" element={<Alertas />} />}
+              {!personal && <Route path="/listado" element={<Listado />} />}
+              {!personal && <Route path="/cuadernos" element={<ListaCuadernos />} />}
+              {!personal && <Route path="/cuadernos/:id" element={<CuadernoDetalle />} />}
               {direccion && <Route path="/comunidades" element={<Comunidades />} />}
               <Route path="/jornadas" element={<ListaJornadas />} />
-              <Route path="/jornadas/nueva" element={<NuevaJornada />} />
+              <Route path="/jornadas/nueva" element={personal ? <Navigate to="/jornadas" replace /> : <NuevaJornada />} />
               <Route path="/jornadas/:id" element={<JornadaDetalle />} />
               {verInformes && <Route path="/informes" element={<Informes />} />}
               {!personal && <Route path="/vacunas" element={<Vacunas />} />}

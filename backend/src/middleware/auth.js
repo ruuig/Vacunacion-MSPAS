@@ -21,7 +21,7 @@ async function autenticar(req, res, next) {
 const permitir = (...roles) => (req, res, next) => {
   const rol = req.usuario?.rol;
   if (rol === 'administrador' || roles.includes(rol)) return next();
-  res.status(403).json({ error: 'No tiene permiso para esta acción.' });
+  res.status(403).json({ error: 'Esta opción no corresponde a su rol.', sin_permiso: true });
 };
 
 const TODOS = ['administrador', 'enfermera', 'vacunador'];

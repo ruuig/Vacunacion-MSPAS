@@ -22,7 +22,10 @@ const TITULO = { mensual: 'Informe mensual de vacunación', nominal: 'Listado de
 export default function Informes() {
   const { usuario } = useSesion();
   const ahora = new Date();
-  const [vista, setVista] = useState(() => new URLSearchParams(window.location.search).get('vista') || 'mensual');
+  const [vista, setVista] = useState(() => {
+    const v = new URLSearchParams(window.location.search).get('vista') || 'mensual';
+    return v === 'pedido' && usuario.rol !== 'administrador' ? 'mensual' : v;
+  });
   const [f, setF] = useState({ anio: ahora.getFullYear(), mes: ahora.getMonth() + 1, tipo: '', comunidad: '', tipoAlerta: '',
     modo: 'mes', desde: `${ahora.getFullYear()}-01-01`, hasta: hoy() });
   const [cargado, setCargado] = useState(null); // { vista, datos }: evita pintar una vista con datos de otra
