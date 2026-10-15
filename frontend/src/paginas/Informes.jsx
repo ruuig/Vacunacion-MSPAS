@@ -7,6 +7,7 @@ import { Campo, Cargando, Encabezado, EncabezadoImpresion, Mensaje, Pestanas, Ta
 import { Estado } from '../componentes/Estado.jsx';
 import { MESES, PAGINAS, TIPO_ALERTA, TIPO_CUADERNO, cuadernoFila, descargarCSV, edad, fecha, hoy, pct } from '../util.js';
 import { useSesion } from '../App.jsx';
+import Documento, { TablaDoc } from '../componentes/Documento.jsx';
 import { useDialogos } from '../componentes/Dialogos.jsx';
 import { Calidad } from './Tablero.jsx';
 
@@ -45,9 +46,10 @@ export default function Informes() {
   const datos = cargado?.vista === vista ? cargado.datos : null;
   const periodo = f.modo === 'rango' ? `del ${fecha(f.desde)} al ${fecha(f.hasta)}` : `${MESES[f.mes - 1]} ${f.anio}`;
 
+  // Al imprimir sale un documento formal (tablas seguidas), no la pantalla
   return (
-    <>
-      <EncabezadoImpresion titulo={TITULO[vista]} detalle={periodo} />
+    <div className="con-documento">
+      {datos && <DocumentoInforme vista={vista} datos={datos} periodo={periodo} />}
       <div className="no-imprimir">
         <Encabezado titulo="Informes">
           <button className="btn" onClick={() => exportar(vista, datos, f)} disabled={!datos}><Download size={16} />Exportar a Excel</button>
@@ -102,7 +104,68 @@ export default function Informes() {
           {vista === 'pedido' && <PedidoVsAplicado d={datos} periodo={`${MESES[f.mes - 1]} ${f.anio}`} />}
         </>
       )}
-    </>
+    </div>
+  );
+}
+
+/** Hoja impresa de cada informe: encabezado del MSPAS y tablas ordenadas. */
+function DocumentoInforme({ vista, datos, periodo }) {
+  if (vista === 'mensual') {
+    const e = datos.encabezado || {};
+    return (
+      <Documento titulo="Informe mensual de vacunación (SIGSA 5a)" periodo={periodo}
+        detalle={[e.area_salud && `Área de salud ${e.area_salud}`, e.distrito && `Distrito ${e.distrito}`, e.tipo && TIPO_CUADERNO[e.tipo]].filter(Boolean).join(' · ')}>
+        <p className="doc-nota">Total de dosis: <b>{datos.total_dosis}</b> · con hexavalente: <b>{datos.columnas.reduce((t, c) => t + c.hexavalente, 0)}</b></p>
+        {PAGINAS.map((p) => {
+          const cols = datos.columnas.filter((c) => c.pagina === p.id);
+          if (!cols.length) return null;
+          const suma = (k) => cols.reduce((t, c) => t + (c[k] || 0), 0);
+          return (
+            <section key={p.id}>
+              <h2 className="doc-seccion">{p.nombre}</h2>
+              <TablaDoc columnas={[
+                { titulo: 'Vacuna y dosis', valor: 'etiqueta', ancho: '34%' }, { titulo: 'Grupo', valor: 'grupo' },
+                { titulo: 'Total', valor: (c) => c.total || '0', num: true }, { titulo: 'Hombres', valor: (c) => c.hombres || '0', num: true },
+                { titulo: 'Mujeres', valor: (c) => c.mujeres || '0', num: true }, { titulo: 'Hexavalente', valor: (c) => c.hexavalente || '', num: true },
+              ]} filas={cols} total={['Total', '', suma('total'), suma('hombres'), suma('mujeres'), suma('hexavalente') || '']} />
+            </section>
+          );
+        })}
+      </Documento>
+    );
+  }
+  if (vista === 'nominal') {
+    return (
+      <Documento titulo="Listado de vacunados" periodo={periodo} detalle={`${datos.length} aplicaciones · uso interno, contiene datos personales`}>
+        <TablaDoc columnas={[
+          { titulo: 'Fecha', valor: (r) => fecha(r.fecha_aplicacion), ancho: '10%' },
+          { titulo: 'Niña o niño', valor: (r) => <><strong>{r.nombre_completo}</strong>{r.cui ? <><br />CUI {r.cui}</> : null}</>, ancho: '26%' },
+          { titulo: 'Sexo', valor: 'sexo' },
+          { titulo: 'Vacuna', valor: (r) => `${r.producto}${r.formulacion ? ` (${r.formulacion})` : ''}` },
+          { titulo: 'Dosis', valor: (r) => `${r.dosis}${r.es_recuperacion ? ' · recup.' : ''}` },
+          { titulo: 'Cuaderno', valor: (r) => cuadernoFila(r) }, { titulo: 'Comunidad', valor: 'comunidad' },
+        ]} filas={datos} />
+      </Documento>
+    );
+  }
+  const t = (k) => datos.vacunas.reduce((s, v) => s + (v[k] || 0), 0);
+  return (
+    <Documento titulo="Vacunas pedidas y aplicadas" periodo={periodo}
+      detalle={datos.pedido ? `Pedido guardado el ${new Date(datos.pedido.creado_en).toLocaleDateString('es-GT')}` : 'Sin pedido guardado para este mes'}>
+      {datos.puestos?.length > 0 && (
+        <>
+          <h2 className="doc-seccion">Por puesto</h2>
+          <TablaDoc columnas={[{ titulo: 'Puesto', valor: 'nombre' }, { titulo: 'Dosis pedidas', valor: (p) => p.pedidas ?? '—', num: true },
+            { titulo: 'Dosis aplicadas', valor: 'aplicadas', num: true }, { titulo: 'Uso', valor: (p) => (p.pedidas ? `${Math.round((p.aplicadas / p.pedidas) * 100)} %` : '—'), num: true }]}
+            filas={datos.puestos} />
+        </>
+      )}
+      <h2 className="doc-seccion">Por vacuna</h2>
+      <TablaDoc columnas={[{ titulo: 'Vacuna', valor: 'nombre' }, { titulo: 'Pedidas', valor: (v) => v.pedidas ?? '—', num: true },
+        { titulo: 'En el servicio', valor: 'en_servicio', num: true }, { titulo: 'En jornadas', valor: 'en_jornadas', num: true },
+        { titulo: 'Aplicadas', valor: 'aplicadas', num: true }, { titulo: 'Diferencia', valor: (v) => (v.pedidas != null ? v.pedidas - v.aplicadas : '—'), num: true }]}
+        filas={datos.vacunas} total={['Total', datos.pedido ? t('pedidas') : '—', t('en_servicio'), t('en_jornadas'), t('aplicadas'), datos.pedido ? t('pedidas') - t('aplicadas') : '—']} />
+    </Documento>
   );
 }
 

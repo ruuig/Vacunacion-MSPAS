@@ -23,9 +23,16 @@ const PERIODOS = [
 ];
 const finDeMes = (a, m) => new Date(Date.UTC(a, m, 0)).toISOString().slice(0, 10);
 // Edad el día que le toca la vacuna
+// Cada año por separado, de recién nacidos a menores de 7 años (el 5a sigue a los niños hasta los 7)
 const EDADES = [
-  ['', 'Todas las edades'], ['menor_1', 'Menores de 1 año'], ['1', '1 año'], ['2_3', '2 y 3 años'], ['4_6', '4 a 6 años'],
+  ['', 'Todas las edades'], ['m0_5', 'De 0 a 5 meses'], ['m6_11', 'De 6 a 11 meses'], ['menor_1', 'Menores de 1 año (0 a 11 meses)'],
+  ['1', '1 año'], ['2', '2 años'], ['3', '3 años'], ['4', '4 años'], ['5', '5 años'], ['6', '6 años'], ['1_6', 'De 1 a 6 años'],
 ];
+const meses = (nac, f) => {
+  const [a, m, d] = nac.slice(0, 10).split('-').map(Number);
+  const [fa, fm, fd] = f.slice(0, 10).split('-').map(Number);
+  return (fa - a) * 12 + (fm - m) - (fd < d ? 1 : 0);
+};
 const anios = (nac, f) => {
   const [a, m, d] = nac.slice(0, 10).split('-').map(Number);
   const [fa, fm, fd] = f.slice(0, 10).split('-').map(Number);
@@ -33,8 +40,13 @@ const anios = (nac, f) => {
 };
 const enEdad = (n, e) => {
   if (!e) return true;
-  const x = anios(n.fecha_nacimiento, n.fecha || hoy());
-  return e === 'menor_1' ? x < 1 : e === '1' ? x === 1 : e === '2_3' ? x >= 2 && x <= 3 : x >= 4;
+  const f = n.fecha || hoy();
+  const x = anios(n.fecha_nacimiento, f);
+  if (e === 'm0_5') return meses(n.fecha_nacimiento, f) < 6;
+  if (e === 'm6_11') return x < 1 && meses(n.fecha_nacimiento, f) >= 6;
+  if (e === 'menor_1') return x < 1;
+  if (e === '1_6') return x >= 1 && x <= 6;
+  return x === Number(e);
 };
 
 export default function Listado() {
