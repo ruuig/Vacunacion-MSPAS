@@ -20,6 +20,7 @@ const VISTAS = [
 const TITULO = { mensual: 'Informe mensual de vacunación', nominal: 'Listado de vacunados', pedido: 'Vacunas pedidas y aplicadas' };
 
 export default function Informes() {
+  const { usuario } = useSesion();
   const ahora = new Date();
   const [vista, setVista] = useState(() => new URLSearchParams(window.location.search).get('vista') || 'mensual');
   const [f, setF] = useState({ anio: ahora.getFullYear(), mes: ahora.getMonth() + 1, tipo: '', comunidad: '', tipoAlerta: '',
@@ -55,7 +56,7 @@ export default function Informes() {
           <button className="btn" onClick={() => exportar(vista, datos, f)} disabled={!datos}><Download size={16} />Exportar a Excel</button>
           <button className="btn btn-primario" onClick={() => window.print()} disabled={!datos}><Printer size={16} />Imprimir / PDF</button>
         </Encabezado>
-        <Pestanas valor={vista} onCambio={setVista} opciones={VISTAS} />
+        <Pestanas valor={vista} onCambio={setVista} opciones={usuario.rol === 'administrador' ? VISTAS : VISTAS.filter(([k]) => k !== 'pedido')} />
 
         <div className="tarjeta"><div className="tarjeta-cuerpo">
           <div className="filtros" style={{ marginBottom: 0 }}>
@@ -98,7 +99,7 @@ export default function Informes() {
       <Mensaje tipo="error">{error}</Mensaje>
       {!datos ? (!error && <Cargando filas={6} />) : (
         <>
-          {vista === 'mensual' && f.modo === 'mes' && <CierreMes anio={Number(f.anio)} mes={Number(f.mes)} />}
+          {vista === 'mensual' && f.modo === 'mes' && usuario.rol === 'administrador' && <CierreMes anio={Number(f.anio)} mes={Number(f.mes)} />}
           {vista === 'mensual' && <Mensual d={datos} periodo={periodo} />}
           {vista === 'nominal' && <Nominal filas={datos} periodo={periodo} />}
           {vista === 'pedido' && <PedidoVsAplicado d={datos} periodo={`${MESES[f.mes - 1]} ${f.anio}`} />}

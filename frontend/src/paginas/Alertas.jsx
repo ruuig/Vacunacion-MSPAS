@@ -184,7 +184,7 @@ export default function Alertas() {
               <button type="button" className="btn btn-icono" onClick={() => moverMes(1)} disabled={esEsteMes} aria-label="Mes siguiente"><ChevronRight size={20} /></button>
             </div>
           )}
-          {vista !== 'por_vacunar' && (datos?.solo_sector ? <span className="chip-sector"><MapPin size={16} />Su sector</span>
+          {vista !== 'por_vacunar' && (datos?.solo_sector ? <span className="chip-sector"><MapPin size={16} />{usuario.lugar || 'Su sector'}</span>
             : <SelectorTerritorio puesto={puesto} comunidad={comunidad} onCambio={(t) => cambiar({ ...t, nino: '' })} />)}
           {esEsteMes && vista === 'suplementos' && (
             <div className="segmentado" role="group" aria-label="Período">
@@ -241,7 +241,7 @@ export default function Alertas() {
           </div>
           <>
           <div className="control-filtros">
-            <div className="control-lugar">{datos?.solo_sector ? <span className="chip-sector"><MapPin size={16} />Su sector</span>
+            <div className="control-lugar">{datos?.solo_sector ? <span className="chip-sector"><MapPin size={16} />{usuario.lugar || 'Su sector'}</span>
               : <SelectorTerritorio puesto={puesto} comunidad={comunidad} onCambio={(t) => cambiar({ ...t, nino: '' })} />}</div>
             {grupo !== 'por_venir' && (
               <div className="chips-filtro">

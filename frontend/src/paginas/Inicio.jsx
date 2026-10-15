@@ -104,7 +104,7 @@ function Saludo({ usuario, buscar }) {
     <section className="inicio-saludo">
       <div>
         <h1>{saludo()}, {usuario.nombre.split(' ')[0]}</h1>
-        <span className="tenue">{hoyLargo.replace(/^\w/, (x) => x.toUpperCase())}{usuario.sector ? ' · Su sector' : ''}</span>
+        <span className="tenue">{hoyLargo.replace(/^\w/, (x) => x.toUpperCase())}{usuario.lugar ? ` · ${usuario.lugar}` : usuario.sector ? ' · Su sector' : ''}</span>
       </div>
       {buscar && (
         <form className="inicio-buscar con-icono" role="search" onSubmit={(e) => { e.preventDefault(); ir('/ninos' + (q.trim() ? qs({ q: q.trim() }) : '')); }}>

@@ -81,7 +81,7 @@ export default function App() {
   // Tres roles: Dirección (la doctora: todo), enfermera encargada de puesto (su puesto y aldeas) y personal (sus jornadas)
   const direccion = rol === 'administrador';
   const personal = rol === 'vacunador';
-  const verInformes = direccion;
+  const verInformes = direccion || rol === 'enfermera'; // Tablero e informes: la encargada, de su sector
   const contador = totalAlertas > 0 && <b className="contador-menu">{totalAlertas > 99 ? '99+' : totalAlertas}</b>;
 
   return (
@@ -111,9 +111,9 @@ export default function App() {
             <NavLink to="/jornadas"><Truck size={19} />Jornadas</NavLink>
             {!personal && <NavLink to="/cuadernos"><BookOpen size={19} />Cuadernos SIGSA 5a</NavLink>}
             {!personal && <NavLink to="/vacunas"><Package size={19} />{direccion ? 'Vacunas' : 'Vacunas de mi puesto'}</NavLink>}
-            {direccion && <div className="menu-titulo">Dirección</div>}
-            {direccion && <NavLink to="/tablero"><LayoutDashboard size={19} />Tablero</NavLink>}
-            {direccion && <NavLink to="/informes"><FileText size={19} />Informes</NavLink>}
+            {verInformes && <div className="menu-titulo">{direccion ? 'Dirección' : 'Mi puesto'}</div>}
+            {verInformes && <NavLink to="/tablero"><LayoutDashboard size={19} />Tablero</NavLink>}
+            {verInformes && <NavLink to="/informes"><FileText size={19} />Informes</NavLink>}
             {direccion && <NavLink to="/admin"><Settings size={19} />Administración</NavLink>}
           </nav>
           <BotonInstalar className="en-lateral" />
@@ -121,7 +121,7 @@ export default function App() {
             <div className="avatar">{iniciales(nombre)}</div>
             <div className="quien">
               <strong>{nombre}</strong>
-              <span>{ROL[rol]}</span>
+              <span>{sesion.usuario.lugar || ROL[rol]}</span>
             </div>
             <button className="btn btn-fantasma btn-icono" onClick={salir} title="Cerrar sesión" aria-label="Cerrar sesión"><LogOut size={18} /></button>
           </div>

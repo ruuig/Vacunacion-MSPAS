@@ -7,6 +7,9 @@ const esq = require('../servicios/esquema');
 const { hoy } = require('../fecha');
 const finDeMes = (anio, mes) => new Date(Date.UTC(anio, mes, 0)).toISOString().slice(0, 10);
 
+// Una comunidad (número) o varias (lista) → lista para `= ANY(...)`; null = todo el municipio
+const ids = (c) => (c == null || c === '' ? null : Array.isArray(c) ? c.map(Number) : [Number(c)]);
+
 /** Dosis aplicadas por el servicio (no antecedentes), por serie, número y edad al aplicar. */
 const SQL_DOSIS = `
   SELECT n.comunidad_id, s.codigo, ed.numero, (a.fecha_aplicacion - n.fecha_nacimiento) AS edad, a.fecha_aplicacion
@@ -28,7 +31,7 @@ const TRAZADORES = `
  * Coberturas, deserción, casos abiertos y registro por comunidad en un período.
  * Meta prorrateada por los días del período (meta anual del año de "desde").
  */
-async function coberturasPorComunidad(db, { desde, hasta }, params) {
+async function coberturasPorComunidad(db, { desde, hasta, alcance = null }, params) {
   const anio = Number(desde.slice(0, 4));
   const { rows } = await db.query(`
     WITH d AS (${SQL_DOSIS}),
@@ -77,7 +80,7 @@ async function coberturasPorComunidad(db, { desde, hasta }, params) {
         WHERE jc.comunidad_id = c.id AND j.estado <> 'cancelada') AS ultima_jornada
     FROM comunidad c LEFT JOIN sector se ON se.id = c.sector_id
     LEFT JOIN dc ON dc.comunidad_id = c.id LEFT JOIN des ON des.comunidad_id = c.id LEFT JOIN al ON al.comunidad_id = c.id LEFT JOIN ni ON ni.comunidad_id = c.id
-    WHERE c.activo ORDER BY c.nombre`, [desde, hasta, anio]);
+    WHERE c.activo AND ($4::int[] IS NULL OR c.id = ANY($4)) ORDER BY c.nombre`, [desde, hasta, anio, alcance]);
 
   const completar = (r) => {
     const meta1 = R.metaPeriodo(r.meta_menor_1, desde, hasta);
@@ -100,7 +103,7 @@ async function coberturasPorComunidad(db, { desde, hasta }, params) {
   const suma = (k) => rows.reduce((s, r) => s + (Number(r[k]) || 0), 0);
   const conMeta = rows.filter((r) => r.meta_menor_1 != null);
   const total = completar({
-    id: 0, nombre: 'Total del municipio', meta_menor_1: conMeta.length ? suma('meta_menor_1') : null,
+    id: 0, nombre: alcance ? 'Total de su sector' : 'Total del municipio', meta_menor_1: conMeta.length ? suma('meta_menor_1') : null,
     meta_1_anio: rows.some((r) => r.meta_1_anio != null) ? suma('meta_1_anio') : null,
     ...Object.fromEntries(['p1', 'p3', 'spr1', 'bcg', 'dosis_cero', 'abandono', 'atrasados', 'inasistencia', 'por_contactar',
       'activos', 'menores_1', 'nacidos_anio', 'al_dia', 'd_elegibles', 'd_completaron'].map((k) => [k, suma(k)])),
@@ -116,13 +119,13 @@ async function monitoreoMensual(db, { anio, comunidad }) {
   const desde = `${anio}-01-01`, hasta = `${anio}-12-31`;
   const params = [desde, hasta];
   let filtro = '';
-  if (comunidad) { params.push(comunidad); filtro = `WHERE comunidad_id = $${params.length}`; }
+  if (comunidad) { params.push(ids(comunidad)); filtro = `WHERE comunidad_id = ANY($${params.length})`; }
   const { rows } = await db.query(`
     WITH d AS (${SQL_DOSIS})
     SELECT extract(month FROM fecha_aplicacion)::int AS mes, ${TRAZADORES} FROM d ${filtro} GROUP BY 1`, params);
   const metas = (await db.query(`
     SELECT grupo_edad, sum(cantidad)::int AS total FROM poblacion_meta
-    WHERE anio = $1 ${comunidad ? 'AND comunidad_id = $2' : ''} GROUP BY 1`, comunidad ? [anio, comunidad] : [anio])).rows;
+    WHERE anio = $1 ${comunidad ? 'AND comunidad_id = ANY($2)' : ''} GROUP BY 1`, comunidad ? [anio, ids(comunidad)] : [anio])).rows;
   const meta = Object.fromEntries(metas.map((m) => [m.grupo_edad, m.total]));
   const ahora = new Date();
   const mesActual = ahora.getFullYear() === anio ? ahora.getMonth() + 1 : ahora.getFullYear() > anio ? 12 : 0;
@@ -166,8 +169,8 @@ async function oportunidad(db, { desde, hasta, comunidad }, params) {
     JOIN esquema_dosis ed ON ed.id = ad.esquema_dosis_id JOIN serie s ON s.id = ed.serie_id
     JOIN nino n ON n.id = ad.nino_id
     WHERE NOT ad.anulada AND NOT s.estacional AND NOT s.informativa AND a.fecha_aplicacion BETWEEN $1 AND $2
-      AND ($4::int IS NULL OR n.comunidad_id = $4)
-    GROUP BY s.nombre, s.codigo, s.id ORDER BY min(ed.orden)`, [desde, hasta, tolerancia, comunidad || null]);
+      AND ($4::int[] IS NULL OR n.comunidad_id = ANY($4))
+    GROUP BY s.nombre, s.codigo, s.id ORDER BY min(ed.orden)`, [desde, hasta, tolerancia, ids(comunidad)]);
   const total = rows.reduce((s, r) => s + r.total, 0);
   const aTiempo = rows.reduce((s, r) => s + r.a_tiempo, 0);
   return { porVacuna: rows.map((r) => ({ ...r, tarde: r.total - r.a_tiempo, valor: R.pct(r.a_tiempo, r.total) })),
@@ -176,18 +179,18 @@ async function oportunidad(db, { desde, hasta, comunidad }, params) {
 
 /** Oportunidades perdidas (N6) y sus motivos (N7). */
 async function oportunidadesPerdidas(db, { desde, hasta, comunidad }) {
-  const p = [desde, hasta, comunidad || null];
+  const p = [desde, hasta, ids(comunidad)];
   const { rows: [v] } = await db.query(`
     SELECT count(DISTINCT v.id)::int AS visitas,
            count(DISTINCT v.id) FILTER (WHERE dna.es_oportunidad_perdida)::int AS con_perdida,
            count(DISTINCT v.id) FILTER (WHERE v.tipo = 'sin_vacuna')::int AS sin_vacuna
     FROM visita v JOIN nino n ON n.id = v.nino_id
     LEFT JOIN dosis_no_aplicada dna ON dna.visita_id = v.id
-    WHERE v.fecha BETWEEN $1 AND $2 AND ($3::int IS NULL OR n.comunidad_id = $3)`, p);
+    WHERE v.fecha BETWEEN $1 AND $2 AND ($3::int[] IS NULL OR n.comunidad_id = ANY($3))`, p);
   const { rows: motivos } = await db.query(`
     SELECT dna.motivo, count(*)::int AS total
     FROM dosis_no_aplicada dna JOIN visita v ON v.id = dna.visita_id JOIN nino n ON n.id = v.nino_id
-    WHERE v.fecha BETWEEN $1 AND $2 AND ($3::int IS NULL OR n.comunidad_id = $3)
+    WHERE v.fecha BETWEEN $1 AND $2 AND ($3::int[] IS NULL OR n.comunidad_id = ANY($3))
     GROUP BY 1 ORDER BY 2 DESC`, p);
   const porCausa = {};
   for (const m of motivos) {
@@ -207,7 +210,7 @@ async function oportunidadesPerdidas(db, { desde, hasta, comunidad }) {
 async function seguimiento(db, { desde, hasta, comunidad }, params) {
   const diasContacto = Number(params.dias_contacto_oportuno) || 7;
   const diasResolucion = Number(params.dias_resolucion) || 30;
-  const p = [desde, hasta, comunidad || null];
+  const p = [desde, hasta, ids(comunidad)];
   const { rows: casos } = await db.query(`
     WITH casos AS (
       SELECT a.nino_id, min(a.fecha_generada) AS apertura,
@@ -215,7 +218,7 @@ async function seguimiento(db, { desde, hasta, comunidad }, params) {
              max(a.fecha_cierre) FILTER (WHERE a.estado = 'resuelta') AS fecha_resuelto,
              bool_or(a.estado IN ('abierta','en_seguimiento')) AS abierto
       FROM alerta a JOIN nino n ON n.id = a.nino_id
-      WHERE a.tipo <> 'proxima' AND a.fecha_generada BETWEEN $1 AND $2 AND ($3::int IS NULL OR n.comunidad_id = $3)
+      WHERE a.tipo <> 'proxima' AND a.fecha_generada BETWEEN $1 AND $2 AND ($3::int[] IS NULL OR n.comunidad_id = ANY($3))
       GROUP BY a.nino_id)
     SELECT c.*, (SELECT min(s.fecha) FROM seguimiento s WHERE s.nino_id = c.nino_id AND s.fecha >= c.apertura) AS primer_contacto,
            (SELECT array_agg(DISTINCT s.medio) FROM seguimiento s WHERE s.nino_id = c.nino_id AND s.fecha >= c.apertura) AS medios
@@ -236,16 +239,16 @@ async function seguimiento(db, { desde, hasta, comunidad }, params) {
   const { rows: dias } = await db.query(`
     SELECT (a.fecha_cierre - a.fecha_generada) AS dias FROM alerta a JOIN nino n ON n.id = a.nino_id
     WHERE a.estado = 'resuelta' AND a.tipo <> 'proxima' AND a.motivo_cierre ILIKE 'Dosis aplicada%'
-      AND a.fecha_cierre BETWEEN $1 AND $2 AND ($3::int IS NULL OR n.comunidad_id = $3)`, p);
+      AND a.fecha_cierre BETWEEN $1 AND $2 AND ($3::int[] IS NULL OR n.comunidad_id = ANY($3))`, p);
   const { rows: [comp] } = await db.query(`
     SELECT count(*)::int AS total,
       count(*) FILTER (WHERE EXISTS (SELECT 1 FROM aplicacion a WHERE a.nino_id = s.nino_id AND NOT a.anulada
         AND a.fecha_aplicacion BETWEEN s.fecha AND s.fecha_compromiso + 7))::int AS cumplidos
     FROM seguimiento s JOIN nino n ON n.id = s.nino_id
-    WHERE s.fecha_compromiso BETWEEN $1 AND LEAST($2::date, CURRENT_DATE - 7) AND ($3::int IS NULL OR n.comunidad_id = $3)`, p);
+    WHERE s.fecha_compromiso BETWEEN $1 AND LEAST($2::date, CURRENT_DATE - 7) AND ($3::int[] IS NULL OR n.comunidad_id = ANY($3))`, p);
   const { rows: [rech] } = await db.query(`
     SELECT count(DISTINCT s.nino_id)::int AS total FROM seguimiento s JOIN nino n ON n.id = s.nino_id
-    WHERE s.resultado = 'rechazo' AND s.fecha BETWEEN $1 AND $2 AND ($3::int IS NULL OR n.comunidad_id = $3)`, p);
+    WHERE s.resultado = 'rechazo' AND s.fecha BETWEEN $1 AND $2 AND ($3::int[] IS NULL OR n.comunidad_id = ANY($3))`, p);
   const { rows: carga } = await db.query(`
     SELECT u.id, u.nombre, count(DISTINCT ca.nino_id)::int AS asignados,
       count(DISTINCT ca.nino_id) FILTER (WHERE EXISTS (SELECT 1 FROM seguimiento s WHERE s.nino_id = ca.nino_id AND s.fecha >= CURRENT_DATE - 7))::int AS contactados_semana
@@ -276,7 +279,7 @@ async function seguimiento(db, { desde, hasta, comunidad }, params) {
 }
 
 /** Jornadas del año (J1 a J4). */
-async function jornadas(db, { anio }) {
+async function jornadas(db, { anio, alcance = null }) {
   const { rows } = await db.query(`
     SELECT j.id, j.fecha, j.estado,
       (SELECT string_agg(c.nombre, ', ' ORDER BY c.nombre) FROM jornada_comunidad jc JOIN comunidad c ON c.id = jc.comunidad_id WHERE jc.jornada_id = j.id) AS comunidades,
@@ -288,11 +291,15 @@ async function jornadas(db, { anio }) {
       (SELECT count(*) FROM jornada_nino jn WHERE jn.jornada_id = j.id AND jn.asistio = false)::int AS inasistencias,
       (SELECT COALESCE(sum(dosis_llevadas), 0) FROM jornada_biologico jb WHERE jb.jornada_id = j.id)::int AS llevadas,
       (SELECT count(*) FROM aplicacion a WHERE a.jornada_id = j.id AND NOT a.anulada)::int AS aplicadas
-    FROM jornada j WHERE extract(year FROM j.fecha) = $1 AND j.estado <> 'cancelada' ORDER BY j.fecha`, [anio]);
+    FROM jornada j WHERE extract(year FROM j.fecha) = $1 AND j.estado <> 'cancelada'
+      AND ($2::int[] IS NULL OR NOT EXISTS (SELECT 1 FROM jornada_comunidad jc WHERE jc.jornada_id = j.id AND NOT (jc.comunidad_id = ANY($2))))
+    ORDER BY j.fecha`, [anio, alcance]);
   const { rows: motivos } = await db.query(`
     SELECT COALESCE(NULLIF(trim(jn.motivo_inasistencia), ''), 'Sin motivo') AS motivo, count(*)::int AS total
     FROM jornada_nino jn JOIN jornada j ON j.id = jn.jornada_id
-    WHERE jn.asistio = false AND extract(year FROM j.fecha) = $1 GROUP BY 1 ORDER BY 2 DESC`, [anio]);
+    WHERE jn.asistio = false AND extract(year FROM j.fecha) = $1
+      AND ($2::int[] IS NULL OR NOT EXISTS (SELECT 1 FROM jornada_comunidad jc WHERE jc.jornada_id = j.id AND NOT (jc.comunidad_id = ANY($2))))
+    GROUP BY 1 ORDER BY 2 DESC`, [anio, alcance]);
   return {
     jornadas: rows.map((j) => ({ ...j, J1: R.pct(j.vacunados_lista, j.convocados), J3: R.pct(j.aplicadas, j.llevadas) })),
     motivos_inasistencia: motivos,

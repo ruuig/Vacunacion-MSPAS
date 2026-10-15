@@ -5,7 +5,10 @@ const esq = require('../servicios/esquema');
 const Q = require('../indicadores/consultas');
 
 // Informes agregados y nominales: enfermera y administrador (los nominales son de uso interno, Decreto 57-2008)
-router.use(permitir()); // informes del municipio: solo la Dirección
+// Informe mensual y listado: la Dirección (municipio) y la enfermera encargada (su sector). Lo demás, solo la Dirección.
+const { alcanceDe } = require('../territorio');
+const SECTOR = permitir('enfermera');
+const SOLO_DIRECCION = permitir();
 
 function rangoMes(anio, mes) {
   const a = Number(anio), m = Number(mes);
@@ -28,6 +31,7 @@ function filtros(q, params, alias = { a: 'a', n: 'n' }) {
   if (q.tipo) { params.push(q.tipo); w.push(`${alias.a}.origen = $${params.length}`); }
   if (q.comunidad) { params.push(q.comunidad); w.push(`${alias.n}.comunidad_id = $${params.length}`); }
   if (q.sector) { params.push(q.sector); w.push(`${alias.n}.comunidad_id IN (SELECT id FROM comunidad WHERE sector_id = $${params.length})`); }
+  if (q.alcance) { params.push(q.alcance); w.push(`${alias.n}.comunidad_id = ANY($${params.length})`); }
   return w.length ? ' AND ' + w.join(' AND ') : '';
 }
 
@@ -35,7 +39,8 @@ function filtros(q, params, alias = { a: 'a', n: 'n' }) {
  * Informe mensual con las columnas del cuaderno 5a: cada columna impresa con total, hombres y mujeres,
  * más cuántas fueron hexavalente (para el pedido de biológicos). Insumo del consolidado y de SIGSA Web.
  */
-router.get('/mensual', async (req, res) => {
+router.get('/mensual', SECTOR, async (req, res) => {
+  const alcance = await alcanceDe(pool, req.usuario);
   const r = rango(req.query);
   if (!r) return res.status(400).json({ error: 'Indique el mes o un rango de fechas.' });
   const params = [r.desde, r.hasta];
@@ -43,7 +48,7 @@ router.get('/mensual', async (req, res) => {
     SELECT ad.esquema_dosis_id, a.producto_id, a.es_recuperacion, a.grupo_influenza, a.formulacion, n.sexo, p.codigo
     FROM aplicacion a JOIN aplicacion_dosis ad ON ad.aplicacion_id = a.id JOIN nino n ON n.id = a.nino_id
     JOIN producto p ON p.id = a.producto_id
-    WHERE NOT a.anulada AND a.fecha_aplicacion BETWEEN $1 AND $2 ${filtros(req.query, params)}`, params);
+    WHERE NOT a.anulada AND a.fecha_aplicacion BETWEEN $1 AND $2 ${filtros({ ...req.query, alcance }, params)}`, params);
 
   const columnas = await esq.cargarColumnas(pool);
   const vacio = () => ({ total: 0, hombres: 0, mujeres: 0, hexavalente: 0 });
@@ -67,7 +72,8 @@ router.get('/mensual', async (req, res) => {
 });
 
 // Listado nominal del mes: una fila por dosis aplicada, para digitar en SIGSA Web desde una sola hoja
-router.get('/nominal', async (req, res) => {
+router.get('/nominal', SECTOR, async (req, res) => {
+  const alcance = await alcanceDe(pool, req.usuario);
   const r = rango(req.query);
   if (!r) return res.status(400).json({ error: 'Indique el mes o un rango de fechas.' });
   const params = [r.desde, r.hasta];
@@ -78,14 +84,14 @@ router.get('/nominal', async (req, res) => {
     FROM aplicacion a JOIN aplicacion_dosis ad ON ad.aplicacion_id = a.id JOIN esquema_dosis d ON d.id = ad.esquema_dosis_id
     JOIN nino n ON n.id = a.nino_id JOIN comunidad c ON c.id = n.comunidad_id JOIN producto p ON p.id = a.producto_id
     LEFT JOIN cuaderno cu ON cu.id = n.cuaderno_id LEFT JOIN usuario u ON u.id = a.creado_por
-    WHERE NOT a.anulada AND a.fecha_aplicacion BETWEEN $1 AND $2 ${filtros(req.query, params)}
+    WHERE NOT a.anulada AND a.fecha_aplicacion BETWEEN $1 AND $2 ${filtros({ ...req.query, alcance }, params)}
     GROUP BY a.id, n.id, c.nombre, cu.numero, cu.anio, p.nombre, u.nombre
     ORDER BY a.fecha_aplicacion, n.primer_apellido`, params);
   res.json(rows);
 });
 
 // Listados de seguimiento: atrasados, dosis cero, abandono e inasistencia por comunidad
-router.get('/seguimiento', async (req, res) => {
+router.get('/seguimiento', SOLO_DIRECCION, async (req, res) => {
   const params = [];
   const w = [];
   if (req.query.tipo) { params.push(req.query.tipo); w.push(`al.tipo = $${params.length}`); }
@@ -107,7 +113,7 @@ router.get('/seguimiento', async (req, res) => {
  * Cobertura y deserción por comunidad en un año.
  * Cobertura = dosis aplicadas en el año / población meta x 100; deserción DPT = (1a - 3a) / 1a x 100.
  */
-router.get('/cobertura', async (req, res) => {
+router.get('/cobertura', SOLO_DIRECCION, async (req, res) => {
   const anio = Number(req.query.anio) || new Date().getFullYear();
   const dosis = (serie, numero) => `(SELECT count(*) FROM aplicacion_dosis ad JOIN aplicacion a ON a.id = ad.aplicacion_id
       JOIN nino n ON n.id = ad.nino_id JOIN esquema_dosis d ON d.id = ad.esquema_dosis_id JOIN serie s ON s.id = d.serie_id
@@ -141,7 +147,7 @@ router.post('/enviado', permitir(), async (req, res) => {
   res.status(201).json(r);
 });
 
-router.get('/enviados', async (req, res) => {
+router.get('/enviados', SOLO_DIRECCION, async (req, res) => {
   const { rows } = await pool.query(`
     SELECT ie.id, ie.tipo, ie.anio, ie.mes, ie.fecha, u.nombre AS usuario FROM informe_enviado ie
     LEFT JOIN usuario u ON u.id = ie.usuario_id WHERE ($1::int IS NULL OR ie.anio = $1) ORDER BY ie.fecha DESC LIMIT 50`,
@@ -150,7 +156,7 @@ router.get('/enviados', async (req, res) => {
 });
 
 // Informe de sala situacional: una página con indicadores, comunidades prioritarias y acciones (análisis, F7)
-router.get('/sala-situacional', async (req, res) => {
+router.get('/sala-situacional', SOLO_DIRECCION, async (req, res) => {
   const anio = Number(req.query.anio) || new Date().getFullYear();
   const mes = Number(req.query.mes) || new Date().getMonth() + 1;
   const hasta = [Q.finDeMes(anio, mes), require('../fecha').hoy()].sort()[0];

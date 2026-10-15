@@ -135,7 +135,7 @@ export default function Listado() {
       <div className="tarjeta listado-filtros"><div className="tarjeta-cuerpo">
         <div className="lf-fila">
           <label className="lf-campo"><span>Lugar</span>
-            {usuario.sector ? <strong className="chip-sector">Su sector</strong>
+            {usuario.sector ? <strong className="chip-sector">{usuario.lugar || 'Su sector'}</strong>
               : <SelectorTerritorio puesto={lugar.puesto} comunidad={lugar.comunidad} onCambio={setLugar} />}
           </label>
           <label className="lf-campo"><span>Vacuna</span>

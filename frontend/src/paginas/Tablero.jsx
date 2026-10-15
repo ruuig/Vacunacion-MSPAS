@@ -106,7 +106,7 @@ export default function Tablero() {
   return (
     <>
       <Encabezado titulo="Tablero de vacunación">
-        <button className="btn" onClick={() => cambiarVista('sala')}><Printer size={17} />Sala situacional</button>
+        {usuario.rol === 'administrador' && <button className="btn" onClick={() => cambiarVista('sala')}><Printer size={17} />Sala situacional</button>}
       </Encabezado>
       <div className="tablero-filtros no-imprimir">
         <Campo etiqueta="Año">
@@ -130,12 +130,12 @@ export default function Tablero() {
         )}
         <Campo etiqueta="Comunidad">
           <select value={comunidad} onChange={(e) => setComunidad(e.target.value)}>
-            <option value="">Todo el municipio</option>
+            <option value="">{usuario.rol === 'administrador' ? 'Todo el municipio' : `${usuario.lugar || 'Su sector'} (todas sus comunidades)`}</option>
             {comunidades.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </select>
         </Campo>
       </div>
-      <Pestanas valor={vista} onCambio={cambiarVista} opciones={VISTAS} />
+      <Pestanas valor={vista} onCambio={cambiarVista} opciones={usuario.rol === 'administrador' ? VISTAS : VISTAS.filter(([k]) => k !== 'acciones')} />
 
       {vista === 'resumen' && <Resumen consulta={consulta} anio={anio} comunidad={comunidad} elegirComunidad={setComunidad} />}
       {vista === 'territorio' && <><Territorio consulta={consulta} rol={usuario.rol} elegirComunidad={setComunidad} /><Jornadas anio={anio} /></>}

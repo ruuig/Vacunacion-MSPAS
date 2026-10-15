@@ -17,21 +17,35 @@ function periodo(q) {
   return { anio: Number(desde.slice(0, 4)), desde, hasta, comunidad: q.comunidad ? Number(q.comunidad) : null };
 }
 
-// El tablero es de gestión: el personal de vacunación trabaja con Pendientes y Jornadas
-// Tablero de todo el municipio: solo la Dirección
-const VER = permitir();
-const GESTION = permitir();
+/**
+ * Período y lugar según quién consulta: la Dirección ve el municipio; la enfermera encargada, solo su sector
+ * (si elige una comunidad, debe ser de su sector; si no, se toma todo su sector).
+ */
+async function periodoDe(req) {
+  const p = periodo(req.query);
+  const alcance = await require('../territorio').alcanceDe(pool, req.usuario);
+  if (!alcance) return { ...p, alcance: null };
+  const comunidad = p.comunidad && alcance.includes(p.comunidad) ? p.comunidad : null;
+  return { ...p, alcance, comunidad: comunidad || alcance, unaComunidad: comunidad };
+}
+
+// Tablero: la Dirección (todo el municipio) y la enfermera encargada (su sector). El personal no lo usa.
+const VER = permitir('enfermera');
+const GESTION = permitir('enfermera');
+const SOLO_DIRECCION = permitir();
 
 // Fila de indicadores principales y lecturas del mes
 router.get('/resumen', VER, async (req, res) => {
-  const p = periodo(req.query);
+  const p = await periodoDe(req);
   const params = await esq.cargarParametros(pool);
   const { comunidades, total } = await Q.coberturasPorComunidad(pool, p, params);
-  const base = p.comunidad ? comunidades.find((c) => c.id === p.comunidad) || total : total;
+  const una = p.alcance ? p.unaComunidad : p.comunidad;
+  const base = una ? comunidades.find((c) => c.id === una) || total : total;
   const mon = await Q.monitoreoMensual(pool, { anio: p.anio, comunidad: p.comunidad });
   const ideal = mon.mes_actual ? R.idealAlMes(mon.mes_actual) : null;
   // Cambio contra el mes anterior desde la foto mensual
-  const anterior = mon.mes_actual > 1 ? await Q.tendencia(pool, { codigos: ['N1', 'N2'], anio: p.anio, comunidad: p.comunidad }) : [];
+  // La foto mensual es del municipio o de una comunidad: para un sector completo no hay comparación
+  const anterior = mon.mes_actual > 1 && !Array.isArray(p.comunidad) ? await Q.tendencia(pool, { codigos: ['N1', 'N2'], anio: p.anio, comunidad: p.comunidad }) : [];
   const fotoPrev = (codigo) => anterior.filter((r) => r.codigo === codigo && r.mes === mon.mes_actual - 1)[0]?.valor ?? null;
 
   res.json({
@@ -59,13 +73,13 @@ router.get('/resumen', VER, async (req, res) => {
 });
 
 router.get('/monitoreo', VER, async (req, res) => {
-  const p = periodo(req.query);
+  const p = await periodoDe(req);
   res.json(await Q.monitoreoMensual(pool, { anio: p.anio, comunidad: p.comunidad }));
 });
 
 // Semáforo, clasificación RED y prioridad por comunidad (sin nombres de niños)
 router.get('/territorio', VER, async (req, res) => {
-  const p = periodo(req.query);
+  const p = await periodoDe(req);
   const params = await esq.cargarParametros(pool);
   const r = await Q.coberturasPorComunidad(pool, p, params);
   const prioritarias = r.comunidades.filter((c) => c.prioridad).sort((a, b) => a.prioridad - b.prioridad || (b.sin_vacunar ?? 0) - (a.sin_vacunar ?? 0));
@@ -73,28 +87,29 @@ router.get('/territorio', VER, async (req, res) => {
 });
 
 router.get('/seguimiento', GESTION, async (req, res) => {
-  const p = periodo(req.query);
+  const p = await periodoDe(req);
   res.json(await Q.seguimiento(pool, p, await esq.cargarParametros(pool)));
 });
 
 router.get('/servicio', GESTION, async (req, res) => {
-  const p = periodo(req.query);
+  const p = await periodoDe(req);
   const params = await esq.cargarParametros(pool);
   res.json({ ...(await Q.oportunidadesPerdidas(pool, p)), ...(await Q.oportunidad(pool, p, params)) });
 });
 
 router.get('/jornadas', VER, async (req, res) => {
-  res.json(await Q.jornadas(pool, periodo(req.query)));
+  res.json(await Q.jornadas(pool, await periodoDe(req)));
 });
 
-router.get('/calidad', GESTION, async (req, res) => {
+router.get('/calidad', SOLO_DIRECCION, async (req, res) => {
   const p = periodo(req.query);
   res.json(await Q.calidad(pool, await esq.cargarParametros(pool), p));
 });
 
 // Tendencia mensual desde las fotos (N1, N2, N3, C1-C3, D1)
 router.get('/tendencia', VER, async (req, res) => {
-  const p = periodo(req.query);
+  const p = await periodoDe(req);
+  if (Array.isArray(p.comunidad)) return res.json([]);
   const codigos = String(req.query.codigos || 'N1,N3_abandono,N3_atrasado').split(',');
   res.json(await Q.tendencia(pool, { codigos, anio: p.anio, comunidad: p.comunidad }));
 });
