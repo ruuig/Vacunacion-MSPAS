@@ -121,6 +121,11 @@ router.put('/poblacion-meta', permitir(), async (req, res) => {
 
 router.put('/:id', permitir('administrador'), async (req, res) => {
   const { nombre, tipo, comunidad_padre_id, sector_id, distancia_km, activo, responsable_id, es_central } = req.body || {};
+  // Una comunidad solo depende de un puesto activo que no sea ella misma
+  if (comunidad_padre_id) {
+    const { rows: [p] } = await pool.query('SELECT 1 FROM comunidad WHERE id = $1 AND es_central AND activo AND id <> $2', [comunidad_padre_id, req.params.id]);
+    if (!p) return res.status(400).json({ error: 'Elija un puesto de salud distinto de la misma comunidad.' });
+  }
   const c = await transaccion(async (cl) => {
     const { rows: [antes] } = await cl.query('SELECT * FROM comunidad WHERE id = $1', [req.params.id]);
     if (!antes) return null;
