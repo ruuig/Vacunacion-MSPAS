@@ -4,6 +4,10 @@ const { permitir, TODOS } = require('../middleware/auth');
 
 const GESTION = ['enfermera', 'administrador'];
 const { hoy } = require('../fecha');
+const { consolidaPedido } = require('../territorio');
+// Pedido consolidado del municipio: la Dirección y la encargada del centro de salud
+const consolida = async (req, res, next) => ((await consolidaPedido(pool, req.usuario)) ? next()
+  : res.status(403).json({ error: 'Esta opción no corresponde a su rol.', sin_permiso: true }));
 
 /** Estado de un lote a una fecha: vencido, por vencer (dentro del aviso) o vigente. */
 const ESTADO_SQL = `CASE
@@ -109,7 +113,7 @@ router.get('/consumo', permitir(), async (req, res) => {
 });
 
 // ---- Pedido guardado: se guarda al imprimir la solicitud, para compararlo después con lo aplicado ----
-router.post('/pedido', permitir(), async (req, res) => {
+router.post('/pedido', consolida, async (req, res) => {
   const { anio, mes, incluye_atrasados = false, detalle = [], por_puesto = [] } = req.body || {};
   if (!anio || !mes || mes < 1 || mes > 12 || !detalle.length) return res.status(400).json({ error: 'Pedido incompleto.' });
   const p = await transaccion(async (c) => {
@@ -133,7 +137,7 @@ router.post('/pedido', permitir(), async (req, res) => {
 });
 
 // Pedido vs. aplicado de un mes: lo que se pidió (si se guardó) contra lo que se puso en el servicio y en jornadas
-router.get('/pedido-vs-aplicado', permitir(), async (req, res) => {
+router.get('/pedido-vs-aplicado', consolida, async (req, res) => {
   const anio = Number(req.query.anio), mes = Number(req.query.mes);
   if (!anio || !mes || mes < 1 || mes > 12) return res.status(400).json({ error: 'Indique el año y el mes.' });
   const desde = `${anio}-${String(mes).padStart(2, '0')}-01`;

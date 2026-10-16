@@ -47,7 +47,8 @@ async function perfilDe(u) {
                 WHEN tipo = 'barrio' THEN 'Barrio ' || nombre ELSE nombre END AS nombre
     FROM comunidad WHERE activo AND responsable_id = $1 ORDER BY es_central DESC, nombre`, [u.id]);
   const lugar = lugares.length ? (lugares[0].nombre.startsWith('Puesto') || lugares[0].nombre === 'Casco urbano' ? lugares[0].nombre : lugares.map((l) => l.nombre).join(', ')) : null;
-  return { id: u.id, nombre: u.nombre, rol: u.rol, sector, lugar };
+  const consolida = await require('../territorio').consolidaPedido(pool, u);
+  return { id: u.id, nombre: u.nombre, rol: u.rol, sector, lugar, consolida };
 }
 
 router.post('/logout', autenticar, async (req, res) => {

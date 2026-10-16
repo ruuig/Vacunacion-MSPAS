@@ -42,8 +42,14 @@ export default function Inicio() {
 
   return (
     <>
-      <Saludo usuario={usuario} buscar={rol !== 'vacunador'} />
+      <Saludo usuario={usuario} buscar />
       {rol === 'vacunador' && <MisJornadas jornadas={jornadas} />}
+      {rol === 'vacunador' && (
+        <div className="inicio-acciones">
+          <Link to="/ninos" className="btn btn-verde btn-grande"><Syringe size={20} />Vacunar o entregar suplementos</Link>
+          <Link to="/ninos/nuevo" className="btn btn-grande"><UserPlus size={20} />Niño nuevo</Link>
+        </div>
+      )}
       {rol !== 'vacunador' && <>
       <Retrasadas mes={mes} porPuesto={direccion} />
       <div className="inicio-rejilla">

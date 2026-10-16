@@ -17,13 +17,20 @@ export default function Vacunas() {
   const { usuario } = useSesion();
   const direccion = usuario.rol === 'administrador';
   const [vista, setVista] = useState(() => new URLSearchParams(window.location.search).get('vista') || 'pedido');
+  // La encargada del centro (casco urbano) también arma el pedido consolidado del municipio para la DDRISS
+  const [deTodo, setDeTodo] = useState(false);
+  const municipal = direccion || (usuario.consolida && deTodo);
   return (
     <>
       <div className="no-imprimir">
-        <Encabezado titulo={direccion ? 'Vacunas' : 'Vacunas que necesita su puesto'} />
+        <Encabezado titulo={municipal ? 'Vacunas' : 'Vacunas que necesita su puesto'} />
         {direccion && <Pestanas valor={vista} onCambio={setVista} opciones={[['pedido', 'Qué pedir'], ['consumo', 'Consumo del mes']]} />}
+        {!direccion && usuario.consolida && (
+          <Pestanas valor={deTodo ? 'todo' : 'mio'} onCambio={(v) => setDeTodo(v === 'todo')}
+            opciones={[['mio', `Mi puesto (${usuario.lugar || 'su sector'})`], ['todo', 'Pedido del municipio (consolidado)']]} />
+        )}
       </div>
-      {direccion && vista === 'consumo' ? <Consumo /> : <PedidoVacunas direccion={direccion} />}
+      {direccion && vista === 'consumo' ? <Consumo /> : <PedidoVacunas key={municipal ? 'm' : 'p'} direccion={municipal} todo={municipal && !direccion} />}
     </>
   );
 }
@@ -91,7 +98,7 @@ function Consumo() {
  * Qué pedir al distrito. Se elige el mes del pedido (por defecto el siguiente: en octubre se pide noviembre)
  * y se puede sumar a los niños atrasados, que también podrían venir. Imprime una solicitud formal, no la pantalla.
  */
-function PedidoVacunas({ direccion }) {
+function PedidoVacunas({ direccion, todo = false }) {
   const [datos, setDatos] = useState(null);
   const [error, setError] = useState('');
   const [col, setCol] = useState(2);
@@ -103,7 +110,7 @@ function PedidoVacunas({ direccion }) {
   // Se elige qué documento sale y luego se abre la impresión
   const imprimir = (cual) => { setImpreso(cual); setTimeout(() => window.print(), 50); };
   const { avisar } = useDialogos();
-  useEffect(() => { api('/seguimiento/proyeccion').then(setDatos).catch((e) => setError(e.message)); }, []);
+  useEffect(() => { api('/seguimiento/proyeccion' + (todo ? '?municipio=1' : '')).then(setDatos).catch((e) => setError(e.message)); }, [todo]);
   if (error) return <Mensaje tipo="error">{error}</Mensaje>;
   if (!datos) return <Cargando />;
   const ultimo = datos.columnas.length - 1;

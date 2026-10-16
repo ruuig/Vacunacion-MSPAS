@@ -136,7 +136,10 @@ router.get('/proyeccion', permitir(...TODOS), async (req, res) => {
   const ctx = { catalogo: await esq.cargarCatalogo(pool), params: await esq.cargarParametros(pool) };
   // El personal con sector solo ve lo suyo, aunque pida otro lugar
   let lugares = await filtroTerritorio(pool, req.query);
-  const alcanceP = await require('../territorio').alcanceDe(pool, req.usuario);
+  const T = require('../territorio');
+  // ?municipio=1: el pedido consolidado de todo el municipio (Dirección y encargada del centro)
+  const todo = req.query.municipio === '1' && await T.consolidaPedido(pool, req.usuario);
+  const alcanceP = todo ? null : await T.alcanceDe(pool, req.usuario);
   if (alcanceP) lugares = lugares ? lugares.filter((c) => alcanceP.includes(c)) : alcanceP;
   const { ninos, aplicaciones } = await cargarNinos(pool, lugares);
   const { rows: productos } = await pool.query('SELECT codigo, nombre FROM producto WHERE activo ORDER BY nombre');

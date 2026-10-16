@@ -9,28 +9,31 @@ async function territorioDe(db, usuarioId) {
   return rows.map((r) => r.id);
 }
 
-// Comunidades de las jornadas abiertas en las que esta persona va (responsable o equipo)
-const SQL_JORNADAS_ABIERTAS = `
-  SELECT DISTINCT jc.comunidad_id AS id FROM jornada_comunidad jc JOIN jornada j ON j.id = jc.jornada_id
-  WHERE j.estado IN ('planificada', 'en_curso')
-    AND (j.responsable_id = $1 OR EXISTS (SELECT 1 FROM jornada_equipo je WHERE je.jornada_id = j.id AND je.usuario_id = $1))`;
-
 /**
  * Comunidades que un usuario puede ver y editar (null = todas). Tres roles:
  *  · Dirección (administrador): todo el municipio.
  *  · Enfermera encargada de puesto: su puesto y sus aldeas (si aún no tiene lugar asignado, ve todo).
- *  · Personal de vacunación: solo las comunidades de las jornadas a las que lo asignan.
+ *  · Personal de vacunación: busca a cualquier niño (rota de área), pero su menú no tiene seguimiento ni gestión.
  */
 async function alcanceDe(db, usuario) {
   if (usuario?.rol === 'enfermera') {
     const t = await territorioDe(db, usuario.id);
     return t.length ? t : null;
   }
-  if (usuario?.rol === 'vacunador') {
-    const { rows } = await db.query(SQL_JORNADAS_ABIERTAS, [usuario.id]);
-    return rows.map((r) => r.id);
-  }
+  // El personal de vacunación (auxiliares que rotan de área o atienden los cuadernillos del centro) busca a
+  // cualquier niño del municipio para vacunarlo o darle suplementos; no ve seguimiento, tablero ni pedido.
   return null;
+}
+
+/**
+ * ¿Consolida el pedido del municipio? La Dirección y la enfermera encargada del casco urbano (el centro de salud),
+ * porque en el centro se junta lo que necesita cada puesto para pedirlo a la DDRISS.
+ */
+async function consolidaPedido(db, usuario) {
+  if (usuario?.rol === 'administrador') return true;
+  if (usuario?.rol !== 'enfermera') return false;
+  const { rows } = await db.query("SELECT 1 FROM comunidad WHERE activo AND tipo = 'casco_urbano' AND responsable_id = $1", [usuario.id]);
+  return rows.length > 0;
 }
 
 /** ¿Puede este usuario ver al niño? Quien tiene sector, solo los de su sector o los de una jornada suya abierta. */
@@ -55,4 +58,4 @@ const soloSuSector = (param) => async (req, res, next, valor) => {
   res.status(403).json({ error: 'Este niño es de otro puesto de salud.' });
 };
 
-module.exports = { territorioDe, alcanceDe, puedeVerNino, soloSuSector, SQL_TERRITORIO };
+module.exports = { territorioDe, alcanceDe, consolidaPedido, puedeVerNino, soloSuSector, SQL_TERRITORIO };

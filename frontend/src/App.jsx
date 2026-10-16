@@ -125,12 +125,12 @@ export default function App() {
           <nav className="menu">
             <div className="menu-titulo">Principal</div>
             <NavLink to="/" end><Home size={19} />Inicio</NavLink>
-            {!personal && <NavLink to="/ninos"><Baby size={19} />Niños</NavLink>}
+            <NavLink to="/ninos"><Baby size={19} />Niños</NavLink>
             {!personal && <NavLink to="/alertas"><CalendarCheck size={19} />Control del mes{contador}</NavLink>}
             <div className="menu-titulo">{direccion ? 'Territorio' : 'Mi trabajo'}</div>
             {direccion && <NavLink to="/comunidades"><MapPinned size={19} />Comunidades</NavLink>}
             <NavLink to="/jornadas"><Truck size={19} />Jornadas</NavLink>
-            {!personal && <NavLink to="/cuadernos"><BookOpen size={19} />Cuadernos SIGSA 5a</NavLink>}
+            <NavLink to="/cuadernos"><BookOpen size={19} />Cuadernos SIGSA 5a</NavLink>
             {!personal && <NavLink to="/vacunas"><Package size={19} />{direccion ? 'Vacunas' : 'Vacunas de mi puesto'}</NavLink>}
             {verInformes && <div className="menu-titulo">{direccion ? 'Dirección' : 'Mi puesto'}</div>}
             {verInformes && <NavLink to="/tablero"><LayoutDashboard size={19} />Tablero</NavLink>}
@@ -164,14 +164,14 @@ export default function App() {
           <main className="contenido">
             <Routes>
               <Route path="/" element={<Inicio />} />
-              {!personal && <Route path="/ninos" element={<Buscar />} />}
+              <Route path="/ninos" element={<Buscar />} />
               <Route path="/ninos/nuevo" element={<NinoForm />} />
               <Route path="/ninos/:id" element={<Ficha />} />
               <Route path="/ninos/:id/editar" element={<NinoForm />} />
               {!personal && <Route path="/alertas" element={<Alertas />} />}
               {!personal && <Route path="/listado" element={<Listado />} />}
-              {!personal && <Route path="/cuadernos" element={<ListaCuadernos />} />}
-              {!personal && <Route path="/cuadernos/:id" element={<CuadernoDetalle />} />}
+              <Route path="/cuadernos" element={<ListaCuadernos />} />
+              <Route path="/cuadernos/:id" element={<CuadernoDetalle />} />
               {direccion && <Route path="/comunidades" element={<Comunidades />} />}
               <Route path="/jornadas" element={<ListaJornadas />} />
               <Route path="/jornadas/nueva" element={personal ? <Navigate to="/jornadas" replace /> : <NuevaJornada />} />
@@ -191,7 +191,7 @@ export default function App() {
         <AvisoActualizacion />
         <nav className="barra-inf" aria-label="Navegación rápida">
           <NavLink to="/" end><span className="ic-burbuja"><Home size={21} /></span>Inicio</NavLink>
-          {!personal && <NavLink to="/ninos"><span className="ic-burbuja"><Baby size={21} /></span>Niños</NavLink>}
+          <NavLink to="/ninos"><span className="ic-burbuja"><Baby size={21} /></span>Niños</NavLink>
           {!personal && <NavLink to="/alertas"><span className="ic-burbuja"><CalendarCheck size={21} />{contador}</span>Control</NavLink>}
           <NavLink to="/jornadas"><span className="ic-burbuja"><Truck size={21} /></span>Jornadas</NavLink>
           <button onClick={() => setMenuAbierto(true)}><span className="ic-burbuja"><MoreHorizontal size={21} /></span>Más</button>

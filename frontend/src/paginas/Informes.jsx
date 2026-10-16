@@ -24,7 +24,7 @@ export default function Informes() {
   const ahora = new Date();
   const [vista, setVista] = useState(() => {
     const v = new URLSearchParams(window.location.search).get('vista') || 'mensual';
-    return v === 'pedido' && usuario.rol !== 'administrador' ? 'mensual' : v;
+    return v === 'pedido' && !usuario.consolida && usuario.rol !== 'administrador' ? 'mensual' : v;
   });
   const [f, setF] = useState({ anio: ahora.getFullYear(), mes: ahora.getMonth() + 1, tipo: '', comunidad: '', tipoAlerta: '',
     modo: 'mes', desde: `${ahora.getFullYear()}-01-01`, hasta: hoy() });
@@ -59,7 +59,7 @@ export default function Informes() {
           <button className="btn" onClick={() => exportar(vista, datos, f)} disabled={!datos}><Download size={16} />Exportar a Excel</button>
           <button className="btn btn-primario" onClick={() => window.print()} disabled={!datos}><Printer size={16} />Imprimir / PDF</button>
         </Encabezado>
-        <Pestanas valor={vista} onCambio={setVista} opciones={usuario.rol === 'administrador' ? VISTAS : VISTAS.filter(([k]) => k !== 'pedido')} />
+        <Pestanas valor={vista} onCambio={setVista} opciones={usuario.rol === 'administrador' || usuario.consolida ? VISTAS : VISTAS.filter(([k]) => k !== 'pedido')} />
 
         <div className="tarjeta"><div className="tarjeta-cuerpo">
           <div className="filtros" style={{ marginBottom: 0 }}>
