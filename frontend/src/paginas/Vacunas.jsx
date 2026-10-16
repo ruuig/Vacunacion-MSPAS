@@ -1,5 +1,5 @@
 // Vacunas: consumo mensual por vacuna y qué pedir al distrito.
-// No es un inventario: las existencias y la cadena de frío se reportan por los canales del MSPAS (SIGSA).
+// No es un inventario: las existencias y la cadena de frío se informan por los canales del MSPAS (SIGSA).
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Package, PackagePlus, Plus, Printer, Users } from 'lucide-react';
