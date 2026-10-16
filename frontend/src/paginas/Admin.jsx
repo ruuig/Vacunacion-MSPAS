@@ -267,8 +267,15 @@ function Territorio() {
     }
   }
 
+  // Si el nombre escrito ya es una comunidad, se usa esa (no se crea repetida ni se ofrece como suya)
+  const sinTildes = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+  const yaExiste = nuevoPuesto?.modo === 'nuevo' && nuevoPuesto.nombre.trim()
+    ? comunidades.find((c) => sinTildes(c.nombre) === sinTildes(nuevoPuesto.nombre)) : null;
+  const usarExistente = (c) => setNuevoPuesto({ ...nuevoPuesto, modo: 'existente', existente_id: String(c.id), aldeas: nuevoPuesto.aldeas.filter((x) => x !== c.id) });
+
   async function crearPuesto(e) {
     e.preventDefault();
+    if (yaExiste) return;
     const p = nuevoPuesto;
     await accion(async () => {
       let id = Number(p.existente_id);
@@ -369,14 +376,19 @@ function Territorio() {
       )}
       {nuevoPuesto && (
         <Modal titulo="Nuevo puesto de salud" onCerrar={() => setNuevoPuesto(null)} onSubmit={crearPuesto}
-          pie={<><button type="button" className="btn" onClick={() => setNuevoPuesto(null)}>Cancelar</button><button className="btn btn-primario"><Plus size={16} />Crear puesto</button></>}>
+          pie={<><button type="button" className="btn" onClick={() => setNuevoPuesto(null)}>Cancelar</button><button className="btn btn-primario" disabled={Boolean(yaExiste)}><Plus size={16} />Crear puesto</button></>}>
           <div className="segmentado" role="group" style={{ marginBottom: '1rem', width: 'fit-content' }}>
             <button type="button" className={nuevoPuesto.modo === 'nuevo' ? 'activa' : ''} onClick={() => setNuevoPuesto({ ...nuevoPuesto, modo: 'nuevo' })}>Aldea nueva</button>
             <button type="button" className={nuevoPuesto.modo === 'existente' ? 'activa' : ''} onClick={() => setNuevoPuesto({ ...nuevoPuesto, modo: 'existente' })}>Una aldea que ya existe</button>
           </div>
           <div className="rejilla">
             {nuevoPuesto.modo === 'nuevo' ? (
-              <Campo etiqueta="Nombre de la aldea del puesto" requerido className="ancho"><input required autoFocus value={nuevoPuesto.nombre} onChange={(e) => setNuevoPuesto({ ...nuevoPuesto, nombre: e.target.value })} /></Campo>
+              <Campo etiqueta="Nombre de la aldea del puesto" requerido className="ancho"><input required autoFocus value={nuevoPuesto.nombre} onChange={(e) => setNuevoPuesto({ ...nuevoPuesto, nombre: e.target.value })} />
+                {yaExiste && (yaExiste.es_central
+                  ? <Mensaje tipo="aviso" className="mt">{yaExiste.nombre} ya es un puesto de salud.</Mensaje>
+                  : <Mensaje tipo="aviso" className="mt">{yaExiste.nombre} ya existe (hoy en {yaExiste.puesto || 'ningún puesto'}).{' '}
+                      <button type="button" className="btn btn-sm" onClick={() => usarExistente(yaExiste)}>Usar {yaExiste.nombre} como puesto</button></Mensaje>)}
+              </Campo>
             ) : (
               <Campo etiqueta="Aldea donde queda el puesto" requerido className="ancho"><select required value={nuevoPuesto.existente_id} onChange={(e) => setNuevoPuesto({ ...nuevoPuesto, existente_id: e.target.value, aldeas: nuevoPuesto.aldeas.filter((x) => String(x) !== e.target.value) })}>
                 <option value="">Elija…</option>{comunidades.filter((c) => !c.es_central).map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}</select></Campo>
@@ -386,7 +398,8 @@ function Territorio() {
           </div>
           <div className="seccion-titulo">Comunidades que atenderá</div>
           <div className="casillas casillas-chicas">
-            {comunidades.filter((c) => !c.es_central && String(c.id) !== String(nuevoPuesto.existente_id)).map((c) => {
+            {comunidades.filter((c) => !c.es_central && c.id !== yaExiste?.id
+              && (nuevoPuesto.modo === 'nuevo' || String(c.id) !== String(nuevoPuesto.existente_id))).map((c) => {
               const si = nuevoPuesto.aldeas.includes(c.id);
               return (
                 <label key={c.id} className={`casilla ${si ? 'marcada' : ''}`}>

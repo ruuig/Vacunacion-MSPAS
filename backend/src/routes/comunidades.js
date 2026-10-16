@@ -43,6 +43,11 @@ router.get('/tablero', permitir(...TODOS), async (req, res) => {
 router.post('/', permitir('administrador'), async (req, res) => {
   const { nombre, tipo, comunidad_padre_id, sector_id, distancia_km, responsable_id, es_central } = req.body || {};
   if (!String(nombre || '').trim()) return res.status(400).json({ error: 'Escriba el nombre.' });
+  // Sin nombres repetidos (sin importar mayúsculas ni tildes)
+  const { rows: [igual] } = await pool.query(
+    `SELECT nombre FROM comunidad WHERE activo AND lower(translate(nombre, 'ÁÉÍÓÚáéíóúÜü', 'AEIOUaeiouUu')) = lower(translate($1, 'ÁÉÍÓÚáéíóúÜü', 'AEIOUaeiouUu'))`,
+    [String(nombre).trim()]);
+  if (igual) return res.status(409).json({ error: `${igual.nombre} ya existe. Elíjala de la lista en vez de crearla otra vez.` });
   const c = await transaccion(async (cl) => {
     const { rows: [c] } = await cl.query(
       `INSERT INTO comunidad (nombre, tipo, comunidad_padre_id, sector_id, distancia_km, responsable_id, es_central) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,

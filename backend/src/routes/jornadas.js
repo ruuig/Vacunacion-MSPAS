@@ -266,8 +266,13 @@ router.post('/:id/cerrar', permitir('enfermera'), soloEquipo, async (req, res) =
     const { rows: [j] } = await c.query("SELECT * FROM jornada WHERE id = $1 AND estado IN ('planificada','en_curso') FOR UPDATE", [req.params.id]);
     if (!j) return null;
     for (const d of devueltas) {
+      // No se devuelve más de lo que sobró (llevadas − aplicadas en la jornada)
       await c.query(`INSERT INTO jornada_biologico (jornada_id, producto_id, dosis_devueltas) VALUES ($1,$2,$3)
-                     ON CONFLICT (jornada_id, producto_id) DO UPDATE SET dosis_devueltas = $3`,
+                     ON CONFLICT (jornada_id, producto_id) DO UPDATE SET dosis_devueltas =
+                       CASE WHEN jornada_biologico.dosis_llevadas IS NULL OR $3 IS NULL THEN $3
+                            ELSE greatest(0, least($3, jornada_biologico.dosis_llevadas - (
+                              SELECT count(*) FROM aplicacion a
+                              WHERE a.jornada_id = $1 AND NOT a.anulada AND a.producto_id = $2)::int)) END`,
       [j.id, d.producto_id, d.dosis_devueltas === '' || d.dosis_devueltas == null ? null : Number(d.dosis_devueltas)]);
     }
     // Asistió si se vacunó en la jornada o ese mismo día (o después) en el servicio: no es inasistencia

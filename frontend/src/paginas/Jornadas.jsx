@@ -509,7 +509,7 @@ export function JornadaDetalle() {
       <Tabla className="tabla-biologicos">
         <thead>
           <tr><th>Vacuna</th><th className="celda-num">Llevar</th>{preparacion && <th className="celda-llevada">Llevada</th>}
-            {alCierre && <><th className="celda-num">Aplicadas</th><th className="celda-num">Devueltas</th></>}</tr>
+            {alCierre && <><th className="celda-num">Aplicadas</th><th className="celda-num">Devueltas</th><th className="celda-num">Perdidas</th></>}</tr>
         </thead>
         <tbody>
           {biologicos.map((b, i) => (
@@ -531,11 +531,12 @@ export function JornadaDetalle() {
                 <>
                   <td className="celda-num">{b.aplicadas}</td>
                   <td className="celda-num">{b.dosis_devueltas ?? '—'}</td>
+                  <td className="celda-num"><Perdidas b={b} devueltas={b.dosis_devueltas} /></td>
                 </>
               )}
             </tr>
           ))}
-          {biologicos.length === 0 && <tr><td colSpan={alCierre ? 4 : 3} className="tenue">Sin vacunas calculadas.</td></tr>}
+          {biologicos.length === 0 && <tr><td colSpan={alCierre ? 5 : 3} className="tenue">Sin vacunas calculadas.</td></tr>}
         </tbody>
       </Tabla>
     </Tarjeta>
@@ -609,7 +610,8 @@ export function JornadaDetalle() {
         { titulo: 'Vacuna', valor: 'nombre' },
         { titulo: 'Llevar', valor: (b) => b.dosis_llevadas ?? '—', num: true },
         ...(preparacion ? [{ titulo: 'Llevada', valor: () => '☐', num: true }]
-          : [{ titulo: 'Aplicadas', valor: 'aplicadas', num: true }, ...(cerrada ? [{ titulo: 'Devueltas', valor: (b) => b.dosis_devueltas ?? '—', num: true }] : [])]),
+          : [{ titulo: 'Aplicadas', valor: 'aplicadas', num: true }, ...(cerrada ? [{ titulo: 'Devueltas', valor: (b) => b.dosis_devueltas ?? '—', num: true },
+            { titulo: 'Perdidas', valor: (b) => perdidas(b, b.dosis_devueltas) ?? '—', num: true }] : [])]),
       ]} filas={j.biologicos} />
       <h2 className="doc-seccion">Niños · {j.ninos.length}{!preparacion && ` (${cuenta('vacunado')} vacunados, ${cuenta('no_asistio')} no llegaron)`}</h2>
       {porComunidadDoc.map((g) => (
@@ -707,25 +709,42 @@ export function JornadaDetalle() {
   );
 }
 
-/** Cerrar: se anotan las vacunas devueltas; quienes no recibieron dosis pasan al control del mes. */
+/** Lo que quedó sin aplicar y no regresó (frasco abierto que se descarta, dosis rota o calentada). */
+const sobrante = (b) => (b.dosis_llevadas != null ? Math.max(0, b.dosis_llevadas - b.aplicadas) : null);
+function perdidas(b, devueltas) {
+  const s = sobrante(b);
+  return s == null || devueltas === '' || devueltas == null ? null : Math.max(0, s - Number(devueltas));
+}
+function Perdidas({ b, devueltas }) {
+  const p = perdidas(b, devueltas);
+  return p == null ? '—' : <strong style={p > 0 ? { color: 'var(--rojo)' } : undefined}>{p}</strong>;
+}
+
+/** Cerrar: se anotan las vacunas devueltas (como máximo lo que sobró); la diferencia queda como perdida. */
 function CerrarJornada({ biologicos, faltan, onCerrar, onConfirmar }) {
   const [devueltas, setDevueltas] = useState(() => Object.fromEntries(biologicos.map((b) => [b.producto_id,
-    b.dosis_devueltas ?? (b.dosis_llevadas != null ? Math.max(0, b.dosis_llevadas - b.aplicadas) : '')])));
+    b.dosis_devueltas ?? sobrante(b) ?? ''])));
+  const cambiar = (b, v) => {
+    const tope = sobrante(b);
+    const n = v === '' ? '' : Math.max(0, tope == null ? Number(v) : Math.min(tope, Number(v)));
+    setDevueltas({ ...devueltas, [b.producto_id]: n });
+  };
   return (
     <Modal titulo="Cerrar jornada" onCerrar={onCerrar}
       pie={<><button className="btn" onClick={onCerrar}>Volver</button>
         <button className="btn btn-primario" onClick={() => onConfirmar(biologicos.map((b) => ({ producto_id: b.producto_id, dosis_devueltas: devueltas[b.producto_id] })))}>
           <Lock size={16} />Cerrar jornada</button></>}>
       <Tabla adaptable={false}>
-        <thead><tr><th>Vacuna</th><th className="celda-num">Llevadas</th><th className="celda-num">Aplicadas</th><th className="celda-num">Devueltas</th></tr></thead>
+        <thead><tr><th>Vacuna</th><th className="celda-num">Llevadas</th><th className="celda-num">Aplicadas</th><th className="celda-num">Devueltas</th><th className="celda-num">Perdidas</th></tr></thead>
         <tbody>
           {biologicos.map((b) => (
             <tr key={b.producto_id}>
               <td className="fuerte">{b.nombre}</td>
               <td className="celda-num">{b.dosis_llevadas ?? '—'}</td>
               <td className="celda-num">{b.aplicadas}</td>
-              <td className="celda-num"><input type="number" min="0" className="num-input" value={devueltas[b.producto_id] ?? ''}
-                onChange={(e) => setDevueltas({ ...devueltas, [b.producto_id]: e.target.value })} aria-label={`${b.nombre} devueltas`} /></td>
+              <td className="celda-num"><input type="number" min="0" max={sobrante(b) ?? undefined} className="num-input" value={devueltas[b.producto_id] ?? ''}
+                onChange={(e) => cambiar(b, e.target.value)} aria-label={`${b.nombre} devueltas`} /></td>
+              <td className="celda-num"><Perdidas b={b} devueltas={devueltas[b.producto_id]} /></td>
             </tr>
           ))}
         </tbody>

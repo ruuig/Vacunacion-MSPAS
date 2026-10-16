@@ -160,7 +160,7 @@ export default function Vacunar({ ninoId, nombre, esquema, jornadaId, fechaDefec
       <Modal titulo={nombre} className="modal-completo" onCerrar={() => onTerminado(r)}
         pie={(
           <>
-            {r.cita?.proximaCita && <button className="btn btn-grande" onClick={() => imprimirCita(nombre, r.cita.proximaCita, r.cita.vacunas)}><Printer size={20} />Imprimir cita</button>}
+            {!jornadaId && r.cita?.proximaCita && <button className="btn btn-grande" onClick={() => imprimirCita(nombre, r.cita.proximaCita, r.cita.vacunas)}><Printer size={20} />Imprimir cita</button>}
             <button className="btn btn-primario btn-grande" style={{ flex: 1 }} onClick={() => onTerminado(r)}><Check size={20} />Terminar</button>
           </>
         )}>
