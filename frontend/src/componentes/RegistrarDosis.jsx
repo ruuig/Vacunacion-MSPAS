@@ -8,7 +8,7 @@ import { hoy } from '../util.js';
 
 const PRODUCTO_SERIE = {
   HB_RN: 'HB_PED', BCG: 'BCG', ROTA: 'ROTA', NEUMO: 'NEUMO', SPR: 'SPR', SPR_CERO: 'SPR', INFLUENZA: 'INFL_PED',
-  VARICELA: 'VARICELA', POLIO: 'OPV', DPT_HIB_HB: 'PENTA',
+  VARICELA: 'VARICELA', POLIO: 'OPV', OPV_4M: 'OPV', DPT_HIB_HB: 'HEXA',
 };
 
 /** Producto que corresponde a una columna del cuaderno (tal como está impresa) o a una serie. */

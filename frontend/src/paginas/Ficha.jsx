@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
-  BookOpen, CalendarX, ChevronDown, CheckCircle2, ClipboardList, Clock, MapPin, MessageCircle, Pencil, Phone, Plus, Printer, RefreshCw, Syringe, Trash2, X,
+  BookOpen, CalendarX, ChevronDown, CheckCircle2, ClipboardList, Clock, FileInput, MapPin, MessageCircle, Pencil, Phone, Plus, Printer, RefreshCw, Syringe,
+  Trash2, X,
 } from 'lucide-react';
 import { api } from '../api.js';
 import { useSesion } from '../App.jsx';
 import { useDialogos } from '../componentes/Dialogos.jsx';
+import PasarCarne from '../componentes/PasarCarne.jsx';
 import RegistrarDosis from '../componentes/RegistrarDosis.jsx';
 import Vacunar from '../componentes/Vacunar.jsx';
 import VistaCuaderno from '../componentes/VistaCuaderno.jsx';
@@ -52,6 +54,9 @@ export default function Ficha() {
   const [contactos, setContactos] = useState([]);
   const [modal, setModal] = useState(null); // null | { serie?, fecha? }
   const [vacunar, setVacunar] = useState(null); // null | 'normal'
+  // Recién inscrito (?carne=1): se abre de una vez para pasar las vacunas que ya trae en el carné
+  const [buscar, setBuscar] = useSearchParams();
+  const [pasarCarne, setPasarCarne] = useState(buscar.get('carne') === '1');
   const [resultado, setResultado] = useState(null);
   const [pestana, setPestana] = useState('carne');
   const [verDatos, setVerDatos] = useState(false);
@@ -79,6 +84,11 @@ export default function Ficha() {
       cargar();
       refrescarAlertas();
     } catch (e) { avisar(e.message, 'error'); }
+  }
+
+  function cerrarCarne() {
+    setPasarCarne(false);
+    if (buscar.has('carne')) setBuscar({}, { replace: true });
   }
 
   function alRegistrar(r) {
@@ -159,6 +169,7 @@ export default function Ficha() {
         <div className="acciones no-imprimir" style={{ margin: 0 }}>
           {puede(usuario.rol, 'enfermera', 'vacunador') && <Link className="btn btn-icono" to={`/ninos/${id}/editar`} aria-label="Editar datos" title="Editar datos"><Pencil size={17} /></Link>}
           <button className="btn btn-icono" onClick={() => window.print()} aria-label="Imprimir" title="Imprimir"><Printer size={17} /></button>
+          {operativo && <button className="btn" onClick={() => setPasarCarne(true)} title="Copiar las vacunas que ya trae en el carné"><FileInput size={17} />Pasar carné</button>}
           {operativo && <MenuMas opciones={[{ texto: 'Registrar una vacuna de otra fecha', icono: Plus, onClick: () => setModal({}) }]} />}
         </div>
       </div>
@@ -291,6 +302,9 @@ export default function Ficha() {
       {vacunar && <Vacunar ninoId={id} nombre={nino.nombre_completo} esquema={esquema}
         onCerrar={() => setVacunar(null)}
         onTerminado={(r) => { setVacunar(null); if (r.hechas.length) avisar(r.hechas.length === 1 ? 'Vacuna guardada.' : 'Vacunas guardadas.'); cargar(); refrescarAlertas(); }} />}
+      {pasarCarne && operativo && <PasarCarne ninoId={id} nombre={nino.nombre_completo} fechaNacimiento={nino.fecha_nacimiento} esquema={esquema}
+        onCerrar={cerrarCarne}
+        onTerminado={(r) => { cerrarCarne(); if (r.hechas.length) { cargar(); refrescarAlertas(); } }} />}
       {modal && <RegistrarDosis ninoId={id} esquema={esquema} serieSugerida={modal.serie}
         onCerrar={() => setModal(null)} onRegistrado={alRegistrar} />}
     </>

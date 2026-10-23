@@ -2073,3 +2073,23 @@ td select.selector-chico { min-width: 130px; }
 .lf-fechas { display: inline-flex; gap: .6rem; flex-wrap: wrap; }
 .lf-fechas label { display: inline-flex; align-items: center; gap: .35rem; font-weight: 700; font-size: .85rem; color: var(--suave); }
 .lf-fechas input { min-height: 40px; }
+
+/* ---- Pasar carné de papel ---- */
+.modal.pasar-carne { max-width: 720px; }
+.pc-ayuda { margin: 0 0 1rem; color: var(--suave); font-size: .92rem; }
+.pc-lugar { margin-bottom: .4rem; }
+.pc-lista { list-style: none; margin: 1rem 0 0; padding: 0; border-top: 1px solid var(--borde); }
+.pc-fila { display: grid; grid-template-columns: 1fr 11.5rem; align-items: center; gap: .35rem 1rem; padding: .65rem 0; border-bottom: 1px solid var(--borde); }
+.pc-fila.pc-dentro { opacity: .7; }
+.pc-nombre { display: flex; flex-direction: column; gap: .2rem; min-width: 0; }
+.pc-nombre select { max-width: 16rem; padding: .3rem .5rem; font-size: .88rem; }
+.pc-fila input[type="date"].invalido { border-color: var(--rojo); background: var(--rojo-bg); }
+.pc-error, .pc-aviso { grid-column: 1 / -1; display: flex; align-items: center; gap: .35rem; font-size: .82rem; }
+.pc-error { color: var(--rojo); }
+.pc-aviso { color: #7c4700; }
+.pc-cuenta { margin-right: auto; align-self: center; font-size: .88rem; }
+.lista-simple { margin: .35rem 0 0; padding-left: 1.1rem; }
+@media (max-width: 640px) {
+  .pc-fila { grid-template-columns: 1fr; }
+  .pc-cuenta { width: 100%; }
+}

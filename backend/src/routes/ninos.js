@@ -2,7 +2,7 @@ const router = require('express').Router();
 const { pool, transaccion, registrarBitacora } = require('../db');
 const { permitir, TODOS, OPERATIVOS } = require('../middleware/auth');
 const {
-  validarAplicacion, dosisQueCumpleProducto, esRecuperacion, grupoInfluenza, mesesEntre, temporadaDe,
+  validarAplicacion, dosisQueCumpleProducto, esRecuperacion, esRecuperacionInfluenza, grupoInfluenza, mesesEntre, temporadaDe,
 } = require('../motor/motorEsquema');
 const esq = require('../servicios/esquema');
 const { guardarResponsable } = require('./responsables');
@@ -236,14 +236,16 @@ router.post('/:id/aplicaciones', permitir(...OPERATIVOS), async (req, res) => {
     const params = await esq.cargarParametros(c);
     const aplicaciones = await esq.cargarAplicaciones(c, n.id);
     const columnas = await esq.cargarColumnas(c);
-    const { rows: series } = await c.query(
-      'SELECT s.codigo, ps.numero_hasta FROM producto_serie ps JOIN serie s ON s.id = ps.serie_id WHERE ps.producto_id = $1', [producto_id]);
+    // Por código: en las exclusivas de la OPV, OPV_4M va antes que POLIO (si empatan, gana la de los 4 meses)
+    const { rows: series } = await c.query(`SELECT s.codigo, ps.numero_hasta, ps.exclusiva FROM producto_serie ps
+      JOIN serie s ON s.id = ps.serie_id WHERE ps.producto_id = $1 ORDER BY s.codigo`, [producto_id]);
 
     const destino = esquema_dosis_ids?.length
       ? esquema_dosis_ids.map((id) => ({ esquemaDosisId: id,
         temporada: catalogo.find((d) => d.id === id)?.estacional ? temporadaDe(fecha_aplicacion) : 0 }))
       : dosisQueCumpleProducto({ seriesProducto: series.map((s) => s.codigo), catalogo, aplicaciones,
         limites: Object.fromEntries(series.filter((s) => s.numero_hasta != null).map((s) => [s.codigo, s.numero_hasta])),
+        exclusivas: series.filter((s) => s.exclusiva).map((s) => s.codigo),
         fechaNacimiento: n.fecha_nacimiento, fecha: fecha_aplicacion });
     if (!destino.length) return { status: 422, body: { error: 'El niño ya tiene registradas las dosis que cumple esta vacuna.' } };
 
@@ -264,7 +266,9 @@ router.post('/:id/aplicaciones', permitir(...OPERATIVOS), async (req, res) => {
     }
     if (esInfluenza && !grupo && modo === 'atencion') return { status: 422, body: { error: 'La influenza pediátrica se aplica de 6 a 35 meses.' } };
 
-    const recuperacion = dosisCat.some((d) => esRecuperacion(d, n.fecha_nacimiento, fecha_aplicacion));
+    const recuperacion = esInfluenza
+      ? esRecuperacionInfluenza({ fechaNacimiento: n.fecha_nacimiento, aplicaciones, catalogo, fecha: fecha_aplicacion })
+      : dosisCat.some((d) => esRecuperacion(d, n.fecha_nacimiento, fecha_aplicacion));
     const visita = modo === 'antecedente' ? null : await obtenerVisita(c, { ninoId: n.id, fecha: fecha_aplicacion,
       establecimientoId: establecimiento_id, jornadaId: jornada_id, usuarioId: req.usuario.id, tipo: 'vacunacion' });
     const { rows: [a] } = await c.query(

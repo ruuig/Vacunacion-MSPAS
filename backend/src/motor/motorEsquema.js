@@ -23,6 +23,11 @@ const PARAMS_DEFECTO = {
 
 const INFLUENZA = { edadMin: 180, edadMax: 1094, intervaloMin: 28, intervaloRec: 30 };
 
+// Vacunas de virus vivos: si no se ponen juntas, entre una y otra van 4 semanas
+const VIVAS = ['SPR', 'SPR_CERO', 'VARICELA'];
+const INTERVALO_VIVAS = 28;
+const grupoViva = (d) => (d.serieCodigo === 'VARICELA' ? 'VARICELA' : 'SPR');
+
 /** Temporada de influenza a la que pertenece una fecha: año en que empieza (julio a junio). */
 function temporadaDe(fecha) {
   const [a, m] = String(fecha).slice(0, 7).split('-').map(Number);
@@ -45,20 +50,23 @@ function grupoInfluenza(nac, fecha) {
 }
 
 /**
- * Regular o recuperación (página 5 del 5a): una dosis de "menor de 1 año"
- * aplicada con 12 meses o más, o una de 12 o 18 meses aplicada con 2 años o más.
- * R2, influenza e informativas nunca son de recuperación.
+ * Regular o recuperación (páginas 9 a 11 del 5a 2026): una dosis de "menor de 1 año" aplicada con 12 meses o más,
+ * una de 12 a 18 meses aplicada con 2 años o más, o una de los 4 años (R2, varicela refuerzo) aplicada con 5 o más.
+ * Influenza: va en recuperación si empezó a vacunarse con 1 año o más (ver esRecuperacionInfluenza).
  */
 function esRecuperacion(dosis, fechaNacimiento, fecha) {
   if (dosis.estacional || dosis.informativa) return false;
   const edad = mesesEntre(fechaNacimiento, fecha);
   if (dosis.edadRecomendadaDias < 365) return edad >= 12;
   if (dosis.edadRecomendadaDias <= 548) return edad >= 24;
-  return false;
+  return edad >= 60;
 }
 
 // Nombre corto de cada serie para avisar en qué vacunas va con esquema de recuperación
-const NOMBRE_SERIE = { HB_RN: 'Hepatitis B', BCG: 'BCG', POLIO: 'Polio', DPT_HIB_HB: 'Pentavalente', ROTA: 'Rotavirus', NEUMO: 'Neumococo', SPR: 'SPR', VARICELA: 'Varicela' };
+const NOMBRE_SERIE = {
+  HB_RN: 'Hepatitis B', BCG: 'BCG', POLIO: 'Polio', OPV_4M: 'OPV', DPT_HIB_HB: 'Hexavalente', ROTA: 'Rotavirus',
+  NEUMO: 'Neumococo', SPR: 'SPR', VARICELA: 'Varicela',
+};
 
 const tipo = (d) => (d.estacional ? 'estacional' : d.informativa ? 'informativa' : 'regular');
 const vigentes = (aplicaciones) => aplicaciones.filter((a) => !a.anulada);
@@ -297,6 +305,16 @@ function validarAplicacion({
     return rechazo(`${d.etiqueta} ya no se puede aplicar: `
       + `pasó la edad máxima (${aFecha(edadMaxima)}).`);
   }
+  // Vacunas vivas (SPR y varicela): el mismo día o con 4 semanas de separación (nota del cuaderno 5a 2026)
+  if (VIVAS.includes(d.serieCodigo)) {
+    const otra = vigentes(aplicaciones).map((a) => ({ a, x: catalogo.find((c) => c.id === a.esquemaDosisId) }))
+      .find(({ a, x }) => x && VIVAS.includes(x.serieCodigo) && grupoViva(x) !== grupoViva(d)
+        && aDia(a.fecha) !== f && Math.abs(aDia(a.fecha) - f) < INTERVALO_VIVAS);
+    if (otra) {
+      return rechazo(`${d.etiqueta} y ${otra.x.etiqueta} van el mismo día o con 4 semanas de separación; `
+        + `puede aplicarse desde el ${aFecha(aDia(otra.a.fecha) + INTERVALO_VIVAS)}.`);
+    }
+  }
   if (d.dosisPreviaId) {
     const previa = catalogo.find((x) => x.id === d.dosisPreviaId);
     if (!aplicadas.has(d.dosisPreviaId)) {
@@ -313,12 +331,26 @@ function validarAplicacion({
 }
 
 /**
+ * Influenza en la página de recuperación (1 a menor de 3 años): es la primera serie del niño (sin dosis en temporadas
+ * anteriores) y la empezó con 1 año o más. Con antecedente, la dosis anual va en R1 (1 a < 2) o R2 (2 a < 3).
+ */
+function esRecuperacionInfluenza({ fechaNacimiento, aplicaciones = [], catalogo, fecha }) {
+  const temporada = temporadaDe(fecha);
+  const apps = aplicacionesInfluenza(aplicaciones, catalogo);
+  if (apps.some((a) => a.temporada < temporada)) return false;
+  const primera = apps.filter((a) => a.temporada === temporada && a.numero === 1).map((a) => String(a.fecha).slice(0, 10))[0] || fecha;
+  return mesesEntre(fechaNacimiento, primera) >= 12;
+}
+
+/**
  * Dosis del esquema que cumple un producto aplicado en una fecha: la siguiente de cada serie que cubre.
  * Hexavalente cumple DPT y polio; una serie iniciada con pentavalente continúa sin reiniciarse.
  * SPR antes de los 12 meses cae en "SPR dosis cero" (informativa) y no en SPR 1.
+ * exclusivas: series de las que el producto cumple una sola dosis por aplicación (la OPV: la 2a de los 4 meses
+ * o la siguiente de polio); gana la de menor edad recomendada y, si empatan, la serie que va primero en la lista.
  * Devuelve [{ esquemaDosisId, temporada }] (temporada = 0 fuera de influenza).
  */
-function dosisQueCumpleProducto({ seriesProducto, catalogo, aplicaciones = [], fechaNacimiento, fecha, limites = {} }) {
+function dosisQueCumpleProducto({ seriesProducto, catalogo, aplicaciones = [], fechaNacimiento, fecha, limites = {}, exclusivas = [] }) {
   const nac = aDia(fechaNacimiento);
   const f = aDia(fecha);
   const aplicadas = mapaAplicadas(aplicaciones, catalogo);
@@ -349,12 +381,16 @@ function dosisQueCumpleProducto({ seriesProducto, catalogo, aplicaciones = [], f
     if (siguiente.informativa) {
       const dentro = f >= nac + siguiente.edadMinimaDias && (siguiente.edadMaximaDias == null || f <= nac + siguiente.edadMaximaDias);
       if (dentro) informativas.push({ esquemaDosisId: siguiente.id, temporada: 0 });
-    } else regulares.push({ esquemaDosisId: siguiente.id, temporada: 0 });
+    } else regulares.push({ esquemaDosisId: siguiente.id, temporada: 0, serie, edad: siguiente.edadRecomendadaDias });
   }
-  return informativas.length ? informativas : regulares;
+  if (informativas.length) return informativas;
+  const enExclusivas = regulares.filter((r) => exclusivas.includes(r.serie));
+  const elegida = enExclusivas.sort((a, b) => a.edad - b.edad || exclusivas.indexOf(a.serie) - exclusivas.indexOf(b.serie))[0];
+  return regulares.filter((r) => !enExclusivas.includes(r) || r === elegida)
+    .map(({ esquemaDosisId, temporada }) => ({ esquemaDosisId, temporada }));
 }
 
 module.exports = {
-  calcularEsquema, validarAplicacion, dosisQueCumpleProducto, esRecuperacion, grupoInfluenza, temporadaDe,
-  mesesEntre, aDia, aFecha,
+  calcularEsquema, validarAplicacion, dosisQueCumpleProducto, esRecuperacion, esRecuperacionInfluenza, grupoInfluenza,
+  temporadaDe, mesesEntre, aDia, aFecha,
 };

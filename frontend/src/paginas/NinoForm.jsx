@@ -148,7 +148,8 @@ export default function NinoForm() {
       } else {
         ninoId = (await api('/ninos', { method: 'POST', body: { ...datos, parentesco, responsable } })).id;
       }
-      ir('/ninos/' + ninoId);
+      // Recién inscrito: se abre «Pasar carné» para copiar las vacunas que ya trae
+      ir('/ninos/' + ninoId + (editando ? '' : '?carne=1'));
     } catch (err) {
       setError(err.message);
       setGuardando(false);

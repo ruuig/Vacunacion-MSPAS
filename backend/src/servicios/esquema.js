@@ -101,14 +101,15 @@ async function cargarColumnas(db) {
 }
 
 /**
- * Columna del cuaderno donde se anota una dosis aplicada. Prioriza: influenza por grupo y formulación;
- * página de recuperación si la dosis lo es; columna exclusiva del producto (fIPV) o la general.
+ * Columna del cuaderno donde se anota una dosis aplicada. Prioriza: página de recuperación si la dosis lo es;
+ * influenza por grupo de edad (1a de 6 a 11 meses, R1 de 1 a < 2 años, R2 de 2 a < 3); columna exclusiva del
+ * producto o la general. El cuaderno 2026 ya no separa la influenza en Sur y Norte.
  */
-function ubicarColumna(columnas, { esquema_dosis_id, producto_id, es_recuperacion, grupo_influenza, formulacion }) {
+function ubicarColumna(columnas, { esquema_dosis_id, producto_id, es_recuperacion, grupo_influenza }) {
   let c = columnas.filter((x) => x.esquema_dosis_id === esquema_dosis_id);
-  if (c.some((x) => x.grupo_influenza)) c = c.filter((x) => x.grupo_influenza === grupo_influenza && x.formulacion === formulacion);
   const porPagina = c.filter((x) => x.es_recuperacion === Boolean(es_recuperacion));
   if (porPagina.length) c = porPagina;
+  if (c.length > 1 && c.some((x) => x.grupo_influenza)) c = c.filter((x) => x.grupo_influenza === grupo_influenza);
   return c.find((x) => x.producto_id === producto_id) || c.find((x) => x.producto_id == null) || c[0] || null;
 }
 

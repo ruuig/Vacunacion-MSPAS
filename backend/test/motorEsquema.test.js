@@ -1,9 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  calcularEsquema, validarAplicacion, dosisQueCumpleProducto, esRecuperacion, grupoInfluenza, temporadaDe, aDia, aFecha,
+  calcularEsquema, validarAplicacion, dosisQueCumpleProducto, esRecuperacion, esRecuperacionInfluenza, grupoInfluenza, temporadaDe,
+  aDia, aFecha,
 } = require('../src/motor/motorEsquema');
-const { catalogo, id, SERIES_PRODUCTO, LIMITES } = require('./catalogo.fixture');
+const { catalogo, id, SERIES_PRODUCTO, LIMITES, EXCLUSIVAS } = require('./catalogo.fixture');
 
 const NAC = '2026-01-01';
 const mas = (dias, base = NAC) => aFecha(aDia(base) + dias);
@@ -11,11 +12,12 @@ const estadoDe = (r, serie, n) => r.dosis.find((d) => d.esquemaDosisId === id(se
 const ap = (serie, n, fecha, extra = {}) => ({ esquemaDosisId: id(serie, n), fecha, ...extra });
 const ids = (lista) => lista.map((x) => x.esquemaDosisId).sort();
 const cumple = (producto, fecha, aplicaciones = [], nac = NAC) =>
-  dosisQueCumpleProducto({ seriesProducto: SERIES_PRODUCTO[producto], catalogo, aplicaciones, fechaNacimiento: nac, fecha });
+  dosisQueCumpleProducto({ seriesProducto: SERIES_PRODUCTO[producto], limites: LIMITES[producto], exclusivas: EXCLUSIVAS[producto],
+    catalogo, aplicaciones, fechaNacimiento: nac, fecha });
 
 const alNacer = [ap('HB_RN', 1, NAC), ap('BCG', 1, NAC)];
 const de2Meses = (f = mas(60)) => [ap('DPT_HIB_HB', 1, f), ap('POLIO', 1, f), ap('ROTA', 1, f), ap('NEUMO', 1, f)];
-const de4Meses = (f = mas(120)) => [ap('DPT_HIB_HB', 2, f), ap('POLIO', 2, f), ap('ROTA', 2, f), ap('NEUMO', 2, f)];
+const de4Meses = (f = mas(120)) => [ap('DPT_HIB_HB', 2, f), ap('POLIO', 2, f), ap('OPV_4M', 1, f), ap('ROTA', 2, f), ap('NEUMO', 2, f)];
 
 test('CP-01 recién nacido: BCG y HepB le tocan; resto sin atraso', () => {
   const r = calcularEsquema({ fechaNacimiento: NAC, catalogo, fechaRef: NAC });
@@ -60,7 +62,7 @@ test('CP-05b refuerzo vencido es atraso, no abandono: serie primaria completa y 
   assert.equal(r.estadoNino, 'atrasado');
 });
 
-test('CP-06 hexavalente 1a cumple Pentavalente 1a y Polio 1a', () => {
+test('CP-06 hexavalente 1a cumple DPT 1a y Polio 1a', () => {
   assert.deepEqual(ids(cumple('HEXA', mas(60))), [id('DPT_HIB_HB', 1), id('POLIO', 1)].sort());
 });
 
@@ -141,11 +143,43 @@ test('Rotavirus: la 2a va dos meses después de la 1a', () => {
 });
 
 test('La hexavalente no cumple el R1 de polio (ese es OPV); sí el R1 hexavalente', () => {
-  const primaria = [1, 2, 3].flatMap((n) => [ap('DPT_HIB_HB', n, mas(60 * n)), ap('POLIO', n, mas(60 * n))]);
+  const primaria = [...[1, 2, 3].flatMap((n) => [ap('DPT_HIB_HB', n, mas(60 * n)), ap('POLIO', n, mas(60 * n))]), ap('OPV_4M', 1, mas(120))];
   const r = dosisQueCumpleProducto({ seriesProducto: SERIES_PRODUCTO.HEXA, limites: LIMITES.HEXA, catalogo,
     aplicaciones: primaria, fechaNacimiento: NAC, fecha: mas(548) });
   assert.deepEqual(ids(r), [id('DPT_HIB_HB', 4)]);
   assert.deepEqual(ids(cumple('OPV', mas(548), primaria)), [id('POLIO', 4)]);
+});
+
+// ---- Esquema 2026: OPV de los 4 meses junto con la hexavalente 2a ----
+test('OPV a los 4 meses: le toca con la hexavalente 2a y sin ella el niño queda atrasado', () => {
+  const r = calcularEsquema({ fechaNacimiento: NAC, catalogo, fechaRef: mas(120), aplicaciones: [...alNacer, ...de2Meses()] });
+  assert.equal(estadoDe(r, 'OPV_4M', 1), 'le_toca');
+  assert.ok(r.leTocaHoy.some((d) => d.serieCodigo === 'OPV_4M'));
+  const sinOpv = [...alNacer, ...de2Meses(), ...de4Meses().filter((a) => a.esquemaDosisId !== id('OPV_4M', 1))];
+  const tarde = calcularEsquema({ fechaNacimiento: NAC, catalogo, fechaRef: mas(160), aplicaciones: sinOpv });
+  assert.equal(estadoDe(tarde, 'OPV_4M', 1), 'atrasada');
+});
+
+test('Una OPV cumple una sola dosis: a los 4 meses la 2a OPV, antes o después de la hexavalente', () => {
+  const previas = [...alNacer, ...de2Meses()];
+  assert.deepEqual(ids(cumple('OPV', mas(120), previas)), [id('OPV_4M', 1)]);
+  const conHexa = [...previas, ap('DPT_HIB_HB', 2, mas(120)), ap('POLIO', 2, mas(120))];
+  assert.deepEqual(ids(cumple('OPV', mas(120), conHexa)), [id('OPV_4M', 1)]);
+});
+
+test('OPV a los 18 meses sin la de 4 meses: primero cumple la 2a OPV (recuperación) y el R1 queda pendiente', () => {
+  const primaria = [1, 2, 3].flatMap((n) => [ap('DPT_HIB_HB', n, mas(60 * n)), ap('POLIO', n, mas(60 * n))]);
+  assert.deepEqual(ids(cumple('OPV', mas(548), primaria)), [id('OPV_4M', 1)]);
+  const opv = catalogo.find((d) => d.id === id('OPV_4M', 1));
+  assert.equal(esRecuperacion(opv, NAC, mas(548)), true);
+});
+
+test('Esquema anterior: nacido antes de la hexavalente no tiene OPV de 4 meses y su OPV cumple la polio que sigue', () => {
+  const nac = '2025-01-01';
+  const r = calcularEsquema({ fechaNacimiento: nac, catalogo, fechaRef: '2025-05-01' });
+  assert.equal(estadoDe(r, 'OPV_4M', 1), undefined);
+  const previas = [ap('DPT_HIB_HB', 1, '2025-03-01'), ap('POLIO', 1, '2025-03-01')];
+  assert.deepEqual(ids(cumple('OPV', '2025-05-01', previas, nac)), [id('POLIO', 2)]);
 });
 
 test('Anular una dosis la deja de contar', () => {
@@ -156,11 +190,11 @@ test('Anular una dosis la deja de contar', () => {
 test('Próxima cita incluye las vacunas de esa fecha', () => {
   const r = calcularEsquema({ fechaNacimiento: NAC, catalogo, fechaRef: mas(10), aplicaciones: alNacer });
   assert.equal(r.proximaCita, mas(60));
-  assert.ok(r.proximaCitaVacunas.includes('Pentavalente 1a') && r.proximaCitaVacunas.includes('Rotavirus 1a'));
+  assert.ok(r.proximaCitaVacunas.includes('Hexavalente 1a') && r.proximaCitaVacunas.includes('Rotavirus 1a'));
 });
 
-// ---- Recuperación (página 5 del 5a) ----
-test('Recuperación: Pentavalente 1a a los 13 meses sí; a los 6 meses no; R2 nunca', () => {
+// ---- Recuperación (páginas 9 a 11 del 5a 2026) ----
+test('Recuperación: Hexavalente 1a a los 13 meses sí; a los 6 meses no; R2 solo con 5 años o más', () => {
   const penta1 = catalogo.find((d) => d.id === id('DPT_HIB_HB', 1));
   assert.equal(esRecuperacion(penta1, NAC, '2027-02-01'), true);
   assert.equal(esRecuperacion(penta1, NAC, '2026-07-01'), false);
@@ -168,7 +202,17 @@ test('Recuperación: Pentavalente 1a a los 13 meses sí; a los 6 meses no; R2 nu
   assert.equal(esRecuperacion(spr1, NAC, '2027-06-01'), false);
   assert.equal(esRecuperacion(spr1, NAC, '2028-02-01'), true);
   const r2 = catalogo.find((d) => d.id === id('DPT_HIB_HB', 5));
-  assert.equal(esRecuperacion(r2, NAC, '2032-06-01'), false);
+  assert.equal(esRecuperacion(r2, NAC, '2030-06-01'), false);
+  assert.equal(esRecuperacion(r2, NAC, '2032-06-01'), true);
+});
+
+test('Influenza en recuperación: primera serie empezada con 1 año o más; con antecedente va en R1 o R2', () => {
+  assert.equal(esRecuperacionInfluenza({ fechaNacimiento: NAC, catalogo, fecha: '2026-10-20' }), false);
+  assert.equal(esRecuperacionInfluenza({ fechaNacimiento: NAC, catalogo, fecha: '2027-10-20' }), true);
+  const segunda = [ap('INFLUENZA', 1, '2027-10-20')];
+  assert.equal(esRecuperacionInfluenza({ fechaNacimiento: NAC, catalogo, fecha: '2027-11-20', aplicaciones: segunda }), true);
+  const conAntecedente = [ap('INFLUENZA', 1, '2026-10-20'), ap('INFLUENZA', 2, '2026-11-20')];
+  assert.equal(esRecuperacionInfluenza({ fechaNacimiento: NAC, catalogo, fecha: '2027-10-20', aplicaciones: conAntecedente }), false);
 });
 
 // ---- Influenza ----
@@ -226,8 +270,18 @@ test('Recuperación: al día no se marca; atrasado sí, y las dosis siguientes v
   assert.deepEqual(alDia.recuperacion, []);
   // Penta 1a puesta a los 5 meses (tarde): la 2a va con el intervalo mínimo (4 semanas), no a los 4 meses de edad
   const tarde = calcularEsquema({ fechaNacimiento: NAC, catalogo, fechaRef: mas(160), aplicaciones: [...alNacer, ap('DPT_HIB_HB', 1, mas(150))] });
-  assert.ok(tarde.recuperacion.includes('Pentavalente'));
+  assert.ok(tarde.recuperacion.includes('Hexavalente'));
   const p2 = tarde.dosis.find((d) => d.esquemaDosisId === id('DPT_HIB_HB', 2));
   assert.equal(p2.acelerada, true);
   assert.equal(p2.fechaProgramada, mas(150 + 28));
+});
+
+test('Varicela y SPR: el mismo día sí; con menos de 4 semanas se rechaza y dice desde cuándo', () => {
+  const spr = [ap('SPR', 1, mas(400))];
+  const valida = (fecha) => validarAplicacion({ fechaNacimiento: NAC, catalogo, aplicaciones: spr, esquemaDosisId: id('VARICELA', 1), fecha });
+  assert.equal(valida(mas(400)).ok, true);
+  const v = valida(mas(410));
+  assert.equal(v.ok, false);
+  assert.match(v.error, new RegExp(mas(428)));
+  assert.equal(valida(mas(428)).ok, true);
 });

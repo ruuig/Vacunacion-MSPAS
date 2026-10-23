@@ -29,11 +29,12 @@ function imprimirCita(nombre, cita, vacunas) {
   v.document.close();
 }
 
-/** Producto que se aplica para una dosis del esquema (la hexavalente cubre Penta y Polio del mismo número). */
+/** Producto que se aplica para una dosis del esquema 2026 (la hexavalente cubre DPT y Polio del mismo número). */
 function productoPara(d) {
   switch (d.serieCodigo) {
     case 'HB_RN': return 'HB_PED';
     case 'BCG': return 'BCG';
+    case 'OPV_4M': return 'OPV';
     case 'ROTA': return 'ROTA';
     case 'NEUMO': return 'NEUMO';
     case 'SPR': case 'SPR_CERO': return 'SPR';
@@ -48,12 +49,12 @@ function productoPara(d) {
 /** Agrupa las dosis que le tocan en "tarjetas de vacuna": una hexavalente = Penta n + Polio n. */
 function agrupar(dosis, productos) {
   const tarjetas = [];
-  // La hexavalente se usa cuando tocan juntas la polio y la pentavalente del mismo número; si solo falta la polio,
-  // se pone IPV (1a) u OPV, porque la hexa también adelantaría la siguiente pentavalente
+  // La hexavalente se usa cuando tocan juntas la polio y la DPT del mismo número; si solo falta la polio (esquema
+  // empezado con pentavalente), se pone OPV, porque la hexa también adelantaría la siguiente DPT
   const conPenta = new Set(dosis.filter((d) => d.serieCodigo === 'DPT_HIB_HB').map((d) => d.numero));
   for (const d of dosis) {
     let codigo = productoPara(d);
-    if (d.serieCodigo === 'POLIO' && codigo === 'HEXA' && !conPenta.has(d.numero)) codigo = d.numero === 1 ? 'IPV' : 'OPV';
+    if (d.serieCodigo === 'POLIO' && codigo === 'HEXA' && !conPenta.has(d.numero)) codigo = 'OPV';
     const producto = productos.find((p) => p.codigo === codigo);
     if (!producto) continue;
     const t = codigo === 'HEXA' && tarjetas.find((x) => x.codigo === 'HEXA' && x.numero === d.numero);
