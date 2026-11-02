@@ -152,6 +152,7 @@ router.post('/:id/quitar-puesto', permitir('administrador'), async (req, res) =>
     if (!d) return { status: 400, error: 'Elija a qué puesto pasan sus comunidades.' };
     const { rowCount } = await cl.query('UPDATE comunidad SET comunidad_padre_id = $2 WHERE comunidad_padre_id = $1', [p.id, d.id]);
     await cl.query('UPDATE comunidad SET es_central = false, comunidad_padre_id = $2 WHERE id = $1', [p.id, d.id]);
+    await cl.query('UPDATE usuario SET puesto_id = $2 WHERE puesto_id = $1', [p.id, d.id]); // su personal sigue con esas comunidades
     await registrarBitacora(cl, req, 'editar', 'comunidad', p.id, p, { quitar_puesto: true, destino_id: d.id, movidas: rowCount });
     return { status: 200, movidas: rowCount };
   });
@@ -178,6 +179,7 @@ router.post('/:id/desactivar', permitir('administrador'), async (req, res) => {
   if (u.hijas) return res.status(409).json({ error: `Tiene ${u.hijas} comunidades a cargo: páselas a otro puesto primero.` });
   if (u.ninos_activos) return res.status(409).json({ error: `Tiene ${u.ninos_activos} niños activos: cámbielos de comunidad primero.` });
   await pool.query('UPDATE comunidad SET activo = false, responsable_id = NULL WHERE id = $1', [c.id]);
+  await pool.query('UPDATE usuario SET puesto_id = NULL WHERE puesto_id = $1', [c.id]);
   await registrarBitacora(pool, req, 'editar', 'comunidad', c.id, c, { activo: false });
   res.json({ ok: true });
 });

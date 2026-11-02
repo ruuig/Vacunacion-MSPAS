@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { pool, transaccion, registrarBitacora } = require('../db');
 const { permitir, TODOS, OPERATIVOS } = require('../middleware/auth');
 const esq = require('../servicios/esquema');
+const { alcanceDe, puedeVerNino } = require('../territorio');
 
 const NOMBRES = ['primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido'];
 const CAMPOS = [...NOMBRES, 'cui', 'fecha_nacimiento', 'departamento', 'municipio', 'comunidad_id', 'direccion_detalle',
@@ -46,12 +47,24 @@ router.get('/', permitir(...TODOS), async (req, res) => {
   if (!cui) return res.json([]);
   const { rows } = await pool.query(
     `SELECT r.*, (SELECT count(*)::int FROM nino_responsable nr WHERE nr.responsable_id = r.id) AS ninos
-     FROM responsable r WHERE r.cui = $1`, [cui]);
+     FROM responsable r WHERE r.cui = $1 AND ($2::int[] IS NULL OR r.comunidad_id = ANY($2))`, [cui, await alcanceDe(pool, req.usuario)]);
   res.json(rows);
 });
 
+// ¿Es de su sector, o tiene un niño que este usuario puede ver (por ejemplo, de una jornada suya)?
+async function puedeEditarResponsable(usuario, id) {
+  const alcance = await alcanceDe(pool, usuario);
+  if (!alcance) return true;
+  const { rows: [r] } = await pool.query('SELECT comunidad_id FROM responsable WHERE id = $1', [id]);
+  if (!r || alcance.includes(r.comunidad_id)) return true;
+  const { rows: ninos } = await pool.query('SELECT nino_id FROM nino_responsable WHERE responsable_id = $1', [id]);
+  for (const n of ninos) if (await puedeVerNino(pool, usuario, n.nino_id)) return true;
+  return false;
+}
+
 // Editar responsable; si cambia de comunidad, sus niños (como responsable principal) cambian también
 router.put('/:id', permitir(...OPERATIVOS), async (req, res) => {
+  if (!await puedeEditarResponsable(req.usuario, req.params.id)) return res.status(403).json({ error: 'Esta familia es de otro puesto de salud.' });
   const r = await transaccion(async (c) => {
     const r = await guardarResponsable(c, req, { ...req.body, id: Number(req.params.id) });
     const { rows: ninos } = await c.query(

@@ -5,6 +5,11 @@ const { permitir, TODOS, OPERATIVOS } = require('../middleware/auth');
 const { calcularSuplementos } = require('../motor/suplementos');
 const { hoy } = require('../fecha');
 const { filtroTerritorio } = require('./seguimiento');
+const { alcanceDe, dentroDelAlcance, soloSuRegistro, soloSuSector } = require('../territorio');
+
+// :id es el niño en /nino/:id y la entrega en /:id/anular: por eso no se usa router.param
+const delNino = (req, res, next) => soloSuSector('id')(req, res, next, req.params.id);
+const deLaEntrega = (req, res, next) => soloSuRegistro('suplementacion')(req, res, next, req.params.id);
 
 const INSUMO = { VIT_A: 'Vitamina A', MICRO: 'Micronutrientes', DESPARASITANTE: 'Desparasitante' };
 const catalogo = async (db) => (await db.query('SELECT * FROM suplemento_dosis WHERE activo ORDER BY orden')).rows;
@@ -12,7 +17,7 @@ const entregasDe = async (db, ids) => (ids.length ? (await db.query(
   'SELECT id, nino_id, suplemento_dosis_id, fecha FROM suplementacion WHERE NOT anulada AND nino_id = ANY($1)', [ids])).rows : []);
 
 // Suplementos de un niño: estado de cada dosis e historial
-router.get('/nino/:id', permitir(...TODOS), async (req, res) => {
+router.get('/nino/:id', permitir(...TODOS), delNino, async (req, res) => {
   const { rows: [n] } = await pool.query('SELECT id, fecha_nacimiento FROM nino WHERE id = $1', [req.params.id]);
   if (!n) return res.status(404).json({ error: 'Niño no encontrado.' });
   const [cat, entregas] = [await catalogo(pool), await entregasDe(pool, [n.id])];
@@ -26,7 +31,7 @@ router.get('/nino/:id', permitir(...TODOS), async (req, res) => {
 });
 
 // Entregar uno o varios suplementos el mismo día
-router.post('/nino/:id', permitir(...OPERATIVOS), async (req, res) => {
+router.post('/nino/:id', permitir(...OPERATIVOS), delNino, async (req, res) => {
   const { ids = [], fecha = hoy(), establecimiento_id, jornada_id } = req.body || {};
   if (!ids.length) return res.status(400).json({ error: 'Elija al menos un suplemento.' });
   if (fecha > hoy()) return res.status(400).json({ error: 'La fecha no puede ser futura.' });
@@ -54,7 +59,7 @@ router.post('/nino/:id', permitir(...OPERATIVOS), async (req, res) => {
   res.status(r.status).json(r.error ? { error: r.error } : { guardadas: r.guardadas });
 });
 
-router.post('/:id/anular', permitir('enfermera'), async (req, res) => {
+router.post('/:id/anular', permitir('enfermera'), deLaEntrega, async (req, res) => {
   const { motivo } = req.body || {};
   if (!motivo) return res.status(400).json({ error: 'Indique el motivo de la anulación.' });
   const { rows: [s] } = await pool.query(
@@ -71,8 +76,7 @@ router.get('/mes', permitir(...TODOS), async (req, res) => {
   const desde = `${anio}-${String(mes).padStart(2, '0')}-01`;
   const hasta = new Date(Date.UTC(anio, mes, 0)).toISOString().slice(0, 10);
   const corte = hasta < hoy() ? hasta : hoy();
-  const sector = await require('../territorio').alcanceDe(pool, req.usuario);
-  const comunidades = sector && !req.query.comunidad ? sector : await filtroTerritorio(pool, req.query);
+  const comunidades = dentroDelAlcance(await filtroTerritorio(pool, req.query), await alcanceDe(pool, req.usuario));
   const { rows: ninos } = await pool.query(`
     SELECT n.id, n.nombre_completo, n.fecha_nacimiento, n.comunidad_id, c.nombre AS comunidad, r.nombre_completo AS responsable, r.telefono
     FROM nino n JOIN comunidad c ON c.id = n.comunidad_id

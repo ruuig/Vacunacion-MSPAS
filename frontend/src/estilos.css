@@ -562,8 +562,10 @@ td.celda-fin .botones-fila { flex-wrap: nowrap; }
 .login-tarjeta > p { color: var(--suave); margin: .3rem 0 1.5rem; font-size: .9rem; }
 .login-tarjeta form { display: grid; gap: 1rem; }
 .login-tarjeta .btn-bloque { padding: .85rem; font-size: .95rem; margin-top: .4rem; }
-.mostrar-clave { position: absolute; right: .4rem; top: 50%; transform: translateY(-50%); margin: 0; }
-.mostrar-clave:active { transform: translateY(-50%); }
+/* Más específico que .btn:active y .btn-fantasma:active: al presionarlo no se mueve de su lugar dentro del campo */
+.btn.mostrar-clave, .btn.mostrar-clave:active:not(:disabled) { position: absolute; z-index: 1; right: .4rem; top: 50%; transform: translateY(-50%); margin: 0; color: var(--marino); }
+/* Edge agrega su propio ojo a las contraseñas: se oculta para que no se encime con este */
+.con-icono input::-ms-reveal, .con-icono input::-ms-clear { display: none; }
 .login-nota { text-align: center; font-size: .76rem; color: var(--tenue); margin-top: 1.5rem; }
 
 /* ==========================================================================

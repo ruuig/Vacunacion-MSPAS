@@ -14,6 +14,8 @@ app.set('trust proxy', 1);
 app.use(express.json({ limit: '2mb' })); // el logo llega como imagen en base64
 
 const api = express.Router();
+// La respuesta depende de quién pregunta: una copia guardada (service worker) no sirve para otra sesión
+api.use((_req, res, next) => { res.vary('Authorization'); next(); });
 api.use('/auth', require('./routes/auth'));
 api.use('/marca', require('./routes/marca')); // logo: sin sesión, lo usa el inicio de sesión
 api.use(autenticar);

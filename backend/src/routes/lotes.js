@@ -68,8 +68,8 @@ router.get('/:id/ninos', permitir(...GESTION), async (req, res) => {
     FROM aplicacion a JOIN nino n ON n.id = a.nino_id JOIN comunidad c ON c.id = n.comunidad_id
     LEFT JOIN nino_responsable nr ON nr.nino_id = n.id AND nr.es_principal
     LEFT JOIN responsable r ON r.id = nr.responsable_id
-    WHERE a.lote_id = $1 AND NOT a.anulada
-    ORDER BY a.fecha_aplicacion DESC, n.primer_apellido`, [req.params.id]);
+    WHERE a.lote_id = $1 AND NOT a.anulada AND ($2::int[] IS NULL OR n.comunidad_id = ANY($2))
+    ORDER BY a.fecha_aplicacion DESC, n.primer_apellido`, [req.params.id, await require('../territorio').alcanceDe(pool, req.usuario)]);
   res.json(rows);
 });
 

@@ -10,7 +10,7 @@ import Logo, { recargarLogo } from '../componentes/Logo.jsx';
 import { useSesion } from '../App.jsx';
 import { useDialogos } from '../componentes/Dialogos.jsx';
 import { invalidarCatalogo, useCatalogo } from '../componentes/useCatalogo.js';
-import { Campo, Cargando, Encabezado, Mensaje, Modal, Pestanas, Tabla, Tarjeta, Vacio, iniciales } from '../componentes/ui.jsx';
+import { Campo, Cargando, Encabezado, EntradaClave, Mensaje, Modal, Pestanas, Tabla, Tarjeta, Vacio, iniciales } from '../componentes/ui.jsx';
 import { Estado, plural } from '../componentes/Estado.jsx';
 
 // El administrador configura todo desde aquí, sin tocar código: centro, territorio, personas, roles y cargos, esquema
@@ -92,8 +92,10 @@ function Usuarios() {
   const [cargos, cargarCargos] = useCarga('/catalogos/cargos');
   const comunidades = useCatalogo('comunidades');
   const aCargo = (id) => comunidades.filter((c) => c.responsable_id === id).map((c) => (c.es_central ? `Puesto ${c.nombre}` : c.nombre));
+  const puestos = comunidades.filter((c) => c.es_central || c.tipo === 'casco_urbano');
+  const opcionesPuesto = puestos.map((c) => <option key={c.id} value={c.id}>{c.tipo === 'casco_urbano' ? 'Casco urbano' : `Puesto ${c.nombre}`}</option>);
   const accion = useAccion(cargar, setError);
-  const VACIO = { nombre: '', cargo: '', usuario: '', contrasena: '', rol: 'vacunador' };
+  const VACIO = { nombre: '', cargo: '', usuario: '', contrasena: '', rol: 'vacunador', puesto_id: '' };
   const [nuevo, setNuevo] = useState(VACIO);
   const set = (k) => (e) => setNuevo({ ...nuevo, [k]: e.target.value });
 
@@ -118,8 +120,13 @@ function Usuarios() {
             <Campo etiqueta="Nombre completo" requerido><input required value={nuevo.nombre} onChange={set('nombre')} /></Campo>
             <Campo etiqueta="Cargo"><SelectorCargo valor={nuevo.cargo} cargos={cargos} onNuevo={cargarCargos} onCambio={(v) => setNuevo({ ...nuevo, cargo: v })} /></Campo>
             <Campo etiqueta="Usuario" requerido><input required value={nuevo.usuario} onChange={set('usuario')} autoComplete="off" autoCapitalize="none" /></Campo>
-            <Campo etiqueta="Contraseña" requerido ayuda="Mínimo 8 caracteres"><input required type="password" minLength={8} value={nuevo.contrasena} onChange={set('contrasena')} autoComplete="new-password" /></Campo>
+            <Campo etiqueta="Contraseña" requerido ayuda="Mínimo 8 caracteres"><EntradaClave required minLength={8} value={nuevo.contrasena} onChange={set('contrasena')} autoComplete="new-password" /></Campo>
             <Campo etiqueta="Rol" requerido><select value={nuevo.rol} onChange={set('rol')}>{Object.entries(ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Campo>
+            {nuevo.rol === 'vacunador' && (
+              <Campo etiqueta="Puesto" ayuda="Ve los niños de este puesto y los de sus jornadas">
+                <select value={nuevo.puesto_id} onChange={set('puesto_id')}><option value="">Sin asignar (solo sus jornadas)</option>{opcionesPuesto}</select>
+              </Campo>
+            )}
           </div>
         </Tarjeta>
       </form>
@@ -143,8 +150,13 @@ function Usuarios() {
                   onCambio={(v) => cambiar(u, { cargo: v }, 'Cargo actualizado.')} style={{ marginTop: '.35rem', minWidth: 170 }} />
               </td>
               <td>{u.rol === 'enfermera' ? (aCargo(u.id).length ? aCargo(u.id).join(', ')
-                : <span className="rojo" title="Sin puesto a cargo ve todo el municipio">Sin puesto · <a href="?vista=territorio">asignar</a></span>)
-                : u.rol === 'vacunador' ? <span className="tenue">Las jornadas a las que lo asignan</span> : <span className="tenue">Todo el municipio</span>}</td>
+                : <span className="rojo" title="Sin puesto a cargo solo ve las jornadas de su equipo">Sin puesto · <a href="?vista=territorio">asignar</a></span>)
+                : u.rol === 'vacunador' ? (
+                  <select className="selector-chico" value={u.puesto_id || ''} aria-label={`Puesto de ${u.nombre}`} title="Ve los niños de este puesto y los de sus jornadas"
+                    onChange={(e) => cambiar(u, { puesto_id: e.target.value ? Number(e.target.value) : null }, 'Puesto actualizado.')} style={{ minWidth: 170 }}>
+                    <option value="">Sin asignar (solo sus jornadas)</option>{opcionesPuesto}
+                  </select>
+                ) : <span className="tenue">Todo el municipio</span>}</td>
               <td>{u.ultimo_acceso ? new Date(u.ultimo_acceso).toLocaleString('es-GT') : '—'}</td>
               <td><Estado de={!u.activo ? 'desactivado' : u.intentos_fallidos >= 5 ? 'bloqueado' : 'activo'} /></td>
               <td className="celda-fin">
@@ -481,9 +493,9 @@ function CentroSalud() {
 
 // Qué puede hacer cada rol (los permisos los decide el rol; el cargo es solo el nombre del puesto de trabajo)
 const PERMISOS = [
-  ['Ver niños', 'Los de sus jornadas', 'Su puesto y sus aldeas', 'Todo el municipio'],
+  ['Ver niños', 'Su puesto y sus jornadas', 'Su puesto y sus aldeas', 'Todo el municipio'],
   ['Vacunar y marcar «No llegó» en una jornada', '✓', '✓', '✓'],
-  ['Registrar niños nuevos, suplementos y la ficha', 'En su jornada', '✓', '✓'],
+  ['Registrar niños nuevos, suplementos y la ficha', 'En su puesto y sus jornadas', '✓', '✓'],
   ['Llamar o visitar a los atrasados y anotar', '—', 'Su puesto', '✓'],
   ['Programar, cerrar y cancelar jornadas', '—', 'En su puesto', '✓'],
   ['Cuadernos SIGSA 5a', '—', 'Los de su puesto', '✓'],

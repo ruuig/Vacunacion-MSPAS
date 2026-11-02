@@ -1,4 +1,6 @@
 // Etiquetas, códigos del cuaderno SIGSA 5a y formatos compartidos.
+import { sesionGuardada } from './api.js';
+
 export const ESTADO_DOSIS = {
   aplicada: 'Aplicada', le_toca: 'Le toca', atrasada: 'Atrasada', proxima: 'Próxima',
   pendiente: 'Pendiente', en_espera: 'En espera', no_aplicable: 'Ya no aplica',
@@ -107,15 +109,17 @@ export const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Ju
 export const pct = (v) => (v == null ? '—' : `${v}%`);
 
 // Niños abiertos hace poco en este equipo: atajo en Buscar (solo en el navegador, nunca obligatorio)
-const CLAVE_RECIENTES = 'vacunacion.recientes';
+// Cada cuenta tiene su lista: en un equipo compartido no se ven los niños que abrió otra persona
+const claveRecientes = () => `vacunacion.recientes.${sesionGuardada()?.usuario?.id}`;
+try { localStorage.removeItem('vacunacion.recientes'); } catch { /* lista anterior, compartida entre cuentas */ }
 export function recientes() {
-  try { return JSON.parse(localStorage.getItem(CLAVE_RECIENTES)) || []; } catch { return []; }
+  try { return JSON.parse(localStorage.getItem(claveRecientes())) || []; } catch { return []; }
 }
 export function recordarNino(n) {
   try {
     const lista = [{ id: n.id, nombre_completo: n.nombre_completo, fecha_nacimiento: n.fecha_nacimiento, comunidad: n.comunidad, sexo: n.sexo },
       ...recientes().filter((x) => x.id !== n.id)].slice(0, 6);
-    localStorage.setItem(CLAVE_RECIENTES, JSON.stringify(lista));
+    localStorage.setItem(claveRecientes(), JSON.stringify(lista));
   } catch { /* sin almacenamiento local: el atajo simplemente no aparece */ }
 }
 

@@ -1,10 +1,28 @@
 // Cliente de la API: agrega el token y convierte errores en excepciones con el mensaje del servidor.
 const CLAVE = 'vacunacion.sesion';
 
-export const sesionGuardada = () => {
-  try { return JSON.parse(localStorage.getItem(CLAVE)); } catch { return null; }
-};
-export const guardarSesion = (s) => (s ? localStorage.setItem(CLAVE, JSON.stringify(s)) : localStorage.removeItem(CLAVE));
+const leerDe = (almacen) => { try { return JSON.parse(almacen.getItem(CLAVE)); } catch { return null; } };
+
+// Cada pestaña o ventana tiene su propia sesión: se pueden tener abiertas dos cuentas sin que se mezclen sus datos.
+// localStorage solo guarda la última que entró, para seguir dentro al volver a abrir la app (también sin señal).
+try {
+  if (sessionStorage.getItem(CLAVE) === null && localStorage.getItem(CLAVE)) sessionStorage.setItem(CLAVE, localStorage.getItem(CLAVE));
+} catch { /* sin almacenamiento */ }
+
+export const sesionGuardada = () => leerDe(sessionStorage);
+export function guardarSesion(s) {
+  if (s) {
+    const texto = JSON.stringify(s);
+    sessionStorage.setItem(CLAVE, texto);
+    localStorage.setItem(CLAVE, texto);
+    return;
+  }
+  // Solo se olvida la copia de larga duración si es de esta sesión: otra pestaña puede estar con otra cuenta.
+  // 'null' marca la pestaña como cerrada, para que al recargar no tome la sesión de la otra cuenta.
+  const propia = sesionGuardada();
+  sessionStorage.setItem(CLAVE, 'null');
+  if (propia?.token && leerDe(localStorage)?.token === propia.token) localStorage.removeItem(CLAVE);
+}
 
 const SIN_SERVIDOR = 'No se pudo conectar con el servidor. Intente de nuevo.';
 const SIN_INTERNET = 'Sin conexión a internet. '

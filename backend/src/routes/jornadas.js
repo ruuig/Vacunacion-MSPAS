@@ -10,12 +10,11 @@ const EN_EQUIPO = `(j.responsable_id = $1 OR EXISTS (SELECT 1 FROM jornada_equip
 // Todas sus comunidades son del puesto de la encargada (una jornada mezclada con otro puesto no se le muestra)
 const EN_SU_PUESTO = `($3::int[] IS NOT NULL AND EXISTS (SELECT 1 FROM jornada_comunidad jc WHERE jc.jornada_id = j.id)
   AND NOT EXISTS (SELECT 1 FROM jornada_comunidad jc WHERE jc.jornada_id = j.id AND NOT (jc.comunidad_id = ANY($3))))`;
-// null = ve todas (Dirección, o enfermera sin puesto asignado); [] = ninguna por territorio (personal)
+// null = ve todas (Dirección); [] = ninguna por territorio (personal, o enfermera sin puesto asignado): solo las de su equipo
 async function puestoDe(db, u) {
   if (u.rol === 'administrador') return null;
   if (u.rol !== 'enfermera') return [];
-  const t = await territorioDe(db, u.id);
-  return t.length ? t : null;
+  return territorioDe(db, u.id);
 }
 
 async function esDelEquipo(db, jornadaId, usuario) {
@@ -80,7 +79,7 @@ router.get('/vista-previa', permitir(...TODOS), async (req, res) => {
   const fecha = /^\d{4}-\d{2}-\d{2}$/.test(req.query.fecha || '') ? req.query.fecha : hoy();
   const ctx = { params: await esq.cargarParametros(pool), catalogo: await esq.cargarCatalogo(pool) };
   const porComunidad = {};
-  for (const { nino, dosis } of await convocables(pool, fecha, null, ctx)) {
+  for (const { nino, dosis } of await convocables(pool, fecha, await require('../territorio').alcanceDe(pool, req.usuario), ctx)) {
     const c = (porComunidad[nino.comunidad_id] ||= { comunidad_id: nino.comunidad_id, ninos: 0, dosis: 0, atrasados: 0, productos: {} });
     c.ninos += 1;
     c.dosis += dosis.length;

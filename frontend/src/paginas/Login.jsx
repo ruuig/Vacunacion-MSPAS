@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Eye, EyeOff, Lock, ShieldCheck, User } from 'lucide-react';
+import { ShieldCheck, User } from 'lucide-react';
 import { api } from '../api.js';
-import { Campo, Mensaje } from '../componentes/ui.jsx';
+import { Campo, EntradaClave, Mensaje } from '../componentes/ui.jsx';
 import Logo from '../componentes/Logo.jsx';
 import { BotonInstalar } from '../componentes/Pwa.jsx';
 import { centroCorto, useCentro } from '../componentes/useCentro.js';
@@ -9,7 +9,6 @@ import { centroCorto, useCentro } from '../componentes/useCentro.js';
 export default function Login({ onEntrar }) {
   const [usuario, setUsuario] = useState('');
   const [contrasena, setContrasena] = useState('');
-  const [verClave, setVerClave] = useState(false);
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
   const centro = useCentro();
@@ -44,15 +43,8 @@ export default function Login({ onEntrar }) {
                 </div>
               </Campo>
               <Campo etiqueta="Contraseña">
-                <div className="con-icono">
-                  <Lock size={18} />
-                  <input type={verClave ? 'text' : 'password'} value={contrasena} onChange={(e) => setContrasena(e.target.value)}
-                    required autoComplete="current-password" placeholder="••••••••" style={{ paddingRight: '3rem' }} />
-                  <button type="button" className="btn btn-fantasma btn-sm btn-icono mostrar-clave" onClick={() => setVerClave(!verClave)}
-                    aria-label={verClave ? 'Ocultar contraseña' : 'Mostrar contraseña'}>
-                    {verClave ? <EyeOff size={17} /> : <Eye size={17} />}
-                  </button>
-                </div>
+                <EntradaClave value={contrasena} onChange={(e) => setContrasena(e.target.value)}
+                  required autoComplete="current-password" placeholder="••••••••" />
               </Campo>
               {error && <Mensaje tipo="error">{error}</Mensaje>}
               <button className="btn btn-primario btn-bloque" disabled={cargando}>{cargando ? 'Verificando…' : 'Entrar al sistema'}</button>

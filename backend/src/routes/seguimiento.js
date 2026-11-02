@@ -61,7 +61,7 @@ router.get('/mes', permitir(...TODOS), async (req, res) => {
   const sector = alcance || [];
   const soloSector = alcance !== null;
   const asignado = soloSector ? 'yo' : req.query.asignado;
-  const comunidad = soloSector && !req.query.comunidad && !req.query.puesto ? sector : await filtroTerritorio(pool, req.query);
+  const comunidad = require('../territorio').dentroDelAlcance(await filtroTerritorio(pool, req.query), alcance);
 
   const { rows: vacunados } = await pool.query(`
     SELECT a.id, a.fecha_aplicacion AS fecha, a.nino_id, n.nombre_completo, n.fecha_nacimiento, n.sexo,
@@ -140,7 +140,7 @@ router.get('/proyeccion', permitir(...TODOS), async (req, res) => {
   // ?municipio=1: el pedido consolidado de todo el municipio (Dirección y encargada del centro)
   const todo = req.query.municipio === '1' && await T.consolidaPedido(pool, req.usuario);
   const alcanceP = todo ? null : await T.alcanceDe(pool, req.usuario);
-  if (alcanceP) lugares = lugares ? lugares.filter((c) => alcanceP.includes(c)) : alcanceP;
+  lugares = T.dentroDelAlcance(lugares, alcanceP);
   const { ninos, aplicaciones } = await cargarNinos(pool, lugares);
   const { rows: productos } = await pool.query('SELECT codigo, nombre FROM producto WHERE activo ORDER BY nombre');
 

@@ -1,7 +1,7 @@
 // Piezas visuales compartidas por todas las pantallas.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertCircle, AlertTriangle, CheckCircle2, ChevronRight, Info, MoreHorizontal, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, ChevronRight, Eye, EyeOff, Info, Lock, MoreHorizontal, X } from 'lucide-react';
 import Logo from './Logo.jsx';
 import { centroCorto, useCentro } from './useCentro.js';
 
@@ -152,6 +152,21 @@ export function Campo({ etiqueta, requerido, ayuda, className = '', children }) 
       {children}
       {ayuda && <span className="ayuda">{ayuda}</span>}
     </label>
+  );
+}
+
+/** Campo de contraseña con botón para mostrarla u ocultarla. */
+export function EntradaClave(props) {
+  const [ver, setVer] = useState(false);
+  return (
+    <div className="con-icono">
+      <Lock size={18} />
+      <input {...props} type={ver ? 'text' : 'password'} style={{ paddingRight: '3rem' }} />
+      <button type="button" className="btn btn-fantasma btn-sm btn-icono mostrar-clave" onClick={() => setVer(!ver)}
+        aria-label={ver ? 'Ocultar contraseña' : 'Mostrar contraseña'} title={ver ? 'Ocultar contraseña' : 'Mostrar contraseña'}>
+        {ver ? <EyeOff size={17} /> : <Eye size={17} />}
+      </button>
+    </div>
   );
 }
 

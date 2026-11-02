@@ -1,7 +1,11 @@
 // Trabajo sin conexión en las jornadas: la jornada se descarga al teléfono antes de salir, y lo que se registra
 // sin señal queda en una cola que se envía sola al volver la conexión.
 // Se guarda en localStorage (pocos kilobytes por jornada): está en el teléfono aunque se cierre la aplicación.
-import { api } from '../api.js';
+import { api, sesionGuardada } from '../api.js';
+
+const usuarioActual = () => sesionGuardada()?.usuario?.id;
+// Lo guardado por otra cuenta en este teléfono no se muestra ni se usa (lo anterior a este cambio no trae dueño)
+const esMio = (x) => x?.usuario_id == null || x.usuario_id === usuarioActual();
 
 const CLAVE_COLA = 'vacunacion.cola';
 const claveJornada = (id) => `vacunacion.jornada.${id}`;
@@ -19,11 +23,11 @@ export async function descargarJornada(id) {
   ]);
   const esquemas = {};
   for (const n of jornada.ninos) esquemas[n.nino_id] = await api(`/ninos/${n.nino_id}/esquema?fecha=${jornada.fecha.slice(0, 10)}`);
-  const copia = { jornada, esquemas, productos, establecimientos, descargada: new Date().toISOString() };
+  const copia = { jornada, esquemas, productos, establecimientos, descargada: new Date().toISOString(), usuario_id: usuarioActual() };
   if (!escribir(claveJornada(id), copia)) throw new Error('El teléfono no tiene espacio para guardar la jornada.');
   return copia;
 }
-export const jornadaGuardada = (id) => leer(claveJornada(id), null);
+export const jornadaGuardada = (id) => { const c = leer(claveJornada(id), null); return esMio(c) ? c : null; };
 export const borrarJornada = (id) => { try { localStorage.removeItem(claveJornada(id)); } catch { /* sin almacenamiento */ } };
 /** Catálogos de cualquier jornada descargada: los usa la ventana de vacunar cuando no hay red. */
 export function catalogoGuardado(nombre) {
@@ -38,10 +42,12 @@ export function catalogoGuardado(nombre) {
 
 // ---- Cola de registros sin enviar ----
 
-export const cola = () => leer(CLAVE_COLA, []);
+// Cada registro se envía con la sesión de quien lo hizo: con la de otra cuenta podría rechazarse y perderse
+const colaDelTelefono = () => leer(CLAVE_COLA, []);
+export const cola = () => colaDelTelefono().filter(esMio);
 export function encolar(op) {
-  const lista = cola();
-  lista.push({ ...op, id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, creado: new Date().toISOString() });
+  const lista = colaDelTelefono();
+  lista.push({ ...op, id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, creado: new Date().toISOString(), usuario_id: usuarioActual() });
   escribir(CLAVE_COLA, lista);
   avisarCambio();
 }
@@ -62,10 +68,11 @@ export async function enviarCola() {
         await api(op.ruta, { method: op.method, body: op.body });
         enviadas++;
       } catch (e) {
-        if (e.sinRed) break;
+        // Sesión vencida (8 h): no es un rechazo del registro, queda para cuando vuelva a entrar
+        if (e.sinRed || e.estado === 401) break;
         rechazadas.push(`${op.descripcion}: ${e.message}`);
       }
-      escribir(CLAVE_COLA, cola().filter((x) => x.id !== op.id));
+      escribir(CLAVE_COLA, colaDelTelefono().filter((x) => x.id !== op.id));
     }
   } finally {
     enviando = false;

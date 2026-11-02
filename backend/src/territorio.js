@@ -1,8 +1,9 @@
 // Comunidades a cargo de un usuario: las que tiene como responsable y, si es responsable de un puesto,
-// las comunidades de ese puesto que no tienen un responsable propio.
+// las comunidades de ese puesto que no tienen un responsable propio. El personal de vacunación: su puesto y las comunidades de ese puesto.
 const SQL_TERRITORIO = `
   SELECT c.id FROM comunidad c LEFT JOIN comunidad p ON p.id = c.comunidad_padre_id
-  WHERE c.activo AND (c.responsable_id = $1 OR (c.responsable_id IS NULL AND p.responsable_id = $1))`;
+  WHERE c.activo AND (c.responsable_id = $1 OR (c.responsable_id IS NULL AND p.responsable_id = $1)
+    OR EXISTS (SELECT 1 FROM usuario u WHERE u.id = $1 AND u.puesto_id IN (c.id, c.comunidad_padre_id)))`;
 
 async function territorioDe(db, usuarioId) {
   const { rows } = await db.query(SQL_TERRITORIO, [usuarioId]);
@@ -12,18 +13,20 @@ async function territorioDe(db, usuarioId) {
 /**
  * Comunidades que un usuario puede ver y editar (null = todas). Tres roles:
  *  · Dirección (administrador): todo el municipio.
- *  · Enfermera encargada de puesto: su puesto y sus aldeas (si aún no tiene lugar asignado, ve todo).
- *  · Personal de vacunación: busca a cualquier niño (rota de área), pero su menú no tiene seguimiento ni gestión.
+ *  · Enfermera encargada de puesto: su puesto y sus aldeas.
+ *  · Personal de vacunación: el puesto que le asignó la Dirección (los niños de sus jornadas se abren por puedeVerNino).
+ * Quien aún no tiene lugar asignado no ve ninguna comunidad ([]), nunca todo el municipio.
  */
 async function alcanceDe(db, usuario) {
-  if (usuario?.rol === 'enfermera') {
-    const t = await territorioDe(db, usuario.id);
-    return t.length ? t : null;
-  }
-  // El personal de vacunación (auxiliares que rotan de área o atienden los cuadernillos del centro) busca a
-  // cualquier niño del municipio para vacunarlo o darle suplementos; no ve seguimiento, tablero ni pedido.
-  return null;
+  if (usuario?.rol === 'administrador') return null;
+  return territorioDe(db, usuario.id);
 }
+
+/** Recorta las comunidades pedidas (null = todas) a las que el usuario puede ver. */
+const dentroDelAlcance = (lugares, alcance) => {
+  if (!alcance) return lugares;
+  return lugares ? lugares.filter((c) => alcance.includes(c)) : alcance;
+};
 
 /**
  * ¿Consolida el pedido del municipio? La Dirección y la enfermera encargada del casco urbano (el centro de salud),
@@ -58,4 +61,13 @@ const soloSuSector = (param) => async (req, res, next, valor) => {
   res.status(403).json({ error: 'Este niño es de otro puesto de salud.' });
 };
 
-module.exports = { territorioDe, alcanceDe, consolidaPedido, puedeVerNino, soloSuSector, SQL_TERRITORIO };
+/** Igual que soloSuSector, para registros de un niño con su propio :id (alerta, aplicacion, suplementacion). */
+const soloSuRegistro = (tabla) => async (req, res, next, valor) => {
+  if (!/^\d+$/.test(String(valor))) return next();
+  const db = require('./db').pool;
+  const { rows: [r] } = await db.query(`SELECT nino_id FROM ${tabla} WHERE id = $1`, [valor]);
+  if (!r || await puedeVerNino(db, req.usuario, r.nino_id)) return next();
+  res.status(403).json({ error: 'Este niño es de otro puesto de salud.' });
+};
+
+module.exports = { territorioDe, alcanceDe, dentroDelAlcance, consolidaPedido, puedeVerNino, soloSuSector, soloSuRegistro, SQL_TERRITORIO };

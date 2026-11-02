@@ -119,6 +119,9 @@ function BuscarNino({ params, setParams }) {
         </Campo>
       </div>
 
+      {!usuario.sector && usuario.rol === 'vacunador' && (
+        <Mensaje tipo="info">Aún no tiene un puesto asignado: solo puede abrir a los niños de sus jornadas. Pida a la Dirección que le asigne su puesto.</Mensaje>
+      )}
       <Mensaje tipo="error">{error}</Mensaje>
       {resultados === null ? (<>
         <LesToca comunidad={comunidad} />

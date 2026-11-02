@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { transaccion, registrarBitacora } = require('../db');
 const { permitir } = require('../middleware/auth');
 const esq = require('../servicios/esquema');
+router.param('id', require('../territorio').soloSuRegistro('aplicacion'));
 
 // RF-10 anular dosis con motivo (solo enfermera). Nunca se borra.
 router.post('/:id/anular', permitir('enfermera'), async (req, res) => {

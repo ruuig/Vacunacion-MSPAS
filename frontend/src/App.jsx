@@ -42,8 +42,8 @@ export default function App() {
   // Al cambiar de usuario se olvidan las listas guardadas en memoria (cada rol ve otras comunidades)
   const entrar = async (s) => { limpiarCatalogos(); await borrarDatosGuardados(); guardarSesion(s); setSesion(s); };
   const salir = async () => {
-    // Lo registrado sin señal está solo en este teléfono: salir no lo borra, pero se envía con la sesión de quien entre
-    if (cola().length && !window.confirm('Hay registros guardados sin enviar en este teléfono. ¿Salir de todos modos? Se enviarán cuando alguien vuelva a entrar con señal.')) return;
+    // Lo registrado sin señal está solo en este teléfono: salir no lo borra, se envía cuando esta misma cuenta vuelva a entrar
+    if (cola().length && !window.confirm('Tiene registros guardados sin enviar en este teléfono. ¿Salir de todos modos? Se enviarán cuando vuelva a entrar con su usuario y haya señal.')) return;
     try { await api('/auth/logout', { method: 'POST' }); } catch { /* sesión ya vencida */ }
     guardarSesion(null);
     await borrarDatosGuardados();

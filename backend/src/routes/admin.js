@@ -8,7 +8,14 @@ const { tomarFoto } = require('../indicadores/consultas');
 router.use(permitir('administrador'));
 
 const ROLES_VALIDOS = ['administrador', 'enfermera', 'vacunador'];
-const SIN_HASH = 'id, nombre, cargo, usuario, rol, activo, intentos_fallidos, ultimo_acceso';
+const SIN_HASH = 'id, nombre, cargo, usuario, rol, activo, intentos_fallidos, ultimo_acceso, puesto_id';
+
+// El puesto solo aplica al personal de vacunación (la encargada lo tiene en comunidad.responsable_id)
+async function puestoValido(db, rol, puestoId) {
+  if (rol !== 'vacunador' || !puestoId) return true;
+  const { rows } = await db.query("SELECT 1 FROM comunidad WHERE id = $1 AND activo AND (es_central OR tipo = 'casco_urbano')", [puestoId]);
+  return rows.length > 0;
+}
 
 router.get('/usuarios', async (_req, res) => {
   const { rows } = await pool.query(`SELECT ${SIN_HASH} FROM usuario ORDER BY activo DESC, nombre`);
@@ -16,14 +23,15 @@ router.get('/usuarios', async (_req, res) => {
 });
 
 router.post('/usuarios', async (req, res) => {
-  const { nombre, cargo = '', usuario, contrasena, rol } = req.body || {};
+  const { nombre, cargo = '', usuario, contrasena, rol, puesto_id } = req.body || {};
   if (!nombre || !usuario || !rol) return res.status(400).json({ error: 'Indique nombre, usuario y rol.' });
   if (!ROLES_VALIDOS.includes(rol)) return res.status(400).json({ error: 'Rol no válido.' });
   if (!contrasena || contrasena.length < 8) return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres.' });
+  if (!await puestoValido(pool, rol, puesto_id)) return res.status(400).json({ error: 'Elija un puesto de salud activo.' });
   const u = await transaccion(async (c) => {
     const { rows: [u] } = await c.query(
-      `INSERT INTO usuario (nombre, cargo, usuario, hash_contrasena, rol) VALUES ($1,$2,$3,$4,$5) RETURNING ${SIN_HASH}`,
-      [nombre, cargo, usuario.trim().toLowerCase(), await bcrypt.hash(contrasena, 12), rol]);
+      `INSERT INTO usuario (nombre, cargo, usuario, hash_contrasena, rol, puesto_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING ${SIN_HASH}`,
+      [nombre, cargo, usuario.trim().toLowerCase(), await bcrypt.hash(contrasena, 12), rol, rol === 'vacunador' ? puesto_id || null : null]);
     await registrarBitacora(c, req, 'crear', 'usuario', u.id, null, u);
     return u;
   });
@@ -32,7 +40,7 @@ router.post('/usuarios', async (req, res) => {
 
 // Editar, desactivar, desbloquear o cambiar contraseña
 router.put('/usuarios/:id', async (req, res) => {
-  const { nombre, cargo, rol, activo, contrasena, desbloquear } = req.body || {};
+  const { nombre, cargo, rol, activo, contrasena, desbloquear, puesto_id } = req.body || {};
   if (contrasena && contrasena.length < 8) return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres.' });
   if (rol && !ROLES_VALIDOS.includes(rol)) return res.status(400).json({ error: 'Rol no válido.' });
   if (Number(req.params.id) === req.usuario.id && (activo === false || (rol && rol !== 'administrador')))
@@ -40,16 +48,22 @@ router.put('/usuarios/:id', async (req, res) => {
   const u = await transaccion(async (c) => {
     const { rows: [antes] } = await c.query(`SELECT ${SIN_HASH} FROM usuario WHERE id = $1 FOR UPDATE`, [req.params.id]);
     if (!antes) return null;
+    const rolFinal = rol ?? antes.rol;
+    // Al dejar de ser personal de vacunación pierde el puesto; puesto_id: null lo quita
+    const puesto = rolFinal !== 'vacunador' ? null : puesto_id !== undefined ? puesto_id || null : antes.puesto_id;
+    if (puesto_id !== undefined && !await puestoValido(c, rolFinal, puesto)) return { invalido: true };
     const hash = contrasena ? await bcrypt.hash(contrasena, 12) : null;
     const { rows: [u] } = await c.query(
       `UPDATE usuario SET nombre = $2, cargo = $3, rol = $4, activo = $5,
          hash_contrasena = coalesce($6, hash_contrasena),
-         intentos_fallidos = CASE WHEN $7 OR $6 IS NOT NULL THEN 0 ELSE intentos_fallidos END
+         intentos_fallidos = CASE WHEN $7 OR $6 IS NOT NULL THEN 0 ELSE intentos_fallidos END,
+         puesto_id = $8
        WHERE id = $1 RETURNING ${SIN_HASH}`,
-      [antes.id, nombre ?? antes.nombre, cargo ?? antes.cargo, rol ?? antes.rol, activo ?? antes.activo, hash, Boolean(desbloquear)]);
+      [antes.id, nombre ?? antes.nombre, cargo ?? antes.cargo, rolFinal, activo ?? antes.activo, hash, Boolean(desbloquear), puesto]);
     await registrarBitacora(c, req, contrasena ? 'cambiar_contrasena' : 'editar', 'usuario', u.id, antes, u);
     return u;
   });
+  if (u?.invalido) return res.status(400).json({ error: 'Elija un puesto de salud activo.' });
   u ? res.json(u) : res.status(404).json({ error: 'Usuario no encontrado.' });
 });
 

@@ -2,11 +2,15 @@ const router = require('express').Router();
 const { pool, transaccion, registrarBitacora } = require('../db');
 const { permitir, TODOS, OPERATIVOS } = require('../middleware/auth');
 
+const { alcanceDe, soloSuRegistro } = require('../territorio');
+router.param('id', soloSuRegistro('alerta'));
+
 const ORDEN_PRIORIDAD = "CASE a.prioridad WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END";
 
 // RF-14 bandeja filtrable por tipo, prioridad y comunidad
 router.get('/', permitir(...TODOS), async (req, res) => {
   const { tipo, comunidad, estado, prioridad } = req.query;
+  const alcance = await alcanceDe(pool, req.usuario);
   const { rows } = await pool.query(`
     SELECT a.*, d.etiqueta, n.nombre_completo, n.fecha_nacimiento, n.fila, c.nombre AS comunidad, s.nombre AS sector,
            cu.numero AS cuaderno_numero, cu.anio AS cuaderno_anio,
@@ -16,16 +20,18 @@ router.get('/', permitir(...TODOS), async (req, res) => {
     LEFT JOIN esquema_dosis d ON d.id = a.esquema_dosis_id
     LEFT JOIN nino_responsable nr ON nr.nino_id = n.id AND nr.es_principal LEFT JOIN responsable r ON r.id = nr.responsable_id
     WHERE a.estado = ANY($1) AND ($2::text IS NULL OR a.tipo = $2) AND ($3::int IS NULL OR n.comunidad_id = $3)
-      AND ($4::text IS NULL OR a.prioridad = $4)
+      AND ($4::text IS NULL OR a.prioridad = $4) AND ($5::int[] IS NULL OR n.comunidad_id = ANY($5))
     ORDER BY ${ORDEN_PRIORIDAD}, a.fecha_generada LIMIT 500`,
-    [estado ? [estado] : ['abierta', 'en_seguimiento'], tipo || null, comunidad || null, prioridad || null]);
+    [estado ? [estado] : ['abierta', 'en_seguimiento'], tipo || null, comunidad || null, prioridad || null, alcance]);
   res.json(rows);
 });
 
 // RF-16 contador de alertas abiertas para el menú
-router.get('/resumen', permitir(...TODOS), async (_req, res) => {
+router.get('/resumen', permitir(...TODOS), async (req, res) => {
   const { rows } = await pool.query(
-    "SELECT tipo, count(*)::int AS total FROM alerta WHERE estado IN ('abierta','en_seguimiento') GROUP BY tipo");
+    `SELECT a.tipo, count(*)::int AS total FROM alerta a JOIN nino n ON n.id = a.nino_id
+     WHERE a.estado IN ('abierta','en_seguimiento') AND ($1::int[] IS NULL OR n.comunidad_id = ANY($1)) GROUP BY a.tipo`,
+    [await alcanceDe(pool, req.usuario)]);
   res.json(rows);
 });
 

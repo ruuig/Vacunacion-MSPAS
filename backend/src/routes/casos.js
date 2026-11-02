@@ -104,11 +104,12 @@ async function atrasoPorNino(db, ninos, hoy) {
 
 // Cuántos niños hay por contactar (sin contar "próxima dosis", que aún no requiere acción): número del menú
 router.get('/conteo', permitir(...TODOS), async (req, res) => {
+  const alcance = await require('../territorio').alcanceDe(pool, req.usuario);
   const { rows: [r] } = await pool.query(`
     SELECT count(DISTINCT a.nino_id)::int AS total,
            count(DISTINCT a.nino_id) FILTER (WHERE ca.usuario_id = $1 OR n.comunidad_id IN (${SQL_TERRITORIO}))::int AS mios
     FROM alerta a JOIN nino n ON n.id = a.nino_id LEFT JOIN caso_asignacion ca ON ca.nino_id = a.nino_id
-    WHERE a.estado IN ('abierta','en_seguimiento') AND a.tipo <> 'proxima'`, [req.usuario.id]);
+    WHERE a.estado IN ('abierta','en_seguimiento') AND a.tipo <> 'proxima' AND ($2::int[] IS NULL OR n.comunidad_id = ANY($2))`, [req.usuario.id, alcance]);
   res.json(r);
 });
 
@@ -157,6 +158,9 @@ router.post('/:ninoId/cerrar', permitir('enfermera'), async (req, res) => {
 router.post('/asignar', permitir('enfermera'), async (req, res) => {
   const { nino_ids = [], usuario_id } = req.body || {};
   if (!nino_ids.length) return res.status(400).json({ error: 'Elija al menos un caso.' });
+  for (const id of nino_ids) {
+    if (!await require('../territorio').puedeVerNino(pool, req.usuario, Number(id))) return res.status(403).json({ error: 'Este niño es de otro puesto de salud.' });
+  }
   await transaccion(async (c) => {
     for (const id of nino_ids) {
       if (usuario_id) {
