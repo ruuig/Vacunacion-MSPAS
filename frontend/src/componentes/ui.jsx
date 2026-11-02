@@ -159,12 +159,14 @@ export function Campo({ etiqueta, requerido, ayuda, className = '', children }) 
 export function EntradaClave(props) {
   const [ver, setVer] = useState(false);
   return (
-    <div className="con-icono">
-      <Lock size={18} />
-      <input {...props} type={ver ? 'text' : 'password'} style={{ paddingRight: '3rem' }} />
-      <button type="button" className="btn btn-fantasma btn-sm btn-icono mostrar-clave" onClick={() => setVer(!ver)}
+    <div className="entrada-clave">
+      <div className="con-icono">
+        <Lock size={18} />
+        <input {...props} type={ver ? 'text' : 'password'} />
+      </div>
+      <button type="button" className="btn btn-icono" onClick={() => setVer(!ver)}
         aria-label={ver ? 'Ocultar contraseña' : 'Mostrar contraseña'} title={ver ? 'Ocultar contraseña' : 'Mostrar contraseña'}>
-        {ver ? <EyeOff size={17} /> : <Eye size={17} />}
+        {ver ? <EyeOff size={18} /> : <Eye size={18} />}
       </button>
     </div>
   );
